@@ -528,6 +528,9 @@
           });
 
           if (mergeRes.ok) {
+            if (window.playNotificationSound) {
+              await window.playNotificationSound();
+            }
             window.location.reload();
           } else {
             throw new Error('Merge request failed');
@@ -554,24 +557,16 @@
 
     const deleteBtn = document.getElementById('detail-delete-btn');
     if (deleteBtn) {
-      deleteBtn.addEventListener('click', async () => {
+      deleteBtn.addEventListener('click', () => {
         const selected = window.selectedItems ? window.selectedItems() : [];
         if (selected.length === 0) return;
 
-        if (await confirm(`Move ${selected.length} items to trash?`)) {
-          selected.forEach(async (el) => {
-            await fetch('/api/trash/move', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-csrf-token': csrfToken
-              },
-              body: JSON.stringify({ entityId: el.dataset.id, entityType: el.dataset.type })
-            });
-            el.remove();
-          });
-          setTimeout(() => window.location.reload(), 1000);
+        if (window.driveContext?.tab === 'trash') {
+          if (window.purgeSelected) window.purgeSelected(selected);
+          return;
         }
+
+        if (window.moveSelectedToTrash) window.moveSelectedToTrash(selected);
       });
     }
 

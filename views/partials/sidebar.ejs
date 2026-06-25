@@ -1,5 +1,17 @@
-<aside class="w-64 border-r border-gray-200 bg-white p-4 flex flex-col justify-between select-none shrink-0">
+<div id="drive-sidebar-backdrop" class="drive-sidebar-backdrop" aria-hidden="true"></div>
+
+<aside id="drive-sidebar" class="w-64 border-r border-gray-200 bg-white p-4 flex flex-col justify-between select-none shrink-0" aria-label="Drive navigation">
   <div class="flex flex-col gap-6">
+    <div class="mobile-sidebar-header">
+      <div class="flex items-center gap-2 min-w-0">
+        <img src="/web-app-manifest-512x512.png" alt="" class="h-8 w-8 rounded-lg object-cover">
+        <span class="font-bold text-gray-800 truncate">Harbor Drive</span>
+      </div>
+      <button id="mobile-sidebar-close" type="button" class="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition" aria-label="Close navigation">
+        <i class="bi bi-x-lg text-base"></i>
+      </button>
+    </div>
+
     <!-- 1. "NEW" Action Dropdown -->
     <div class="relative">
       <button id="new-dropdown-btn" class="w-full bg-brand-teal text-white py-3 px-4 rounded-xl flex items-center justify-center gap-3 font-semibold shadow-md hover:bg-brand-teal-dark transition duration-200">

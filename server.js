@@ -13,6 +13,7 @@ const queueService = require('./services/QueueService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || 'localhost';
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -103,9 +104,9 @@ async function initializeServer() {
 
     queueService.start();
 
-    app.listen(PORT, () => {
+    app.listen(PORT, HOST, () => {
       console.log(`Server started in ${process.env.NODE_ENV} mode.`);
-      console.log(`Running on http://127.0.0.1:${PORT}`);
+      console.log(`Running on http://${HOST}:${PORT}`);
     });
   } catch (dbErr) {
     console.error('CRITICAL: Failed to connect to MySQL database:', dbErr.message);

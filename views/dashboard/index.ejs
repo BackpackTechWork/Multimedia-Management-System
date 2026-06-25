@@ -55,15 +55,20 @@
     <!-- Scrollable content area -->
     <div id="items-grid-container" class="flex-1 overflow-y-auto p-6 relative">
       
-      <!-- Trash tab controls warning -->
+      <!-- Trash selection actions -->
       <% if (tab === 'trash') { %>
-        <div class="bg-brand-orange bg-opacity-10 border border-brand-orange border-opacity-20 text-brand-orange text-sm p-4 rounded-xl mb-6 flex items-center justify-between select-none">
-          <span class="font-medium flex items-center gap-2">
-            <i class="bi bi-info-circle-fill"></i> Items in Trash are permanently deleted after 30 days.
+        <div id="trash-selection-actions" class="hidden bg-white border border-gray-200 text-gray-700 text-sm px-3 py-2 rounded-lg mb-5 flex-col sm:flex-row sm:items-center sm:justify-between gap-3 select-none">
+          <span class="font-semibold flex items-center gap-2 min-w-0">
+            <i class="bi bi-check2-square text-brand-teal shrink-0"></i>
+            <span id="trash-selection-count" class="truncate">0 selected</span>
           </span>
-          <div class="flex gap-2">
-            <button onclick="restoreSelected()" class="bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Restore selected</button>
-            <button onclick="purgeSelected()" class="bg-brand-orange text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-opacity-90 transition">Delete permanently</button>
+          <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <button id="trash-restore-selected-btn" type="button" class="bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 px-3 py-2 rounded-md text-xs font-semibold transition min-h-10 w-full sm:w-auto">
+              <i class="bi bi-arrow-counterclockwise mr-1"></i>Restore
+            </button>
+            <button id="trash-purge-selected-btn" type="button" class="bg-red-600 text-white px-3 py-2 rounded-md text-xs font-semibold hover:bg-red-700 transition min-h-10 w-full sm:w-auto">
+              <i class="bi bi-trash3 mr-1"></i>Delete permanently
+            </button>
           </div>
         </div>
       <% } %>
@@ -197,49 +202,5 @@
 
 <!-- Modal Dialog Templates -->
 <%- include('../partials/modals') %>
-
-<!-- Scripts specifically for Trash tabs -->
-<% if (tab === 'trash') { %>
-  <script>
-    function restoreSelected() {
-      const selected = window.selectedItems ? window.selectedItems() : [];
-      if (selected.length === 0) return;
-      
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-      selected.forEach(async (el) => {
-        await fetch('/api/trash/restore', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-csrf-token': csrfToken
-          },
-          body: JSON.stringify({ entityId: el.dataset.id, entityType: el.dataset.type })
-        });
-        el.remove();
-      });
-      setTimeout(() => window.location.reload(), 1000);
-    }
-
-    async function purgeSelected() {
-      const selected = window.selectedItems ? window.selectedItems() : [];
-      if (selected.length === 0) return;
-      if (!await confirm('Permanently delete selected item(s) from disk? This action CANNOT be undone.')) return;
-
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-      selected.forEach(async (el) => {
-        await fetch('/api/trash/purge', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-csrf-token': csrfToken
-          },
-          body: JSON.stringify({ entityId: el.dataset.id, entityType: el.dataset.type })
-        });
-        el.remove();
-      });
-      setTimeout(() => window.location.reload(), 1000);
-    }
-  </script>
-<% } %>
 
 <%- include('../partials/footer') %>

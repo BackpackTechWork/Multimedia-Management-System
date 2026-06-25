@@ -152,32 +152,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function triggerDelete(selectedElements) {
-    if (!await confirm(`Move ${selectedElements.length} selected item(s) to trash?`)) return;
-
-    selectedElements.forEach(async (el) => {
-      const payload = {
-        entityId: el.dataset.id,
-        entityType: el.dataset.type
-      };
-      
-      try {
-        const res = await fetch('/api/trash/move', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-csrf-token': csrfToken
-          },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          el.remove();
-        }
-      } catch (err) {
-        console.error(err);
+    if (window.driveContext?.tab === 'trash') {
+      if (window.purgeSelected) {
+        await window.purgeSelected(selectedElements);
       }
-    });
-    
-    setTimeout(() => window.location.reload(), 1000);
+      return;
+    }
+
+    if (window.moveSelectedToTrash) {
+      await window.moveSelectedToTrash(selectedElements);
+      return;
+    }
+
+    alert('Delete action is not available yet. Please refresh the page and try again.');
   }
 
   async function triggerRename(element) {

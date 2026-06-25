@@ -121,6 +121,11 @@ body {
   padding-left: 8px;
 }
 
+.drive-sidebar-backdrop,
+.mobile-sidebar-header {
+  display: none;
+}
+
 @media (max-width: 1023px) {
   header {
     height: auto !important;
@@ -150,51 +155,63 @@ body {
   }
 
   body > .flex-1.flex.overflow-hidden {
-    flex-direction: column;
     overflow: visible;
   }
 
-  body > .flex-1.flex.overflow-hidden > aside:first-child {
-    width: 100%;
-    border-right-width: 0;
-    border-bottom: 1px solid #E5E7EB;
-    padding: 0.75rem 1rem;
+  body.sidebar-open {
+    overflow: hidden;
   }
 
-  body > .flex-1.flex.overflow-hidden > aside:first-child > div:first-child {
+  .drive-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 48;
+    display: block;
+    background: rgba(15, 23, 42, 0.42);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .drive-sidebar-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #drive-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 49;
+    width: min(20rem, 86vw);
+    max-width: 100%;
+    border-right: 1px solid #E5E7EB;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: 8px 0 24px rgba(15, 23, 42, 0.14);
+    overflow-y: auto;
+  }
+
+  #drive-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .mobile-sidebar-header {
     display: flex;
-    flex-direction: row;
     align-items: center;
-    width: 100%;
+    justify-content: space-between;
     gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #F3F4F6;
   }
 
-  body > .flex-1.flex.overflow-hidden > aside:first-child nav {
-    display: flex;
-    flex-direction: row;
-    overflow-x: auto;
-    padding-bottom: 0.25rem;
-    flex: 1;
-    min-width: 0;
-  }
-
-  body > .flex-1.flex.overflow-hidden > aside:first-child #new-dropdown-btn {
-    width: auto;
-    padding: 0.5rem 1rem;
-    height: 2.5rem;
-  }
-
-  body > .flex-1.flex.overflow-hidden > aside:first-child #new-dropdown-menu {
-    width: 12rem;
+  #drive-sidebar #new-dropdown-menu {
+    position: static;
+    width: 100%;
+    margin-top: 0.5rem;
   }
 
   .sidebar-link {
-    white-space: nowrap;
-    min-height: 2.5rem;
-  }
-
-  body > .flex-1.flex.overflow-hidden > aside:first-child .border-t {
-    display: none;
+    min-height: 2.75rem;
   }
 
   main > .bg-white.border-b {
@@ -228,6 +245,12 @@ body {
     transform: translateY(100%);
     width: 100% !important;
     padding: 0 !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  #drive-sidebar {
+    transform: none !important;
   }
 }
 
