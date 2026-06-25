@@ -1,0 +1,76 @@
+<aside class="w-64 border-r border-gray-200 bg-white p-4 flex flex-col justify-between select-none shrink-0">
+  <div class="flex flex-col gap-6">
+    <!-- 1. "NEW" Action Dropdown -->
+    <div class="relative">
+      <button id="new-dropdown-btn" class="w-full bg-brand-teal text-white py-3 px-4 rounded-xl flex items-center justify-center gap-3 font-semibold shadow-md hover:bg-brand-teal-dark transition duration-200">
+        <i class="bi bi-plus-lg text-lg"></i>
+        <span>New</span>
+      </button>
+      
+      <!-- Dropdown items -->
+      <div id="new-dropdown-menu" class="absolute left-0 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-lg py-2 hidden z-30">
+        <button id="sidebar-upload-btn" class="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3">
+          <i class="bi bi-file-earmark-arrow-up text-brand-teal text-lg"></i>
+          <span>Upload File</span>
+        </button>
+        <button id="new-folder-modal-btn" class="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3">
+          <i class="bi bi-folder-plus text-brand-teal text-lg"></i>
+          <span>New Folder</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Hidden native file input for trigger -->
+    <input type="file" id="upload-input" multiple class="hidden">
+
+    <!-- 2. Core Navigation Links -->
+    <nav class="flex flex-col gap-1">
+      <a href="/" class="sidebar-link <%= locals.tab === 'my-drive' ? 'active' : '' %>">
+        <i class="bi bi-hdd-fill text-lg"></i>
+        <span>My Drive</span>
+      </a>
+      <a href="/recent" class="sidebar-link <%= locals.tab === 'recent' ? 'active' : '' %>">
+        <i class="bi bi-clock-history text-lg"></i>
+        <span>Recent</span>
+      </a>
+      <a href="/starred" class="sidebar-link <%= locals.tab === 'starred' ? 'active' : '' %>">
+        <i class="bi bi-star-fill text-lg"></i>
+        <span>Starred</span>
+      </a>
+      <a href="/trash" class="sidebar-link <%= locals.tab === 'trash' ? 'active' : '' %>">
+        <i class="bi bi-trash-fill text-lg"></i>
+        <span>Trash</span>
+      </a>
+    </nav>
+
+    <!-- 3. Mini Folders Tree (Visual Navigation) -->
+    <div class="border-t border-gray-100 pt-4">
+      <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-3 px-2">Folders tree</span>
+      <div class="overflow-y-auto max-h-64 flex flex-col gap-1 text-sm font-medium text-gray-600">
+        <% if (locals.userRootFolders && userRootFolders.length > 0) { %>
+          <% userRootFolders.forEach(folder => { %>
+            <a href="/folders/<%= folder.id %>" class="flex items-center gap-2 hover:bg-gray-50 px-2 py-1.5 rounded transition">
+              <i class="bi bi-folder-fill text-yellow-500"></i>
+              <span class="truncate"><%= folder.name %></span>
+            </a>
+          <% }) %>
+        <% } else { %>
+          <div class="text-xs text-gray-400 italic px-2">No folders created yet</div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Pre-calculated Storage Meter -->
+  <% if (locals.storageStats) { %>
+    <div class="border-t border-gray-100 pt-4 flex flex-col gap-2">
+      <div class="flex items-center gap-2 text-gray-500 text-sm">
+        <i class="bi bi-cloud-check text-lg text-brand-teal"></i>
+        <span class="font-medium">Storage</span>
+      </div>
+      <div class="text-xs text-gray-400 leading-tight">
+        <%= formatBytes(storageStats.totalSize) %> used
+      </div>
+    </div>
+  <% } %>
+</aside>

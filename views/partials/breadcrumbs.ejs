@@ -1,0 +1,15 @@
+<div class="flex items-center flex-wrap gap-1.5 text-sm font-semibold text-gray-500 py-2 select-none">
+  <a href="/" class="hover:text-brand-teal text-gray-400 transition flex items-center gap-1">
+    <i class="bi bi-hdd-fill text-gray-400"></i> My Drive
+  </a>
+  <% if (locals.breadcrumbs && breadcrumbs.length > 0) { %>
+    <% breadcrumbs.forEach((crumb, idx) => { %>
+      <i class="bi bi-chevron-right text-gray-300 text-xs"></i>
+      <% if (idx === breadcrumbs.length - 1) { %>
+        <span class="text-gray-800 font-bold truncate max-w-xs"><%= crumb.name %></span>
+      <% } else { %>
+        <a href="/folders/<%= crumb.id %>" class="hover:text-brand-teal transition truncate max-w-xs"><%= crumb.name %></a>
+      <% } %>
+    <% }) %>
+  <% } %>
+</div>

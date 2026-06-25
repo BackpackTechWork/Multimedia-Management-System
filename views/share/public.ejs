@@ -1,0 +1,168 @@
+<%- include('../partials/header') %>
+
+<header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-40 select-none">
+  <div class="flex items-center gap-3">
+    <img src="/web-app-manifest-512x512.png" alt="Harbor Drive" class="h-10 w-10 rounded-lg shadow-sm object-cover">
+    <span class="text-xl font-bold tracking-tight text-brand-dark-grey">
+      Harbor <span class="text-brand-orange font-medium">Shared Link</span>
+    </span>
+  </div>
+  <div class="text-sm font-semibold text-gray-500">
+    Public Portal
+  </div>
+</header>
+
+<div class="flex-1 flex overflow-hidden">
+  <main class="flex-1 flex flex-col min-w-0 bg-[#F8F9FA] overflow-hidden">
+
+    <div class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0 select-none">
+      <div class="flex flex-col">
+        <div class="flex items-center flex-wrap gap-1.5 text-sm font-semibold text-gray-500 py-2">
+          <a href="/share/<%= token %>" class="hover:text-brand-orange text-gray-400 transition flex items-center gap-1">
+            <i class="bi bi-folder-fill text-yellow-500"></i> Shared Root
+          </a>
+          <% if (breadcrumbs && breadcrumbs.length > 1) { %>
+            <% breadcrumbs.slice(1).forEach((crumb, idx) => { %>
+              <i class="bi bi-chevron-right text-gray-300 text-xs"></i>
+              <% if (idx === breadcrumbs.length - 2) { %>
+                <span class="text-gray-800 font-bold truncate max-w-xs"><%= crumb.name %></span>
+              <% } else { %>
+                <a href="/share/<%= token %>/folders/<%= crumb.id %>" class="hover:text-brand-orange transition truncate max-w-xs"><%= crumb.name %></a>
+              <% } %>
+            <% }) %>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-6 relative">
+      
+      <% if (!isFolder && file) { %>
+        <div class="max-w-2xl mx-4 sm:mx-auto bg-white border border-gray-200 rounded-2xl shadow-lg p-6 sm:p-8 mt-6 sm:mt-12 flex flex-col items-center justify-center text-center">
+          <div class="bg-gray-50 text-gray-300 w-28 h-28 rounded-full flex items-center justify-center mb-6 shadow-inner">
+            <% 
+              let iconClass = 'bi-file-earmark-fill text-gray-400';
+              if (file.extension === 'pdf') iconClass = 'bi-file-pdf-fill text-red-500';
+              else if (['doc', 'docx'].includes(file.extension)) iconClass = 'bi-file-word-fill text-blue-500';
+              else if (['xls', 'xlsx', 'csv'].includes(file.extension)) iconClass = 'bi-file-excel-fill text-green-600';
+              else if (['js', 'ts', 'html', 'css', 'json', 'sql'].includes(file.extension)) iconClass = 'bi-file-code-fill text-gray-600';
+              else if (file.extension === 'md') iconClass = 'bi-markdown-fill text-indigo-500';
+              else if (file.mimeType.startsWith('image/')) iconClass = 'bi-file-image-fill text-purple-500';
+              else if (file.mimeType.startsWith('audio/')) iconClass = 'bi-file-music-fill text-pink-500';
+              else if (file.mimeType.startsWith('video/')) iconClass = 'bi-file-play-fill text-red-600';
+            %>
+            <i class="bi <%= iconClass %> text-6xl"></i>
+          </div>
+
+          <h2 class="text-xl font-bold text-gray-800 mb-1 truncate max-w-lg"><%= file.originalName %></h2>
+          <span class="text-xs text-gray-400 uppercase font-semibold tracking-wider mb-6"><%= file.extension %> • <%= formatBytes(file.size) %></span>
+
+          <div class="flex gap-4">
+            <% if (share.allowDownload) { %>
+              <a 
+                href="/share/<%= token %>/download" 
+                class="bg-brand-orange text-white py-3 px-6 rounded-xl font-bold shadow-md hover:bg-opacity-95 transition flex items-center gap-2"
+              >
+                <i class="bi bi-download"></i> Download File
+              </a>
+            <% } else { %>
+              <button 
+                disabled 
+                class="bg-gray-200 text-gray-400 py-3 px-6 rounded-xl font-bold cursor-not-allowed flex items-center gap-2"
+              >
+                <i class="bi bi-download"></i> Download Blocked
+              </button>
+            <% } %>
+          </div>
+        </div>
+      
+      <% } else if (isFolder && contents) { %>
+        
+        <% if (contents.folders.length === 0 && contents.files.length === 0) { %>
+          <div class="flex flex-col items-center justify-center py-24 text-center">
+            <div class="bg-gray-100 text-gray-300 w-24 h-24 rounded-full flex items-center justify-center mb-6">
+              <i class="bi bi-folder2-open text-5xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-700 mb-1">Folder is empty</h3>
+            <p class="text-sm text-gray-400 max-w-sm">Owner has not uploaded files inside this shared directory.</p>
+          </div>
+        <% } %>
+
+        <% if (contents.folders.length > 0) { %>
+          <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 select-none">Folders</h4>
+          <div class="responsive-grid mb-8">
+            <% contents.folders.forEach(sub => { %>
+              <a 
+                href="/share/<%= token %>/folders/<%= sub.id %>"
+                class="file-card flex items-center gap-3 p-3.5 hover:border-brand-orange hover:shadow-md transition"
+              >
+                <i class="bi bi-folder-fill text-2xl text-yellow-500 shrink-0"></i>
+                <span class="font-semibold text-sm text-gray-700 truncate select-none"><%= sub.name %></span>
+              </a>
+            <% }) %>
+          </div>
+        <% } %>
+
+        <% if (contents.files.length > 0) { %>
+          <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 select-none">Files</h4>
+          <div class="responsive-grid">
+            <% contents.files.forEach(f => { %>
+              <div 
+                class="file-card flex flex-col justify-between p-3.5 relative h-48 select-none"
+              >
+                <div class="flex-1 flex items-center justify-center p-2 mb-3 bg-gray-50 rounded-lg overflow-hidden">
+                  <% if (f.mimeType.startsWith('image/')) { %>
+                    <img src="/share/<%= token %>/download?fileId=<%= f.id %>" alt="<%= f.originalName %>" class="w-full h-full object-cover rounded" loading="lazy">
+                  <% } else { %>
+                    <% 
+                      let iconClass = 'bi-file-earmark-fill text-gray-400';
+                      if (f.extension === 'pdf') iconClass = 'bi-file-pdf-fill text-red-500';
+                      else if (['doc', 'docx'].includes(f.extension)) iconClass = 'bi-file-word-fill text-blue-500';
+                      else if (['xls', 'xlsx', 'csv'].includes(f.extension)) iconClass = 'bi-file-excel-fill text-green-600';
+                      else if (['js', 'ts', 'html', 'css', 'json', 'sql'].includes(f.extension)) iconClass = 'bi-file-code-fill text-gray-600';
+                      else if (f.extension === 'md') iconClass = 'bi-markdown-fill text-indigo-500';
+                      else if (f.mimeType.startsWith('audio/')) iconClass = 'bi-file-music-fill text-pink-500';
+                      else if (f.mimeType.startsWith('video/')) iconClass = 'bi-file-play-fill text-red-600';
+                    %>
+                    <i class="bi <%= iconClass %> text-5xl"></i>
+                  <% } %>
+                </div>
+
+                <div class="flex items-center justify-between min-w-0">
+                  <div class="flex flex-col min-w-0 flex-1 mr-2">
+                    <span class="font-bold text-xs text-gray-700 truncate leading-tight mb-0.5"><%= f.originalName %></span>
+                    <span class="text-[9px] text-gray-400 font-semibold uppercase tracking-wider"><%= formatBytes(f.size) %></span>
+                  </div>
+                  
+                  <% if (share.allowDownload) { %>
+                    <a 
+                      href="/share/<%= token %>/download?fileId=<%= f.id %>" 
+                      title="Download file" 
+                      class="bg-brand-orange text-white p-2 rounded-lg text-sm flex items-center justify-center hover:bg-opacity-90 transition shrink-0"
+                    >
+                      <i class="bi bi-download"></i>
+                    </a>
+                  <% } %>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+
+      <% } %>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  function formatBytes(bytes) {
+    if (!bytes || bytes == 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+</script>
+
+<%- include('../partials/footer') %>

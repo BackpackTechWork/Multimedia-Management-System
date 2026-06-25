@@ -1,0 +1,201 @@
+<!-- Reusable Custom Alert/Confirm/Prompt Modal -->
+<div id="custom-alert-backdrop" class="fixed inset-0 bg-slate-950/40 backdrop-blur-[2px] z-[9999] opacity-0 pointer-events-none transition-opacity duration-200 flex items-center justify-center">
+  <div id="custom-alert-box" class="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-sm p-6 mx-4 transform scale-95 opacity-0 transition-all duration-200 ease-out flex flex-col items-center text-center">
+    <!-- Icon Container -->
+    <div id="custom-alert-icon-container" class="w-14 h-14 rounded-full bg-teal-50 flex items-center justify-center mb-4">
+      <i id="custom-alert-icon" class="bi bi-info-circle-fill text-brand-teal text-2xl"></i>
+    </div>
+    
+    <!-- Title -->
+    <h3 id="custom-alert-title" class="text-lg font-bold text-gray-900 mb-2">Notification</h3>
+    
+    <!-- Message Content -->
+    <p id="custom-alert-message" class="text-sm text-gray-600 leading-relaxed mb-4 whitespace-pre-wrap font-medium max-h-40 overflow-y-auto w-full px-1"></p>
+    
+    <!-- Input for Prompts -->
+    <div id="custom-alert-input-container" class="w-full mb-6 hidden">
+      <input type="text" id="custom-alert-input" class="w-full border border-gray-300 rounded-xl p-2.5 outline-none focus:border-brand-teal text-sm transition-colors duration-150">
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="flex gap-3 w-full">
+      <button id="custom-alert-cancel-btn" class="flex-1 py-2.5 px-4 border border-gray-200 hover:bg-gray-50 text-gray-500 rounded-xl text-sm font-semibold transition-all duration-150 focus:outline-none hidden">
+        Cancel
+      </button>
+      <button id="custom-alert-ok-btn" class="w-full py-2.5 px-4 bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl text-sm font-semibold transition-all duration-150 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2">
+        OK
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const backdrop = document.getElementById('custom-alert-backdrop');
+    const alertBox = document.getElementById('custom-alert-box');
+    const iconContainer = document.getElementById('custom-alert-icon-container');
+    const iconEl = document.getElementById('custom-alert-icon');
+    const titleEl = document.getElementById('custom-alert-title');
+    const msgEl = document.getElementById('custom-alert-message');
+    const inputContainer = document.getElementById('custom-alert-input-container');
+    const inputEl = document.getElementById('custom-alert-input');
+    const cancelBtn = document.getElementById('custom-alert-cancel-btn');
+    const okBtn = document.getElementById('custom-alert-ok-btn');
+    
+    let dialogQueue = [];
+
+    function showNextDialog() {
+      if (dialogQueue.length === 0) return;
+      const current = dialogQueue[0];
+      
+      // Set text content
+      msgEl.textContent = current.message !== undefined ? String(current.message) : '';
+      titleEl.textContent = current.title;
+      
+      // Reset classes
+      cancelBtn.classList.add('hidden');
+      inputContainer.classList.add('hidden');
+      
+      // Configure type-specific styles and visibility
+      if (current.type === 'alert') {
+        iconContainer.className = "w-14 h-14 rounded-full bg-teal-50 flex items-center justify-center mb-4";
+        iconEl.className = "bi bi-info-circle-fill text-brand-teal text-2xl";
+        okBtn.className = "w-full py-2.5 px-4 bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl text-sm font-semibold transition-all duration-150 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2";
+      } else if (current.type === 'confirm') {
+        cancelBtn.classList.remove('hidden');
+        iconContainer.className = "w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center mb-4";
+        iconEl.className = "bi bi-exclamation-triangle-fill text-brand-orange text-2xl";
+        okBtn.className = "flex-1 py-2.5 px-4 bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl text-sm font-semibold transition-all duration-150 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2";
+      } else if (current.type === 'prompt') {
+        cancelBtn.classList.remove('hidden');
+        inputContainer.classList.remove('hidden');
+        inputEl.value = current.defaultValue || '';
+        iconContainer.className = "w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center mb-4";
+        iconEl.className = "bi bi-question-circle-fill text-blue-500 text-2xl";
+        okBtn.className = "flex-1 py-2.5 px-4 bg-brand-teal hover:bg-brand-teal-dark text-white rounded-xl text-sm font-semibold transition-all duration-150 shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2";
+      }
+
+      // Show modal elements
+      backdrop.classList.remove('pointer-events-none');
+      backdrop.classList.add('opacity-100');
+      alertBox.classList.remove('scale-95', 'opacity-0');
+      alertBox.classList.add('scale-100', 'opacity-100');
+      
+      // Auto-focus the input/button
+      setTimeout(() => {
+        if (current.type === 'prompt') {
+          inputEl.focus();
+          inputEl.select();
+        } else {
+          okBtn.focus();
+        }
+      }, 50);
+    }
+
+    function dismissDialog(value) {
+      if (dialogQueue.length === 0) return;
+      
+      // Animate scale down and fade out
+      alertBox.classList.remove('scale-100', 'opacity-100');
+      alertBox.classList.add('scale-95', 'opacity-0');
+      backdrop.classList.remove('opacity-100');
+      backdrop.classList.add('pointer-events-none');
+      
+      const current = dialogQueue.shift();
+      if (current.resolve) {
+        current.resolve(value);
+      }
+
+      // Show the next dialog in queue (if any)
+      setTimeout(() => {
+        if (dialogQueue.length > 0) {
+          showNextDialog();
+        }
+      }, 200); // matches the duration-200 of the transition
+    }
+
+    // Overriding window.alert
+    window.alert = function(message) {
+      return new Promise((resolve) => {
+        dialogQueue.push({
+          type: 'alert',
+          title: 'Notification',
+          message,
+          resolve
+        });
+        if (dialogQueue.length === 1) {
+          showNextDialog();
+        }
+      });
+    };
+
+    // Overriding window.confirm
+    window.confirm = function(message) {
+      return new Promise((resolve) => {
+        dialogQueue.push({
+          type: 'confirm',
+          title: 'Confirm Action',
+          message,
+          resolve
+        });
+        if (dialogQueue.length === 1) {
+          showNextDialog();
+        }
+      });
+    };
+
+    // Overriding window.prompt
+    window.prompt = function(message, defaultValue) {
+      return new Promise((resolve) => {
+        dialogQueue.push({
+          type: 'prompt',
+          title: 'Input Required',
+          message,
+          defaultValue,
+          resolve
+        });
+        if (dialogQueue.length === 1) {
+          showNextDialog();
+        }
+      });
+    };
+
+    // Click handlers for buttons
+    okBtn.addEventListener('click', () => {
+      if (dialogQueue.length > 0 && dialogQueue[0].type === 'prompt') {
+        dismissDialog(inputEl.value);
+      } else {
+        dismissDialog(true);
+      }
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      if (dialogQueue.length > 0 && dialogQueue[0].type === 'prompt') {
+        dismissDialog(null);
+      } else {
+        dismissDialog(false);
+      }
+    });
+
+    // Enter key triggers OK inside prompt input
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        okBtn.click();
+      }
+    });
+
+    // Keyboard support: Escape/Enter keys
+    window.addEventListener('keydown', function(event) {
+      if (!backdrop.classList.contains('pointer-events-none')) {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          cancelBtn.click();
+        } else if (event.key === 'Enter' && dialogQueue.length > 0 && dialogQueue[0].type !== 'prompt') {
+          event.preventDefault();
+          okBtn.click();
+        }
+      }
+    }, true);
+  })();
+</script>

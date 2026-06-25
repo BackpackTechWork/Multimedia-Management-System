@@ -1,0 +1,121 @@
+<%- include('../partials/header') %>
+
+<%- include('../partials/navbar') %>
+
+<div class="flex-1 flex overflow-hidden">
+  <!-- Sidebar Navigation -->
+  <%- include('../partials/sidebar') %>
+
+  <!-- Main Drive Panel -->
+  <main class="flex-1 flex flex-col min-w-0 bg-[#F8F9FA] overflow-y-auto p-6 md:p-8">
+    <div class="max-w-4xl mx-auto w-full">
+      
+      <!-- Page title -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 select-none">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <i class="bi bi-laptop text-brand-teal"></i> Active Devices
+          </h2>
+          <p class="text-xs text-gray-400 mt-1">Review and manage the devices currently logged into your account.</p>
+        </div>
+        <button id="revoke-others-btn" class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg text-xs font-semibold border border-red-200 transition self-start sm:self-auto shrink-0">
+          Sign Out of Other Devices
+        </button>
+      </div>
+
+      <!-- Devices Grid list -->
+      <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden select-none">
+        <div class="p-6 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+          <span class="font-bold text-sm text-gray-500 uppercase tracking-wider">Device List</span>
+          <span class="text-xs font-semibold text-brand-teal bg-teal-50 px-2 py-1 rounded-md"><%= sessions.length %> Logged in</span>
+        </div>
+
+        <div class="divide-y divide-gray-100">
+          <% sessions.forEach(sess => { %>
+            <div class="p-6 flex items-center justify-between gap-4 hover:bg-gray-50 transition">
+              <div class="flex items-center gap-4 min-w-0 flex-1">
+                <div class="bg-gray-100 text-gray-500 w-11 h-11 rounded-xl flex items-center justify-center shadow-inner shrink-0">
+                  <% if (sess.userAgent && (sess.userAgent.includes('Mobi') || sess.userAgent.includes('Android') || sess.userAgent.includes('iPhone'))) { %>
+                    <i class="bi bi-phone text-xl"></i>
+                  <% } else { %>
+                    <i class="bi bi-display text-xl"></i>
+                  <% } %>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="font-semibold text-sm text-gray-800 break-all sm:truncate max-w-xs sm:max-w-md" title="<%= sess.userAgent %>"><%= sess.userAgent || 'Unknown Browser' %></span>
+                    <% if (sess.sessionId === currentSessionId) { %>
+                      <span class="bg-teal-50 text-brand-teal text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">This Device</span>
+                    <% } %>
+                  </div>
+                  <div class="text-xs text-gray-400 mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                    <span>IP: <%= sess.ipAddress || 'Unknown IP' %></span>
+                    <span class="hidden sm:inline text-gray-300">•</span>
+                    <span>Last active: <%= new Date(sess.lastActivityAt).toLocaleString() %></span>
+                  </div>
+                </div>
+              </div>
+
+              <% if (sess.sessionId !== currentSessionId) { %>
+                <button 
+                  onclick="revokeSession(<%= sess.id %>)" 
+                  class="text-red-500 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-100 p-2 rounded-lg text-xs font-semibold transition shrink-0"
+                >
+                  Revoke
+                </button>
+              <% } %>
+            </div>
+          <% }) %>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Helper client script for session revocation -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    
+    // Revoke single session
+    window.revokeSession = async function(id) {
+      if (!await confirm('Log this device out? Any unsaved changes on that device will be lost.')) return;
+      
+      fetch('/auth/devices/revoke', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken
+        },
+        body: JSON.stringify({ id })
+      })
+      .then(res => {
+        if (res.ok) window.location.reload();
+        else alert('Revocation failed');
+      });
+    };
+
+    // Revoke all other sessions
+    const revokeOthersBtn = document.getElementById('revoke-others-btn');
+    if (revokeOthersBtn) {
+      revokeOthersBtn.addEventListener('click', async () => {
+        if (!await confirm('Sign out of all other devices? This will immediately disconnect all active logins except this one.')) return;
+
+        fetch('/auth/devices/revoke-others', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrfToken
+          }
+        })
+        .then(res => {
+          if (res.ok) window.location.reload();
+          else alert('Operation failed');
+        });
+      });
+    }
+  });
+</script>
+
+<%- include('../partials/footer') %>

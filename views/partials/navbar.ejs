@@ -1,0 +1,73 @@
+<header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-40 select-none">
+  <div class="flex items-center gap-3">
+    <img src="/web-app-manifest-512x512.png" alt="Harbor Drive" class="h-10 w-10 rounded-lg shadow-sm object-cover">
+    <span class="text-xl font-bold tracking-tight text-brand-dark-grey">
+      Harbor <span class="text-brand-teal font-medium">Drive</span>
+    </span>
+  </div>
+
+  <% if (locals.tab) { %>
+    <form action="/" method="GET" class="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5 w-full max-w-2xl border border-transparent focus-within:bg-white focus-within:border-brand-teal focus-within:shadow-sm transition-all duration-200">
+      <input type="hidden" name="tab" value="<%= tab %>">
+      <% if (locals.currentFolderId) { %>
+        <input type="hidden" name="folderId" value="<%= currentFolderId %>">
+      <% } %>
+      <i class="bi bi-search text-gray-400 text-lg"></i>
+      <input 
+        type="text" 
+        name="search" 
+        placeholder="Search files, folders by name..." 
+        value="<%= locals.searchQuery || '' %>"
+        class="bg-transparent border-none outline-none w-full text-sm text-gray-700 placeholder-gray-400"
+      >
+      
+      <select name="type" class="bg-transparent border-none outline-none text-xs text-gray-500 font-semibold cursor-pointer pr-2 border-r border-gray-300">
+        <option value="all" <%= locals.fileType === 'all' ? 'selected' : '' %>>All Types</option>
+        <option value="image" <%= locals.fileType === 'image' ? 'selected' : '' %>>Images</option>
+        <option value="pdf" <%= locals.fileType === 'pdf' ? 'selected' : '' %>>PDFs</option>
+        <option value="document" <%= locals.fileType === 'document' ? 'selected' : '' %>>Documents</option>
+        <option value="excel" <%= locals.fileType === 'excel' ? 'selected' : '' %>>Excel</option>
+        <option value="markdown" <%= locals.fileType === 'markdown' ? 'selected' : '' %>>Markdown</option>
+        <option value="code" <%= locals.fileType === 'code' ? 'selected' : '' %>>Code</option>
+        <option value="audio" <%= locals.fileType === 'audio' ? 'selected' : '' %>>Audio</option>
+        <option value="video" <%= locals.fileType === 'video' ? 'selected' : '' %>>Video</option>
+      </select>
+
+      <select name="sortBy" class="bg-transparent border-none outline-none text-xs text-gray-500 font-semibold cursor-pointer pr-2">
+        <option value="date" <%= locals.sortBy === 'date' ? 'selected' : '' %>>Sort by Date</option>
+        <option value="name" <%= locals.sortBy === 'name' ? 'selected' : '' %>>Sort by Name</option>
+        <option value="size" <%= locals.sortBy === 'size' ? 'selected' : '' %>>Sort by Size</option>
+      </select>
+
+      <button type="submit" class="hidden"></button>
+    </form>
+  <% } else { %>
+    <div></div>
+  <% } %>
+
+  <% if (locals.userId) { %>
+    <div class="flex items-center gap-4">
+      <div class="text-right hidden sm:block">
+        <div class="text-sm font-semibold text-gray-700 leading-4"><%= locals.userName %></div>
+        <div class="text-xs text-gray-400"><%= locals.userEmail %></div>
+      </div>
+      <div class="relative">
+        <button id="profile-dropdown-btn" class="bg-brand-teal text-white w-9 h-9 rounded-full flex items-center justify-center font-bold shadow-sm focus:outline-none hover:bg-brand-teal-dark transition">
+          <%= locals.userName.charAt(0).toUpperCase() %>
+        </button>
+        <div id="profile-dropdown-menu" class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 hidden z-50">
+          <a href="/" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2">
+            <i class="bi bi-hdd-fill text-brand-teal"></i> My Drive
+          </a>
+          <a href="/auth/devices" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2">
+            <i class="bi bi-laptop text-brand-teal"></i> Active Devices
+          </a>
+          <div class="border-t border-gray-100 my-1"></div>
+          <a href="/auth/logout" class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+            <i class="bi bi-box-arrow-right"></i> Sign Out
+          </a>
+        </div>
+      </div>
+    </div>
+  <% } %>
+</header>

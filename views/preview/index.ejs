@@ -1,0 +1,97 @@
+<%- include('../partials/header') %>
+
+<!-- Preview Header -->
+<header class="bg-gray-900 border-b border-gray-800 h-16 flex items-center justify-between px-6 sticky top-0 z-40 select-none text-white">
+  <div class="flex items-center gap-3">
+    <a href="/" class="bg-gray-800 text-gray-400 p-2 rounded-lg flex items-center justify-center hover:bg-gray-700 transition">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <span class="text-sm font-semibold truncate max-w-md"><%= file.originalName %></span>
+  </div>
+  <div class="flex items-center gap-2">
+    <a 
+      href="/api/files/download/<%= file.id %>" 
+      class="bg-brand-teal text-white py-2 px-4 rounded-lg text-xs font-semibold hover:bg-brand-teal-dark transition flex items-center gap-1.5"
+    >
+      <i class="bi bi-download"></i> Download File
+    </a>
+  </div>
+</header>
+
+<!-- Preview Content Container -->
+<div class="flex-1 flex flex-col items-center justify-center p-6 md:p-12 overflow-hidden">
+  
+  <!-- Hidden Element containing file metadata for client-side JS -->
+  <div id="preview-metadata" class="hidden" data-file-id="<%= file.id %>" data-type="<%= type %>" data-name="<%= file.originalName %>"></div>
+
+  <!-- 1. IMAGE PREVIEW (LightGallery) -->
+  <% if (type === 'image') { %>
+    <!-- Load LightGallery bundles locally -->
+    <link rel="stylesheet" href="/vendor/lightgallery/css/lightgallery-bundle.css">
+    <script src="/vendor/lightgallery/lightgallery.min.js"></script>
+
+    <div id="lightgallery-container" class="lg-item border border-gray-800 rounded-lg overflow-hidden bg-gray-950 p-2 shadow-2xl max-w-3xl w-full flex items-center justify-center" data-src="/preview/stream/<%= file.id %>">
+      <img src="/preview/stream/<%= file.id %>" alt="<%= file.originalName %>" class="max-h-[70vh] object-contain rounded cursor-pointer">
+    </div>
+
+  <!-- 2. PDF PREVIEW (EmbedPDF) -->
+  <% } else if (type === 'pdf') { %>
+    <div class="w-full max-w-5xl embed-pdf-container bg-gray-850 rounded-xl overflow-hidden shadow-2xl border border-gray-800">
+      <!-- Iframe pointing to our isolated self-hosted PDF viewer -->
+      <iframe src="/vendor/embedpdf/viewer.html?file=/preview/stream/<%= file.id %>" class="w-full h-full border-none"></iframe>
+    </div>
+
+  <!-- 3. EXCEL PREVIEW -->
+  <% } else if (type === 'excel') { %>
+    <!-- SheetJS (xlsx) fallbacks script loaded locally from NPM or cdn if necessary, 
+         since we can package it during vendor setup. We will include SheetJS locally! -->
+    <script src="/vendor/excel-viewer/excel-viewer.js"></script>
+    <!-- Fallback if XLSX is also copied in vendor -->
+    
+    <div class="w-full max-w-6xl bg-gray-900 border border-gray-800 rounded-xl shadow-2xl p-4 sm:p-6 overflow-hidden flex flex-col">
+      <h3 class="text-sm font-semibold text-gray-400 mb-4 flex items-center gap-1.5"><i class="bi bi-file-spreadsheet text-green-500"></i> Sheet Viewer</h3>
+      <div id="excel-container" class="flex-1 overflow-auto text-gray-200"></div>
+    </div>
+
+  <!-- 4. MARKDOWN PREVIEW (Marked) -->
+  <% } else if (type === 'markdown') { %>
+    <script src="/vendor/marked/marked.min.js"></script>
+
+    <textarea id="markdown-raw" class="hidden"><%= content %></textarea>
+    <div class="w-full max-w-4xl bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-8 shadow-2xl overflow-auto max-h-[75vh]">
+      <article id="markdown-content" class="prose prose-invert max-w-none text-gray-200 text-sm leading-relaxed"></article>
+    </div>
+
+  <!-- 5. CODE PREVIEW (js-beautify) -->
+  <% } else if (type === 'code') { %>
+    <!-- js-beautify bundles -->
+    <script src="/vendor/js-beautify/beautify.js"></script>
+    <script src="/vendor/js-beautify/beautify-css.js"></script>
+    <script src="/vendor/js-beautify/beautify-html.js"></script>
+
+    <textarea id="code-raw" class="hidden"><%= content %></textarea>
+    <div class="w-full max-w-5xl code-container bg-gray-950 border border-gray-900 rounded-xl p-4 shadow-2xl max-h-[75vh]">
+      <div id="code-content" class="text-left text-gray-300"></div>
+    </div>
+
+  <!-- 6. VIDEO PREVIEW -->
+  <% } else if (type === 'video') { %>
+    <div class="w-full max-w-4xl bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-900">
+      <video src="/preview/stream/<%= file.id %>" controls class="w-full max-h-[75vh]" autoplay></video>
+    </div>
+
+  <!-- 7. AUDIO PREVIEW -->
+  <% } else if (type === 'audio') { %>
+    <div class="bg-gray-900 border border-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md flex flex-col items-center">
+      <div class="bg-brand-teal text-white w-20 h-20 rounded-full flex items-center justify-center shadow-lg mb-6 animate-pulse">
+        <i class="bi bi-music-note-beamed text-4xl"></i>
+      </div>
+      <h3 class="font-bold text-base text-gray-200 truncate w-full text-center mb-1"><%= file.originalName %></h3>
+      <span class="text-xs text-gray-500 uppercase font-semibold mb-6">Mime: <%= file.mimeType %></span>
+      <audio src="/preview/stream/<%= file.id %>" controls class="w-full" autoplay></audio>
+    </div>
+  <% } %>
+
+</div>
+
+<%- include('../partials/footer') %>

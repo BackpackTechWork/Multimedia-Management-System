@@ -1,0 +1,649 @@
+<!-- MODALS FOR GOOGLE DRIVE OPERATIONS -->
+
+<!-- 1. New Folder Modal -->
+<div id="new-folder-modal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center hidden z-50">
+  <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 mx-4">
+    <h3 class="text-lg font-bold text-gray-800 mb-4">New Folder</h3>
+    <input type="text" id="new-folder-name" placeholder="Untitled Folder" class="w-full border border-gray-300 rounded-lg p-2 mb-4 outline-none focus:border-brand-teal text-sm">
+    <div class="flex justify-end gap-3">
+      <button id="new-folder-cancel-btn" class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-500 hover:bg-gray-50">Cancel</button>
+      <button id="create-folder-btn" class="px-4 py-2 bg-brand-teal text-white rounded-lg text-sm font-semibold hover:bg-brand-teal-dark">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2. Rename Modal -->
+<div id="rename-modal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center hidden z-50">
+  <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 mx-4">
+    <h3 class="text-lg font-bold text-gray-800 mb-4">Rename</h3>
+    <input type="text" id="rename-input" class="w-full border border-gray-300 rounded-lg p-2 mb-4 outline-none focus:border-brand-teal text-sm">
+    <div class="flex justify-end gap-3">
+      <button id="rename-cancel-btn" class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-500 hover:bg-gray-50">Cancel</button>
+      <button id="rename-submit-btn" class="px-4 py-2 bg-brand-teal text-white rounded-lg text-sm font-semibold hover:bg-brand-teal-dark">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3. Move / Copy Selection Modal -->
+<div id="move-copy-modal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center hidden z-50">
+  <div class="bg-white rounded-xl shadow-lg w-full max-w-lg p-6 mx-4">
+    <h3 id="move-copy-title" class="text-lg font-bold text-gray-800 mb-4">Choose Destination</h3>
+    <div class="border border-gray-200 rounded-lg p-3 max-h-60 overflow-y-auto mb-4 text-sm">
+      <!-- Folder select tree -->
+      <div class="flex flex-col gap-1">
+        <label class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer">
+          <input type="radio" name="dest-folder" value="" checked class="text-brand-teal focus:ring-brand-teal">
+          <i class="bi bi-hdd-fill text-gray-400"></i>
+          <span>My Drive (Root)</span>
+        </label>
+        <% if (locals.allUserFolders && allUserFolders.length > 0) { %>
+          <% allUserFolders.forEach(folder => { %>
+            <label class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer" style="margin-left: <%= (folder.path.split('/').length - 3) * 16 %>px">
+              <input type="radio" name="dest-folder" value="<%= folder.id %>" class="text-brand-teal focus:ring-brand-teal">
+              <i class="bi bi-folder-fill text-yellow-500"></i>
+              <span class="truncate"><%= folder.name %></span>
+            </label>
+          <% }) %>
+        <% } %>
+      </div>
+    </div>
+    <div class="flex justify-end gap-3">
+      <button id="move-copy-cancel-btn" class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-500 hover:bg-gray-50">Cancel</button>
+      <button id="move-copy-submit-btn" class="px-4 py-2 bg-brand-teal text-white rounded-lg text-sm font-semibold hover:bg-brand-teal-dark">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- 4. Share Links Configuration Modal -->
+<div id="share-modal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center hidden z-50">
+  <div class="bg-white rounded-xl shadow-lg w-full max-w-lg p-6 mx-4">
+    <h3 class="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
+      <i class="bi bi-share text-brand-teal"></i> Share Settings
+    </h3>
+    <p class="text-xs text-gray-400 mb-4">Generate share link with download control, optional expiry, and passwords.</p>
+    
+    <div class="flex flex-col gap-4 text-sm mb-6">
+      <!-- Password -->
+      <div>
+        <label class="block font-semibold text-gray-700 mb-1">Password Protection (Optional)</label>
+        <input type="password" id="share-password" placeholder="Leave empty for no password" class="w-full border border-gray-300 rounded-lg p-2 outline-none focus:border-brand-teal text-sm">
+      </div>
+      <!-- Expiration -->
+      <div>
+        <label class="block font-semibold text-gray-700 mb-1">Expiration Date (Optional)</label>
+        <input type="datetime-local" id="share-expiry" class="w-full border border-gray-300 rounded-lg p-2 outline-none focus:border-brand-teal text-sm text-gray-600">
+      </div>
+      <!-- Allow downloads toggle -->
+      <label class="flex items-center gap-2 font-semibold text-gray-700 cursor-pointer">
+        <input type="checkbox" id="share-allow-download" checked class="rounded text-brand-teal focus:ring-brand-teal">
+        <span>Allow Downloads</span>
+      </label>
+      
+      <!-- Generated Link Box -->
+      <div id="share-link-container" class="hidden bg-gray-50 border border-gray-200 rounded-lg p-3 mt-2">
+        <label class="block text-xs font-semibold text-gray-400 mb-1">Generated Link</label>
+        <div class="flex gap-2">
+          <input type="text" id="share-link-input" readonly class="bg-white border border-gray-300 rounded-lg p-2 w-full text-xs font-mono outline-none text-gray-600">
+          <button id="copy-share-link-btn" class="bg-brand-teal text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-brand-teal-dark">Copy</button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="flex justify-between gap-3">
+      <button id="revoke-share-btn" class="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 hidden">Disable Link</button>
+      <div class="flex gap-3 ml-auto">
+        <button id="share-close-btn" class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-500 hover:bg-gray-50">Close</button>
+        <button id="generate-share-btn" class="px-4 py-2 bg-brand-teal text-white rounded-lg text-sm font-semibold hover:bg-brand-teal-dark">Generate Link</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 5. Version History Modal -->
+<div id="versions-modal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center hidden z-50">
+  <div class="bg-white rounded-xl shadow-lg w-full max-w-2xl p-6 mx-4">
+    <h3 class="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
+      <i class="bi bi-clock-history text-brand-teal"></i> Version History
+    </h3>
+    <p class="text-xs text-gray-400 mb-4">View or restore older versions. You can also upload a newer version slice to keep tracking.</p>
+
+    <!-- Upload new version selector -->
+    <div class="mb-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center">
+      <button onclick="document.getElementById('version-upload-input').click()" class="bg-brand-teal text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-brand-teal-dark transition">
+        Upload New Version
+      </button>
+      <input type="file" id="version-upload-input" class="hidden">
+    </div>
+
+    <!-- Versions Listing -->
+    <div class="border border-gray-100 rounded-lg overflow-hidden mb-4 text-sm max-h-60 overflow-y-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-gray-50 text-xs font-bold text-gray-400 uppercase border-b border-gray-100 select-none">
+            <th class="p-3">Ver #</th>
+            <th class="p-3">Size</th>
+            <th class="p-3">Modified</th>
+            <th class="p-3 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="versions-list-body">
+          <!-- Populated dynamically -->
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex justify-end">
+      <button id="versions-close-btn" class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-500 hover:bg-gray-50">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- 6. Sticky Upload Progress Notification -->
+<div id="upload-progress-modal" class="fixed bottom-4 right-4 md:right-4 left-4 md:left-auto bg-white border border-gray-200 shadow-xl rounded-xl p-4 w-[calc(100%-2rem)] md:w-80 hidden z-50 select-none mx-4 md:mx-0">
+  <div class="flex items-center justify-between mb-3">
+    <span id="upload-progress-text" class="text-xs font-bold text-gray-700 truncate w-48">Uploading file...</span>
+    <button id="upload-progress-close-btn" class="text-gray-400 hover:text-gray-600"><i class="bi bi-x-lg text-xs"></i></button>
+  </div>
+  <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden mb-2">
+    <div id="upload-progress-bar" class="bg-brand-teal h-1.5 rounded-full" style="width: 0%"></div>
+  </div>
+  <span id="upload-progress-details" class="text-[10px] text-gray-400">0% - Slicing...</span>
+</div>
+
+<!-- Drag Target Overlay overlay -->
+<div id="drag-overlay" class="drag-target-overlay">
+  <i class="bi bi-cloud-arrow-up-fill text-6xl mb-4 animate-bounce"></i>
+  <span class="text-2xl font-bold">Drop files here to upload</span>
+  <span class="text-sm text-brand-light-grey mt-1">Files are sliced and uploaded securely</span>
+</div>
+
+<!-- Global Modals JavaScript integration -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    
+    // --- MODAL CLOSE & CANCEL ACTIONS (PROGRAMMATIC AND BACKDROP CLICKS) ---
+    const closeButtons = [
+      { btnId: 'new-folder-cancel-btn', modalId: 'new-folder-modal' },
+      { btnId: 'rename-cancel-btn', modalId: 'rename-modal' },
+      { btnId: 'move-copy-cancel-btn', modalId: 'move-copy-modal' },
+      { btnId: 'share-close-btn', modalId: 'share-modal' },
+      { btnId: 'versions-close-btn', modalId: 'versions-modal' },
+      { btnId: 'upload-progress-close-btn', modalId: 'upload-progress-modal' }
+    ];
+
+    closeButtons.forEach(({ btnId, modalId }) => {
+      const btn = document.getElementById(btnId);
+      const modal = document.getElementById(modalId);
+      if (btn && modal) {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          modal.classList.add('hidden');
+        });
+      }
+    });
+
+    const backdropModals = [
+      document.getElementById('new-folder-modal'),
+      document.getElementById('rename-modal'),
+      document.getElementById('move-copy-modal'),
+      document.getElementById('share-modal'),
+      document.getElementById('versions-modal')
+    ];
+
+    backdropModals.forEach(modal => {
+      if (modal) {
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            modal.classList.add('hidden');
+          }
+        });
+      }
+    });
+
+    // --- CREATE FOLDER MODAL WORK ---
+    const createBtn = document.getElementById('create-folder-btn');
+    if (createBtn) {
+      createBtn.addEventListener('click', () => {
+        const nameInput = document.getElementById('new-folder-name');
+        const folderName = nameInput.value;
+        const parentId = window.getCurrentFolderId ? window.getCurrentFolderId() : '';
+
+        if (!folderName || folderName.trim() === '') {
+          alert('Name is required');
+          return;
+        }
+
+        fetch('/api/folders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrfToken
+          },
+          body: JSON.stringify({ name: folderName, parentId })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) alert(data.error);
+          else window.location.reload();
+        });
+      });
+    }
+
+    // --- RENAME MODAL SUBMIT WORK ---
+    const renameSubmitBtn = document.getElementById('rename-submit-btn');
+    if (renameSubmitBtn) {
+      renameSubmitBtn.addEventListener('click', () => {
+        const selected = window.selectedItems ? window.selectedItems()[0] : null;
+        if (!selected) return;
+
+        const input = document.getElementById('rename-input');
+        const newName = input.value;
+        const id = selected.dataset.id;
+        const type = selected.dataset.type;
+
+        if (!newName || newName.trim() === '') {
+          alert('Name is required');
+          return;
+        }
+
+        fetch(`/api/${type}s/rename`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrfToken
+          },
+          body: JSON.stringify({ id, name: newName })
+        })
+        .then(res => {
+          if (res.ok) window.location.reload();
+          else alert('Rename action failed');
+        });
+      });
+    }
+
+    // --- MOVE/COPY SELECTION SUBMIT WORK ---
+    const moveCopySubmitBtn = document.getElementById('move-copy-submit-btn');
+    if (moveCopySubmitBtn) {
+      moveCopySubmitBtn.addEventListener('click', () => {
+        const selected = window.selectedItems ? window.selectedItems() : [];
+        if (selected.length === 0) return;
+
+        const isCopy = moveCopySubmitBtn.dataset.isCopy === 'true';
+        const route = isCopy ? 'copy' : 'move';
+        const selectedRadio = document.querySelector('input[name="dest-folder"]:checked');
+        const destId = selectedRadio ? selectedRadio.value : '';
+
+        selected.forEach(async (el) => {
+          const type = el.dataset.type;
+          const url = `/api/${type}s/${route}`;
+          const payload = {};
+          
+          if (type === 'folder') {
+            payload.folderId = el.dataset.id;
+            payload.destinationFolderId = destId;
+          } else {
+            payload.fileId = el.dataset.id;
+            payload.destinationFolderId = destId;
+          }
+
+          await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-csrf-token': csrfToken
+            },
+            body: JSON.stringify(payload)
+          });
+        });
+
+        setTimeout(() => window.location.reload(), 1000);
+      });
+    }
+
+    // --- SHARE CONFIGURATION MODAL ---
+    const generateShareBtn = document.getElementById('generate-share-btn');
+    const revokeShareBtn = document.getElementById('revoke-share-btn');
+    const copyLinkBtn = document.getElementById('copy-share-link-btn');
+
+    if (generateShareBtn) {
+      generateShareBtn.addEventListener('click', () => {
+        const selected = window.selectedItems ? window.selectedItems()[0] : null;
+        if (!selected) return;
+
+        const password = document.getElementById('share-password').value;
+        const expiry = document.getElementById('share-expiry').value;
+        const allowDownload = document.getElementById('share-allow-download').checked;
+        const id = selected.dataset.id;
+        const type = selected.dataset.type;
+
+        const payload = {
+          fileId: type === 'file' ? id : null,
+          folderId: type === 'folder' ? id : null,
+          password,
+          expiresAt: expiry || null,
+          allowDownload
+        };
+
+        fetch('/share/api/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrfToken
+          },
+          body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            alert(data.error);
+            return;
+          }
+          
+          const shareLink = `${window.location.origin}/share/${data.token}`;
+          document.getElementById('share-link-input').value = shareLink;
+          document.getElementById('share-link-container').classList.remove('hidden');
+          if (revokeShareBtn) {
+            revokeShareBtn.classList.remove('hidden');
+            revokeShareBtn.dataset.token = data.token;
+          }
+        });
+      });
+    }
+
+    if (revokeShareBtn) {
+      revokeShareBtn.addEventListener('click', () => {
+        const token = revokeShareBtn.dataset.token;
+        if (!token) return;
+
+        fetch('/share/api/revoke', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrfToken
+          },
+          body: JSON.stringify({ token })
+        })
+        .then(res => {
+          if (res.ok) {
+            document.getElementById('share-link-container').classList.add('hidden');
+            document.getElementById('share-password').value = '';
+            document.getElementById('share-expiry').value = '';
+            revokeShareBtn.classList.add('hidden');
+            alert('Sharing link disabled successfully.');
+          }
+        });
+      });
+    }
+
+    if (copyLinkBtn) {
+      copyLinkBtn.addEventListener('click', () => {
+        const link = document.getElementById('share-link-input');
+        link.select();
+        document.execCommand('copy');
+        alert('Sharing link copied to clipboard!');
+      });
+    }
+
+    // --- VERSION HISTORY VIEW ENGINE ---
+    const versionsBtn = document.getElementById('detail-versions-btn');
+    const versionUploadInput = document.getElementById('version-upload-input');
+    
+    if (versionsBtn) {
+      versionsBtn.addEventListener('click', () => {
+        const selected = window.selectedItems ? window.selectedItems()[0] : null;
+        if (!selected || selected.dataset.type !== 'file') return;
+
+        // Fetch version history
+        fetchVersions(selected.dataset.id);
+      });
+    }
+
+    function fetchVersions(fileId) {
+      const body = document.getElementById('versions-list-body');
+      body.innerHTML = '<tr><td colspan="4" class="p-3 text-center text-gray-400">Loading version history...</td></tr>';
+      document.getElementById('versions-modal').classList.remove('hidden');
+
+      fetch(`/api/versions?fileId=${fileId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.versions && data.versions.length > 0) {
+            let html = '';
+            data.versions.forEach(v => {
+              html += `
+                <tr class="border-b border-gray-100">
+                  <td class="p-3 font-semibold text-gray-600">Version ${v.versionNumber}</td>
+                  <td class="p-3 text-gray-500">${window.formatBytes ? window.formatBytes(v.size) : v.size}</td>
+                  <td class="p-3 text-gray-500">${new Date(v.uploadedAt).toLocaleString()}</td>
+                  <td class="p-3 text-right">
+                    <button onclick="restoreVersion(${v.id})" class="text-brand-teal hover:underline font-semibold mr-3">Restore</button>
+                    <button onclick="deleteVersion(${v.id})" class="text-red-500 hover:underline">Delete</button>
+                  </td>
+                </tr>
+              `;
+            });
+            body.innerHTML = html;
+          } else {
+            body.innerHTML = '<tr><td colspan="4" class="p-3 text-center text-gray-400">No older versions found.</td></tr>';
+          }
+        });
+    }
+
+    // Restore versions
+    window.restoreVersion = async function(versionId) {
+      if (!await confirm('Are you sure you want to restore this older version? The current version will be archived.')) return;
+      fetch('/api/versions/restore', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken
+        },
+        body: JSON.stringify({ versionId })
+      })
+      .then(res => {
+        if (res.ok) window.location.reload();
+        else alert('Restoration failed');
+      });
+    };
+
+    // Delete version
+    window.deleteVersion = async function(versionId) {
+      if (!await confirm('Permanently delete this version record and storage file?')) return;
+      fetch('/api/versions/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken
+        },
+        body: JSON.stringify({ versionId })
+      })
+      .then(res => {
+        if (res.ok) {
+          const selected = window.selectedItems ? window.selectedItems()[0] : null;
+          if (selected) fetchVersions(selected.dataset.id);
+        } else {
+          alert('Delete version failed');
+        }
+      });
+    };
+
+    // Upload new version slice handler
+    if (versionUploadInput) {
+      versionUploadInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        const selected = window.selectedItems ? window.selectedItems()[0] : null;
+        if (!file || !selected) return;
+
+        // Hide version modal, open progress modal
+        document.getElementById('versions-modal').classList.add('hidden');
+        const progressModal = document.getElementById('upload-progress-modal');
+        const progressBar = document.getElementById('upload-progress-bar');
+        const progressDetails = document.getElementById('upload-progress-details');
+        const progressText = document.getElementById('upload-progress-text');
+        
+        progressModal.classList.remove('hidden');
+        progressText.textContent = `Uploading new version: ${file.name}...`;
+
+        const CHUNK_SIZE = 5 * 1024 * 1024;
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        const uploadId = (Math.abs(Math.random() * 10000000) | 0).toString(16);
+
+        try {
+          for (let i = 0; i < totalChunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(file.size, start + CHUNK_SIZE);
+            const chunkBlob = file.slice(start, end);
+
+            const formData = new FormData();
+            formData.append('uploadId', uploadId);
+            formData.append('chunkIndex', i);
+            formData.append('chunk', chunkBlob);
+
+            await fetch('/api/upload/chunk', {
+              method: 'POST',
+              headers: { 'x-csrf-token': csrfToken },
+              body: formData
+            });
+
+            const pct = Math.round(((i + 1) / totalChunks) * 100);
+            progressBar.style.width = `${pct}%`;
+            progressDetails.textContent = `${pct}% - Uploading chunk ${i+1} of ${totalChunks}`;
+          }
+
+          progressDetails.textContent = 'Archiving current version and merging...';
+
+          // Call new version complete route
+          const mergeRes = await fetch('/api/upload/version/complete', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-csrf-token': csrfToken
+            },
+            body: JSON.stringify({
+              uploadId,
+              totalChunks,
+              filename: file.name,
+              fileId: selected.dataset.id
+            })
+          });
+
+          if (mergeRes.ok) {
+            window.location.reload();
+          } else {
+            throw new Error('Merge request failed');
+          }
+        } catch (err) {
+          alert(`New version upload failed: ${err.message}`);
+          progressModal.classList.add('hidden');
+        }
+      });
+    }
+
+    // Detail actions triggers from selection
+    const renameBtn = document.getElementById('detail-rename-btn');
+    if (renameBtn) {
+      renameBtn.addEventListener('click', () => {
+        const selected = window.selectedItems ? window.selectedItems()[0] : null;
+        if (!selected) return;
+        
+        const renameInput = document.getElementById('rename-input');
+        renameInput.value = selected.dataset.name;
+        document.getElementById('rename-modal').classList.remove('hidden');
+      });
+    }
+
+    const deleteBtn = document.getElementById('detail-delete-btn');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', async () => {
+        const selected = window.selectedItems ? window.selectedItems() : [];
+        if (selected.length === 0) return;
+
+        if (await confirm(`Move ${selected.length} items to trash?`)) {
+          selected.forEach(async (el) => {
+            await fetch('/api/trash/move', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-csrf-token': csrfToken
+              },
+              body: JSON.stringify({ entityId: el.dataset.id, entityType: el.dataset.type })
+            });
+            el.remove();
+          });
+          setTimeout(() => window.location.reload(), 1000);
+        }
+      });
+    }
+
+    const starBtn = document.getElementById('detail-star-btn');
+    if (starBtn) {
+      starBtn.addEventListener('click', () => {
+        const selected = window.selectedItems ? window.selectedItems() : [];
+        if (selected.length === 0) return;
+
+        selected.forEach(async (el) => {
+          const res = await fetch('/api/favorites/toggle', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-csrf-token': csrfToken
+            },
+            body: JSON.stringify({ entityId: el.dataset.id, entityType: el.dataset.type })
+          });
+          const data = await res.json();
+          const starIcon = el.querySelector('.starred-icon');
+          if (starIcon) {
+            if (data.starred) {
+              starIcon.className = 'starred-icon bi bi-star-fill text-yellow-500';
+            } else {
+              starIcon.className = 'starred-icon bi bi-star text-gray-300';
+            }
+          }
+        });
+        setTimeout(() => window.location.reload(), 500);
+      });
+    }
+
+    const moveBtn = document.getElementById('detail-move-btn');
+    if (moveBtn) {
+      moveBtn.addEventListener('click', () => {
+        document.getElementById('move-copy-title').textContent = 'Move Selection';
+        moveCopySubmitBtn.textContent = 'Move';
+        moveCopySubmitBtn.dataset.isCopy = 'false';
+        document.getElementById('move-copy-modal').classList.remove('hidden');
+      });
+    }
+
+    const copyBtn = document.getElementById('detail-copy-btn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        document.getElementById('move-copy-title').textContent = 'Copy Selection';
+        moveCopySubmitBtn.textContent = 'Copy';
+        moveCopySubmitBtn.dataset.isCopy = 'true';
+        document.getElementById('move-copy-modal').classList.remove('hidden');
+      });
+    }
+
+    const shareBtn = document.getElementById('detail-share-btn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', () => {
+        document.getElementById('share-link-container').classList.add('hidden');
+        document.getElementById('share-password').value = '';
+        document.getElementById('share-expiry').value = '';
+        document.getElementById('share-modal').classList.remove('hidden');
+      });
+    }
+
+    const downloadBtn = document.getElementById('detail-download-btn');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', () => {
+        const selected = window.selectedItems ? window.selectedItems() : [];
+        selected.forEach(el => {
+          const type = el.dataset.type;
+          const id = el.dataset.id;
+          window.open(`/api/${type}s/download/${id}`, '_blank');
+        });
+      });
+    }
+  });
+</script>

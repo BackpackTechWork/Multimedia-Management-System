@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Harbor Drive</title>
+  
+  <% if (locals.csrfToken) { %>
+    <meta name="csrf-token" content="<%= csrfToken %>">
+  <% } %>
+
+  <link rel="icon" href="/web-app-manifest-512x512.png" type="image/png" sizes="512x512">
+  <link rel="apple-touch-icon" href="/web-app-manifest-512x512.png">
+  <link rel="manifest" href="/site.webmanifest">
+
+  <link rel="stylesheet" href="/vendor/inter/index.css">
+  <link rel="stylesheet" href="/vendor/bootstrap-icons/bootstrap-icons.css">
+
+  <% if (locals.tab === 'my-drive' || locals.tab === 'starred' || locals.tab === 'recent' || locals.tab === 'trash' || locals.sessions) { %>
+    <link rel="stylesheet" href="/css/drive.css">
+  <% } else if (locals.type) { %>
+    <link rel="stylesheet" href="/css/preview.css">
+  <% } else { %>
+    <link rel="stylesheet" href="/css/auth.css">
+  <% } %>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased min-h-screen flex flex-col">
+  <%- include('alert-modal') %>

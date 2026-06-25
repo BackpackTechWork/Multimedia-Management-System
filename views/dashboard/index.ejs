@@ -1,0 +1,245 @@
+<%- include('../partials/header') %>
+
+<%- include('../partials/navbar') %>
+
+<script>
+  window.driveContext = {
+    currentFolderId: '<%= currentFolderId || "" %>',
+    tab: '<%= tab %>'
+  };
+</script>
+
+<div class="flex-1 flex overflow-hidden">
+  <!-- Sidebar Navigation -->
+  <%- include('../partials/sidebar') %>
+
+  <!-- Main Drive Panel -->
+  <main class="flex-1 flex flex-col min-w-0 bg-[#F8F9FA] overflow-hidden">
+    
+    <!-- Action Toolbar & Breadcrumbs -->
+    <div class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0 select-none">
+      <div class="flex flex-col">
+        <%- include('../partials/breadcrumbs') %>
+      </div>
+
+      <!-- Contextual Action Bar (Toggled based on selection) -->
+      <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-1">
+        <button id="detail-star-btn" title="Toggle Star" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-yellow-500 rounded-md transition duration-150">
+          <i class="bi bi-star-fill text-base"></i>
+        </button>
+        <button id="detail-share-btn" title="Share link" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-brand-teal rounded-md transition duration-150">
+          <i class="bi bi-share-fill text-base"></i>
+        </button>
+        <button id="detail-rename-btn" title="Rename" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-brand-teal rounded-md transition duration-150">
+          <i class="bi bi-pencil-square text-base"></i>
+        </button>
+        <button id="detail-move-btn" title="Move folder location" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-brand-teal rounded-md transition duration-150">
+          <i class="bi bi-folder-symlink-fill text-base"></i>
+        </button>
+        <button id="detail-copy-btn" title="Copy item metadata" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-brand-teal rounded-md transition duration-150">
+          <i class="bi bi-file-earmark-medical-fill text-base"></i>
+        </button>
+        <button id="detail-versions-btn" title="Version history" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-brand-teal rounded-md transition duration-150 hidden">
+          <i class="bi bi-clock-history text-base"></i>
+        </button>
+        <button id="detail-download-btn" title="Download directly" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-brand-teal rounded-md transition duration-150">
+          <i class="bi bi-download text-base"></i>
+        </button>
+        <div class="w-px h-6 bg-gray-200 mx-1"></div>
+        <button id="detail-delete-btn" title="Move to Trash" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-red-500 rounded-md transition duration-150">
+          <i class="bi bi-trash-fill text-base"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Scrollable content area -->
+    <div id="items-grid-container" class="flex-1 overflow-y-auto p-6 relative">
+      
+      <!-- Trash tab controls warning -->
+      <% if (tab === 'trash') { %>
+        <div class="bg-brand-orange bg-opacity-10 border border-brand-orange border-opacity-20 text-brand-orange text-sm p-4 rounded-xl mb-6 flex items-center justify-between select-none">
+          <span class="font-medium flex items-center gap-2">
+            <i class="bi bi-info-circle-fill"></i> Items in Trash are permanently deleted after 30 days.
+          </span>
+          <div class="flex gap-2">
+            <button onclick="restoreSelected()" class="bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition">Restore selected</button>
+            <button onclick="purgeSelected()" class="bg-brand-orange text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-opacity-90 transition">Delete permanently</button>
+          </div>
+        </div>
+      <% } %>
+
+      <!-- Empty state illustration -->
+      <% if (folders.length === 0 && files.length === 0) { %>
+        <div class="flex flex-col items-center justify-center py-24 text-center select-none">
+          <div class="bg-gray-100 text-gray-300 w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-inner">
+            <i class="bi bi-folder2-open text-5xl"></i>
+          </div>
+          <h3 class="text-lg font-bold text-gray-700 mb-1">This directory is empty</h3>
+          <p class="text-sm text-gray-400 max-w-sm">Drag and drop files here to upload or click the "New" button to start.</p>
+        </div>
+      <% } %>
+
+      <!-- Grid of folders -->
+      <% if (folders.length > 0) { %>
+        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 select-none">Folders</h4>
+        <div class="responsive-grid mb-8">
+          <% folders.forEach(folder => { %>
+            <div 
+              class="grid-item file-card flex items-center gap-3 p-3.5 cursor-pointer relative"
+              data-id="<%= folder.id %>"
+              data-type="folder"
+              data-name="<%= folder.name %>"
+              data-updated="<%= new Date(folder.createdAt).toLocaleDateString() %>"
+            >
+              <i class="bi bi-folder-fill text-2xl text-yellow-500 shrink-0"></i>
+              <span class="font-semibold text-sm text-gray-700 truncate select-none flex-1"><%= folder.name %></span>
+              
+              <!-- Star Indicator -->
+              <i class="starred-icon bi <%= starredFolderIds.has(folder.id) ? 'bi-star-fill text-yellow-500' : 'bi-star text-gray-300' %> absolute right-2 top-2 text-xs"></i>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+
+      <!-- Grid of files -->
+      <% if (files.length > 0) { %>
+        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 select-none">Files</h4>
+        <div class="responsive-grid">
+          <% files.forEach(file => { %>
+            <div 
+              class="grid-item file-card flex flex-col justify-between p-3.5 cursor-pointer relative h-48"
+              data-id="<%= file.id %>"
+              data-type="file"
+              data-name="<%= file.originalName %>"
+              data-size="<%= file.size %>"
+              data-mime="<%= file.mimeType %>"
+              data-ext="<%= file.extension %>"
+              data-updated="<%= new Date(file.createdAt).toLocaleDateString() %>"
+            >
+              <!-- Star Indicator -->
+              <i class="starred-icon bi <%= starredFileIds.has(file.id) ? 'bi-star-fill text-yellow-500' : 'bi-star text-gray-300' %> absolute right-3 top-3 text-sm z-10"></i>
+
+              <!-- Card body: Thumbnail / Core Icon -->
+              <div class="flex-1 flex items-center justify-center p-2 mb-3 bg-gray-50 rounded-lg overflow-hidden select-none">
+                <% if (file.mimeType.startsWith('image/')) { %>
+                  <img src="/preview/stream/<%= file.id %>?thumbnail=200" alt="<%= file.originalName %>" class="w-full h-full object-cover rounded" loading="lazy">
+                <% } else { %>
+                  <% 
+                    let iconClass = 'bi-file-earmark-fill text-gray-400';
+                    if (file.extension === 'pdf') iconClass = 'bi-file-pdf-fill text-red-500';
+                    else if (['doc', 'docx'].includes(file.extension)) iconClass = 'bi-file-word-fill text-blue-500';
+                    else if (['xls', 'xlsx', 'csv'].includes(file.extension)) iconClass = 'bi-file-excel-fill text-green-600';
+                    else if (['js', 'ts', 'html', 'css', 'json', 'sql'].includes(file.extension)) iconClass = 'bi-file-code-fill text-gray-600';
+                    else if (file.extension === 'md') iconClass = 'bi-markdown-fill text-indigo-500';
+                    else if (file.mimeType.startsWith('audio/')) iconClass = 'bi-file-music-fill text-pink-500';
+                    else if (file.mimeType.startsWith('video/')) iconClass = 'bi-file-play-fill text-red-600';
+                  %>
+                  <i class="bi <%= iconClass %> text-5xl"></i>
+                <% } %>
+              </div>
+
+              <!-- Footer details -->
+              <div class="flex flex-col min-w-0 select-none">
+                <span class="font-bold text-sm text-gray-700 truncate leading-tight mb-0.5"><%= file.originalName %></span>
+                <span class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider"><%= file.extension %> • <%= formatBytes(file.size) %></span>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+
+    </div>
+  </main>
+
+  <!-- Details pane (Right-sidebar — hidden by default, slides in on file/folder click) -->
+  <aside id="details-aside" class="details-aside details-aside--hidden w-80 border-l border-gray-200 bg-white p-6 flex flex-col select-none shrink-0">
+    <div class="flex items-center justify-between mb-4">
+      <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Details</span>
+      <button id="close-details-btn" class="p-1 hover:bg-gray-100 rounded-md text-gray-400 hover:text-gray-600 transition" title="Close panel">
+        <i class="bi bi-x-lg text-sm"></i>
+      </button>
+    </div>
+
+    <div id="details-pane" class="flex-1 flex flex-col justify-between">
+      <div class="flex flex-col gap-6">
+        <div class="flex items-center gap-3 pb-4 border-b border-gray-100">
+          <div class="bg-brand-teal text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-inner">
+            <i class="bi bi-file-earmark-text text-xl" id="detail-panel-icon"></i>
+          </div>
+          <div class="min-w-0">
+            <h4 class="font-bold text-base text-gray-800 truncate" id="detail-name">-</h4>
+            <span class="text-xs text-gray-400" id="detail-type">-</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-4 text-sm font-medium">
+          <div class="flex justify-between">
+            <span class="text-gray-400">Size</span>
+            <span class="text-gray-700 font-semibold" id="detail-size">-</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-400">Storage Location</span>
+            <span class="text-gray-700 font-semibold">Self-Hosted Disk</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-gray-400">Modified Date</span>
+            <span class="text-gray-700 font-semibold" id="detail-modified">-</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="text-[10px] text-gray-400 italic text-center border-t border-gray-50 pt-4">
+        Hold Shift or Ctrl to select multiple items. Use global keyboard shortcuts for fast actions.
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- Modal Dialog Templates -->
+<%- include('../partials/modals') %>
+
+<!-- Scripts specifically for Trash tabs -->
+<% if (tab === 'trash') { %>
+  <script>
+    function restoreSelected() {
+      const selected = window.selectedItems ? window.selectedItems() : [];
+      if (selected.length === 0) return;
+      
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      selected.forEach(async (el) => {
+        await fetch('/api/trash/restore', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrfToken
+          },
+          body: JSON.stringify({ entityId: el.dataset.id, entityType: el.dataset.type })
+        });
+        el.remove();
+      });
+      setTimeout(() => window.location.reload(), 1000);
+    }
+
+    async function purgeSelected() {
+      const selected = window.selectedItems ? window.selectedItems() : [];
+      if (selected.length === 0) return;
+      if (!await confirm('Permanently delete selected item(s) from disk? This action CANNOT be undone.')) return;
+
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      selected.forEach(async (el) => {
+        await fetch('/api/trash/purge', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrfToken
+          },
+          body: JSON.stringify({ entityId: el.dataset.id, entityType: el.dataset.type })
+        });
+        el.remove();
+      });
+      setTimeout(() => window.location.reload(), 1000);
+    }
+  </script>
+<% } %>
+
+<%- include('../partials/footer') %>

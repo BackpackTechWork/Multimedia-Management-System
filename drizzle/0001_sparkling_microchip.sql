@@ -1,0 +1,1 @@
+ALTER TABLE `folders` MODIFY COLUMN `path` varchar(500) NOT NULL;

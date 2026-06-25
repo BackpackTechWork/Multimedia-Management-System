@@ -1,0 +1,20 @@
+{
+  "version": "6",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1781660905693,
+      "tag": "0000_tidy_miss_america",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1781661020003,
+      "tag": "0001_sparkling_microchip",
+      "breakpoints": true
+    }
+  ]
+}

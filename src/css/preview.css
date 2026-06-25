@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --yellow: #E9D758;
+  --teal: #297373;
+  --teal-dark: #1f5c5c;
+  --orange: #FF8552;
+  --light-grey: #E6E6E6;
+  --dark-grey: #39393A;
+  --white: #FFFFFF;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #1A202C;
+  color: #F7FAFC;
+}
+
+.preview-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  padding-inline: 1rem;
+}
+
+.embed-pdf-container {
+  width: 100%;
+  height: min(78vh, calc(100vh - 120px));
+}
+
+.code-container {
+  overflow: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.code-view-pre {
+  background-color: #2D3748;
+  color: #EDF2F7;
+  padding: 16px;
+  border-radius: 8px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .preview-container {
+    padding-inline: 0.75rem;
+  }
+
+  .embed-pdf-container {
+    height: calc(100vh - 9rem);
+  }
+
+  .code-view-pre {
+    font-size: 13px;
+    padding: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
