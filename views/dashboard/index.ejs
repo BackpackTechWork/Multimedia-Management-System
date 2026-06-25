@@ -22,8 +22,20 @@
         <%- include('../partials/breadcrumbs') %>
       </div>
 
-      <!-- Contextual Action Bar (Toggled based on selection) -->
-      <div class="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-1">
+      <div class="drive-toolbar-controls flex items-center gap-3">
+        <div id="layout-toggle" class="layout-toggle" role="group" aria-label="Choose file layout">
+          <button id="layout-list-btn" type="button" class="layout-toggle__button" title="List view" aria-label="List view" aria-pressed="false">
+            <i class="layout-toggle__check bi bi-check-lg" aria-hidden="true"></i>
+            <i class="bi bi-list-ul" aria-hidden="true"></i>
+          </button>
+          <button id="layout-grid-btn" type="button" class="layout-toggle__button" title="Grid view" aria-label="Grid view" aria-pressed="true">
+            <i class="layout-toggle__check bi bi-check-lg" aria-hidden="true"></i>
+            <i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <!-- Contextual Action Bar (Toggled based on selection) -->
+        <div class="drive-action-bar flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-1">
         <button id="detail-star-btn" title="Toggle Star" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-yellow-500 rounded-md transition duration-150">
           <i class="bi bi-star-fill text-base"></i>
         </button>
@@ -49,6 +61,7 @@
         <button id="detail-delete-btn" title="Move to Trash" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-red-500 rounded-md transition duration-150">
           <i class="bi bi-trash-fill text-base"></i>
         </button>
+        </div>
       </div>
     </div>
 
@@ -87,17 +100,29 @@
       <!-- Grid of folders -->
       <% if (folders.length > 0) { %>
         <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 select-none">Folders</h4>
-        <div class="responsive-grid mb-8">
+        <div class="drive-list-header" aria-hidden="true">
+          <span>Name</span>
+          <span>Modified</span>
+          <span>Size</span>
+        </div>
+        <div class="responsive-grid drive-items-group mb-8">
           <% folders.forEach(folder => { %>
             <div 
-              class="grid-item file-card flex items-center gap-3 p-3.5 cursor-pointer relative"
+              class="grid-item file-card folder-card flex items-center gap-3 p-3.5 cursor-pointer relative"
               data-id="<%= folder.id %>"
               data-type="folder"
               data-name="<%= folder.name %>"
               data-updated="<%= new Date(folder.createdAt).toLocaleDateString() %>"
             >
-              <i class="bi bi-folder-fill text-2xl text-yellow-500 shrink-0"></i>
-              <span class="font-semibold text-sm text-gray-700 truncate select-none flex-1"><%= folder.name %></span>
+              <div class="item-preview folder-preview">
+                <i class="bi bi-folder-fill text-2xl text-yellow-500 shrink-0"></i>
+              </div>
+              <div class="item-details">
+                <span class="item-name font-semibold text-sm text-gray-700 truncate select-none"><%= folder.name %></span>
+                <span class="item-secondary">Folder</span>
+              </div>
+              <span class="item-modified"><%= new Date(folder.createdAt).toLocaleDateString() %></span>
+              <span class="item-size">—</span>
               
               <!-- Star Indicator -->
               <i class="starred-icon bi <%= starredFolderIds.has(folder.id) ? 'bi-star-fill text-yellow-500' : 'bi-star text-gray-300' %> absolute right-2 top-2 text-xs"></i>
@@ -109,10 +134,15 @@
       <!-- Grid of files -->
       <% if (files.length > 0) { %>
         <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 select-none">Files</h4>
-        <div class="responsive-grid">
+        <div class="drive-list-header" aria-hidden="true">
+          <span>Name</span>
+          <span>Modified</span>
+          <span>Size</span>
+        </div>
+        <div class="responsive-grid drive-items-group">
           <% files.forEach(file => { %>
             <div 
-              class="grid-item file-card flex flex-col justify-between p-3.5 cursor-pointer relative h-48"
+              class="grid-item file-card drive-file-card flex flex-col justify-between p-3.5 cursor-pointer relative h-48"
               data-id="<%= file.id %>"
               data-type="file"
               data-name="<%= file.originalName %>"
@@ -125,7 +155,7 @@
               <i class="starred-icon bi <%= starredFileIds.has(file.id) ? 'bi-star-fill text-yellow-500' : 'bi-star text-gray-300' %> absolute right-3 top-3 text-sm z-10"></i>
 
               <!-- Card body: Thumbnail / Core Icon -->
-              <div class="flex-1 flex items-center justify-center p-2 mb-3 bg-gray-50 rounded-lg overflow-hidden select-none">
+              <div class="item-preview file-preview flex-1 flex items-center justify-center p-2 mb-3 bg-gray-50 rounded-lg overflow-hidden select-none">
                 <% if (file.mimeType.startsWith('image/')) { %>
                   <img src="/preview/stream/<%= file.id %>?thumbnail=200" alt="<%= file.originalName %>" class="w-full h-full object-cover rounded" loading="lazy">
                 <% } else { %>
@@ -144,10 +174,12 @@
               </div>
 
               <!-- Footer details -->
-              <div class="flex flex-col min-w-0 select-none">
-                <span class="font-bold text-sm text-gray-700 truncate leading-tight mb-0.5"><%= file.originalName %></span>
-                <span class="text-[10px] text-gray-400 font-semibold uppercase tracking-wider"><%= file.extension %> • <%= formatBytes(file.size) %></span>
+              <div class="item-details flex flex-col min-w-0 select-none">
+                <span class="item-name font-bold text-sm text-gray-700 truncate leading-tight mb-0.5"><%= file.originalName %></span>
+                <span class="item-secondary text-[10px] text-gray-400 font-semibold uppercase tracking-wider"><%= file.extension %> · <%= formatBytes(file.size) %></span>
               </div>
+              <span class="item-modified"><%= new Date(file.createdAt).toLocaleDateString() %></span>
+              <span class="item-size"><%= formatBytes(file.size) %></span>
             </div>
           <% }) %>
         </div>

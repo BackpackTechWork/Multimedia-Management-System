@@ -19,21 +19,8 @@ class SessionRepository {
   }
 
   async createOrUpdateSession(sessionId, userId, ipAddress, userAgent, sessionData, lastActivityAt, expiresAt) {
-    const existing = await this.findBySessionId(sessionId);
-    
-    if (existing) {
-      await db.update(sessions)
-        .set({
-          userId: userId || existing.userId,
-          ipAddress,
-          userAgent,
-          data: sessionData,
-          lastActivityAt,
-          expiresAt
-        })
-        .where(eq(sessions.sessionId, sessionId));
-    } else {
-      await db.insert(sessions).values({
+    await db.insert(sessions)
+      .values({
         sessionId,
         userId,
         ipAddress,
@@ -41,8 +28,28 @@ class SessionRepository {
         data: sessionData,
         lastActivityAt,
         expiresAt
+      })
+      .onDuplicateKeyUpdate({
+        set: {
+          userId: userId == null ? sql`${sessions.userId}` : userId,
+          ipAddress: ipAddress == null ? sql`${sessions.ipAddress}` : ipAddress,
+          userAgent: userAgent == null ? sql`${sessions.userAgent}` : userAgent,
+          data: sessionData,
+          lastActivityAt,
+          expiresAt
+        }
       });
-    }
+  }
+
+  async touchSession(sessionId, userId, sessionData, lastActivityAt, expiresAt) {
+    await db.update(sessions)
+      .set({
+        userId: userId == null ? sql`${sessions.userId}` : userId,
+        data: sessionData,
+        lastActivityAt,
+        expiresAt
+      })
+      .where(eq(sessions.sessionId, sessionId));
   }
 
   async destroySession(sessionId) {

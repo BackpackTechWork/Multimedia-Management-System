@@ -132,6 +132,9 @@ class DriveService {
       if (!newParent || newParent.userId !== userId) {
         throw new Error('New parent folder not found');
       }
+      if (newParent.path.startsWith(folder.path)) {
+        throw new Error('Cannot move a folder into one of its subfolders');
+      }
       newPathPrefix = newParent.path;
     }
 
@@ -176,7 +179,9 @@ class DriveService {
 
     await this.updateStorageStats(userId);
     
-    await jobRepository.createJob('thumbnail', { fileId: newFileId });
+    if (file.mimeType.startsWith('image/')) {
+      await jobRepository.createJob('thumbnail', { fileId: newFileId });
+    }
 
     return newFileId;
   }

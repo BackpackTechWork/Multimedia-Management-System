@@ -138,16 +138,33 @@
   </div>
 </div>
 
-<!-- 6. Sticky Upload Progress Notification -->
-<div id="upload-progress-modal" class="fixed bottom-4 right-4 md:right-4 left-4 md:left-auto bg-white border border-gray-200 shadow-xl rounded-xl p-4 w-[calc(100%-2rem)] md:w-80 hidden z-50 select-none mx-4 md:mx-0">
-  <div class="flex items-center justify-between mb-3">
-    <span id="upload-progress-text" class="text-xs font-bold text-gray-700 truncate w-48">Uploading file...</span>
-    <button id="upload-progress-close-btn" class="text-gray-400 hover:text-gray-600"><i class="bi bi-x-lg text-xs"></i></button>
+<!-- 6. Sticky Upload Queue -->
+<div id="upload-progress-modal" class="fixed bottom-4 right-4 md:right-4 left-4 md:left-auto bg-white border border-gray-200 shadow-xl rounded-xl w-[calc(100%-2rem)] md:w-[28rem] hidden z-50 select-none mx-4 md:mx-0 overflow-hidden">
+  <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+    <div class="min-w-0">
+      <span id="upload-progress-text" class="block text-sm font-bold text-gray-800 truncate">Preparing upload...</span>
+      <span id="upload-progress-details" class="block text-[11px] text-gray-500 mt-0.5">0% - Calculating time left</span>
+    </div>
+    <div class="flex items-center">
+      <button id="upload-progress-pause-btn" class="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md transition" title="Pause upload" aria-label="Pause upload">
+        <i class="bi bi-pause-fill text-lg"></i>
+      </button>
+      <button id="upload-progress-toggle-btn" class="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md transition" title="Collapse upload list">
+        <i class="bi bi-chevron-down text-base"></i>
+      </button>
+      <button id="upload-progress-close-btn" class="p-2 -mr-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md transition" title="Cancel upload">
+        <i class="bi bi-x-lg text-base"></i>
+      </button>
+    </div>
   </div>
-  <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden mb-2">
-    <div id="upload-progress-bar" class="bg-brand-teal h-1.5 rounded-full" style="width: 0%"></div>
+  <div id="upload-progress-body">
+    <div class="h-1 bg-gray-100 overflow-hidden">
+      <div id="upload-progress-bar" class="bg-brand-teal h-1 transition-[width] duration-150 ease-out" style="width: 0%"></div>
+    </div>
+    <div id="upload-queue-list" class="max-h-72 overflow-y-auto py-1">
+      <!-- Populated by drive.js -->
+    </div>
   </div>
-  <span id="upload-progress-details" class="text-[10px] text-gray-400">0% - Slicing...</span>
 </div>
 
 <!-- Drag Target Overlay overlay -->
@@ -194,6 +211,9 @@
     backdropModals.forEach(modal => {
       if (modal) {
         modal.addEventListener('click', (e) => {
+          // Keep the drive's document-level click handler from clearing the
+          // selection while a modal action is in progress.
+          e.stopPropagation();
           if (e.target === modal) {
             modal.classList.add('hidden');
           }
@@ -265,39 +285,58 @@
     // --- MOVE/COPY SELECTION SUBMIT WORK ---
     const moveCopySubmitBtn = document.getElementById('move-copy-submit-btn');
     if (moveCopySubmitBtn) {
-      moveCopySubmitBtn.addEventListener('click', () => {
+      moveCopySubmitBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const selected = window.selectedItems ? window.selectedItems() : [];
-        if (selected.length === 0) return;
+        if (selected.length === 0) {
+          alert('Select at least one item first.');
+          return;
+        }
 
         const isCopy = moveCopySubmitBtn.dataset.isCopy === 'true';
         const route = isCopy ? 'copy' : 'move';
         const selectedRadio = document.querySelector('input[name="dest-folder"]:checked');
         const destId = selectedRadio ? selectedRadio.value : '';
 
-        selected.forEach(async (el) => {
-          const type = el.dataset.type;
-          const url = `/api/${type}s/${route}`;
-          const payload = {};
-          
-          if (type === 'folder') {
-            payload.folderId = el.dataset.id;
-            payload.destinationFolderId = destId;
-          } else {
-            payload.fileId = el.dataset.id;
-            payload.destinationFolderId = destId;
-          }
+        moveCopySubmitBtn.disabled = true;
+        const originalText = moveCopySubmitBtn.textContent;
+        moveCopySubmitBtn.textContent = isCopy ? 'Copying...' : 'Moving...';
 
-          await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-csrf-token': csrfToken
-            },
-            body: JSON.stringify(payload)
-          });
-        });
+        try {
+          await Promise.all(selected.map(async (el) => {
+            const type = el.dataset.type;
+            const url = `/api/${type}s/${route}`;
+            const payload = {
+              destinationFolderId: destId
+            };
 
-        setTimeout(() => window.location.reload(), 1000);
+            if (type === 'folder') {
+              payload.folderId = el.dataset.id;
+            } else {
+              payload.fileId = el.dataset.id;
+            }
+
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-csrf-token': csrfToken
+              },
+              body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data.error || `Failed to ${route} ${el.dataset.name || type}`);
+            }
+          }));
+
+          window.location.reload();
+        } catch (err) {
+          alert(err.message || `${originalText} failed`);
+          moveCopySubmitBtn.disabled = false;
+          moveCopySubmitBtn.textContent = originalText;
+        }
       });
     }
 
@@ -307,9 +346,13 @@
     const copyLinkBtn = document.getElementById('copy-share-link-btn');
 
     if (generateShareBtn) {
-      generateShareBtn.addEventListener('click', () => {
+      generateShareBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const selected = window.selectedItems ? window.selectedItems()[0] : null;
-        if (!selected) return;
+        if (!selected) {
+          alert('Select a file or folder first.');
+          return;
+        }
 
         const password = document.getElementById('share-password').value;
         const expiry = document.getElementById('share-expiry').value;
@@ -325,21 +368,24 @@
           allowDownload
         };
 
-        fetch('/share/api/create', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-csrf-token': csrfToken
-          },
-          body: JSON.stringify(payload)
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data.error) {
-            alert(data.error);
-            return;
+        generateShareBtn.disabled = true;
+        generateShareBtn.textContent = 'Generating...';
+
+        try {
+          const res = await fetch('/share/api/create', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-csrf-token': csrfToken
+            },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+            throw new Error(data.error || 'Unable to generate share link');
           }
-          
+
           const shareLink = `${window.location.origin}/share/${data.token}`;
           document.getElementById('share-link-input').value = shareLink;
           document.getElementById('share-link-container').classList.remove('hidden');
@@ -347,7 +393,12 @@
             revokeShareBtn.classList.remove('hidden');
             revokeShareBtn.dataset.token = data.token;
           }
-        });
+        } catch (err) {
+          alert(err.message || 'Unable to generate share link');
+        } finally {
+          generateShareBtn.disabled = false;
+          generateShareBtn.textContent = 'Generate Link';
+        }
       });
     }
 
@@ -485,8 +536,10 @@
         progressText.textContent = `Uploading new version: ${file.name}...`;
 
         const CHUNK_SIZE = 5 * 1024 * 1024;
-        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-        const uploadId = (Math.abs(Math.random() * 10000000) | 0).toString(16);
+        const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+        const uploadId = window.crypto?.randomUUID
+          ? window.crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
         try {
           for (let i = 0; i < totalChunks; i++) {
@@ -497,15 +550,21 @@
             const formData = new FormData();
             formData.append('uploadId', uploadId);
             formData.append('chunkIndex', i);
+            formData.append('chunkOffset', start);
+            formData.append('fileSize', file.size);
             formData.append('chunk', chunkBlob);
 
-            await fetch('/api/upload/chunk', {
+            const chunkRes = await fetch('/api/upload/chunk', {
               method: 'POST',
               headers: { 'x-csrf-token': csrfToken },
               body: formData
             });
+            if (!chunkRes.ok) {
+              const chunkError = await chunkRes.json().catch(() => ({}));
+              throw new Error(chunkError.error || `Chunk ${i + 1} failed`);
+            }
 
-            const pct = Math.round(((i + 1) / totalChunks) * 100);
+            const pct = Math.min(98, Math.round(((i + 1) / totalChunks) * 98));
             progressBar.style.width = `${pct}%`;
             progressDetails.textContent = `${pct}% - Uploading chunk ${i+1} of ${totalChunks}`;
           }
@@ -523,6 +582,7 @@
               uploadId,
               totalChunks,
               filename: file.name,
+              fileSize: file.size,
               fileId: selected.dataset.id
             })
           });
@@ -601,7 +661,13 @@
 
     const moveBtn = document.getElementById('detail-move-btn');
     if (moveBtn) {
-      moveBtn.addEventListener('click', () => {
+      moveBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const selected = window.selectedItems ? window.selectedItems() : [];
+        if (selected.length === 0) {
+          alert('Select at least one item first.');
+          return;
+        }
         document.getElementById('move-copy-title').textContent = 'Move Selection';
         moveCopySubmitBtn.textContent = 'Move';
         moveCopySubmitBtn.dataset.isCopy = 'false';
@@ -611,7 +677,13 @@
 
     const copyBtn = document.getElementById('detail-copy-btn');
     if (copyBtn) {
-      copyBtn.addEventListener('click', () => {
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const selected = window.selectedItems ? window.selectedItems() : [];
+        if (selected.length === 0) {
+          alert('Select at least one item first.');
+          return;
+        }
         document.getElementById('move-copy-title').textContent = 'Copy Selection';
         moveCopySubmitBtn.textContent = 'Copy';
         moveCopySubmitBtn.dataset.isCopy = 'true';
@@ -621,7 +693,17 @@
 
     const shareBtn = document.getElementById('detail-share-btn');
     if (shareBtn) {
-      shareBtn.addEventListener('click', () => {
+      shareBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const selected = window.selectedItems ? window.selectedItems() : [];
+        if (selected.length === 0) {
+          alert('Select a file or folder first.');
+          return;
+        }
+        if (selected.length > 1) {
+          alert('Select only one item to share.');
+          return;
+        }
         document.getElementById('share-link-container').classList.add('hidden');
         document.getElementById('share-password').value = '';
         document.getElementById('share-expiry').value = '';

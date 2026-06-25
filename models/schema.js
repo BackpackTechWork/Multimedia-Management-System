@@ -22,7 +22,9 @@ const folders = mysqlTable('folders', {
 }, (table) => ({
   userIdIdx: index('folders_user_id_idx').on(table.userId),
   parentIdIdx: index('folders_parent_id_idx').on(table.parentId),
+  userParentIdx: index('folders_user_parent_idx').on(table.userId, table.parentId),
   pathIdx: index('folders_path_idx').on(table.path),
+  userPathIdx: index('folders_user_path_idx').on(table.userId, table.path),
 }));
 
 const files = mysqlTable('files', {
@@ -41,6 +43,8 @@ const files = mysqlTable('files', {
 }, (table) => ({
   userIdIdx: index('files_user_id_idx').on(table.userId),
   folderIdIdx: index('files_folder_id_idx').on(table.folderId),
+  userFolderIdx: index('files_user_folder_idx').on(table.userId, table.folderId),
+  userCreatedIdx: index('files_user_created_idx').on(table.userId, table.createdAt),
   visibilityIdx: index('files_visibility_idx').on(table.visibility),
 }));
 
@@ -65,6 +69,8 @@ const trashItems = mysqlTable('trash_items', {
   purgeAt: datetime('purge_at').notNull(), // auto deleted 30 days after deletion
 }, (table) => ({
   userIdIdx: index('trash_user_id_idx').on(table.userId),
+  entityIdx: index('trash_entity_idx').on(table.entityId, table.entityType),
+  userEntityIdx: index('trash_user_entity_idx').on(table.userId, table.entityType, table.entityId),
   purgeAtIdx: index('trash_purge_at_idx').on(table.purgeAt),
 }));
 
@@ -77,6 +83,8 @@ const favorites = mysqlTable('favorites', {
   userIdIdx: index('fav_user_id_idx').on(table.userId),
   fileIdIdx: index('fav_file_id_idx').on(table.fileId),
   folderIdIdx: index('fav_folder_id_idx').on(table.folderId),
+  userFileIdx: uniqueIndex('fav_user_file_idx').on(table.userId, table.fileId),
+  userFolderIdx: uniqueIndex('fav_user_folder_idx').on(table.userId, table.folderId),
 }));
 
 const recentActivity = mysqlTable('recent_activity', {
@@ -87,6 +95,8 @@ const recentActivity = mysqlTable('recent_activity', {
 }, (table) => ({
   userIdIdx: index('recent_user_id_idx').on(table.userId),
   fileIdIdx: index('recent_file_id_idx').on(table.fileId),
+  userFileIdx: uniqueIndex('recent_user_file_idx').on(table.userId, table.fileId),
+  userLastOpenedIdx: index('recent_user_last_opened_idx').on(table.userId, table.lastOpenedAt),
 }));
 
 const shares = mysqlTable('shares', {

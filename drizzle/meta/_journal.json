@@ -15,6 +15,13 @@
       "when": 1781661020003,
       "tag": "0001_sparkling_microchip",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1782368009272,
+      "tag": "0002_married_richard_fisk",
+      "breakpoints": true
     }
   ]
 }

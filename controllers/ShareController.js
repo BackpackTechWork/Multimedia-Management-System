@@ -1,12 +1,23 @@
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
+const fs = require('fs');
+const path = require('path');
 const { db } = require('../config/db');
 const { shares, files, folders } = require('../models/schema');
-const { eq, and, sql, inArray } = require('drizzle-orm');
+const { eq, inArray } = require('drizzle-orm');
 const shareRepository = require('../repositories/ShareRepository');
 const fileRepository = require('../repositories/FileRepository');
 const folderRepository = require('../repositories/FolderRepository');
 const storageService = require('../services/StorageService');
+
+async function fileExists(fullPath) {
+  try {
+    await fs.promises.access(fullPath, fs.constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 class ShareController {
   async createShare(req, res) {
@@ -233,7 +244,7 @@ class ShareController {
       if (!file) return res.status(404).send('File not found.');
 
       const fullPath = path.join(storageService.storageRoot, file.path);
-      if (!fs.existsSync(fullPath)) {
+      if (!(await fileExists(fullPath))) {
         return res.status(404).send('File not found on disk.');
       }
 

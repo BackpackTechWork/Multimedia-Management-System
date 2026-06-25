@@ -40,6 +40,8 @@ router.get('/api/folders/download/:id', driveController.downloadFolder);
 router.get('/api/upload/status', driveController.checkChunkStatus);
 router.post('/api/upload/chunk', upload.single('chunk'), driveController.uploadChunk);
 router.post('/api/upload/complete', driveController.completeUpload);
+router.post('/api/upload/refresh-stats', driveController.refreshStorageStats);
+router.post('/api/upload/cancel', driveController.cancelUpload);
 
 router.get('/api/versions', driveController.listVersions);
 router.post('/api/upload/version/complete', driveController.uploadNewVersionComplete);

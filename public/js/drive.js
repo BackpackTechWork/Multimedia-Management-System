@@ -10,9 +10,33 @@ window.getCurrentFolderId = function() {
   return '';
 };
 
+let notificationAudio = null;
+
+window.primeNotificationSound = function() {
+  if (!notificationAudio) {
+    notificationAudio = new Audio('/sounds/Notification%20Sound.mp3');
+    notificationAudio.preload = 'auto';
+  }
+
+  const previousVolume = notificationAudio.volume;
+  notificationAudio.volume = 0;
+  notificationAudio.play()
+    .then(() => {
+      notificationAudio.pause();
+      notificationAudio.currentTime = 0;
+      notificationAudio.volume = previousVolume;
+    })
+    .catch(() => {
+      notificationAudio.volume = previousVolume;
+    });
+};
+
 window.playNotificationSound = function() {
   return new Promise((resolve) => {
-    const audio = new Audio('/sounds/Notification%20Sound.mp3');
+    const audio = notificationAudio || new Audio('/sounds/Notification%20Sound.mp3');
+    notificationAudio = audio;
+    audio.volume = 1;
+    audio.currentTime = 0;
     audio.addEventListener('ended', resolve);
     audio.addEventListener('error', resolve);
     audio.play().catch(err => {
@@ -37,6 +61,44 @@ document.addEventListener('DOMContentLoaded', () => {
   const mobileSidebarClose = document.getElementById('mobile-sidebar-close');
   const driveSidebar = document.getElementById('drive-sidebar');
   const driveSidebarBackdrop = document.getElementById('drive-sidebar-backdrop');
+  const itemsGridContainer = document.getElementById('items-grid-container');
+  const layoutListBtn = document.getElementById('layout-list-btn');
+  const layoutGridBtn = document.getElementById('layout-grid-btn');
+  const DRIVE_LAYOUT_KEY = 'harbor-drive-layout';
+
+  function applyDriveLayout(layout) {
+    if (!itemsGridContainer) return;
+
+    const resolvedLayout = layout === 'list' ? 'list' : 'grid';
+    itemsGridContainer.classList.toggle('drive-layout-list', resolvedLayout === 'list');
+    itemsGridContainer.classList.toggle('drive-layout-grid', resolvedLayout === 'grid');
+    layoutListBtn?.setAttribute('aria-pressed', String(resolvedLayout === 'list'));
+    layoutGridBtn?.setAttribute('aria-pressed', String(resolvedLayout === 'grid'));
+
+    try {
+      localStorage.setItem(DRIVE_LAYOUT_KEY, resolvedLayout);
+    } catch {
+      // Storage may be unavailable in restricted/private browser contexts.
+    }
+  }
+
+  let savedDriveLayout = 'grid';
+  try {
+    savedDriveLayout = localStorage.getItem(DRIVE_LAYOUT_KEY) || 'grid';
+  } catch {
+    savedDriveLayout = 'grid';
+  }
+  applyDriveLayout(savedDriveLayout);
+
+  layoutListBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    applyDriveLayout('list');
+  });
+
+  layoutGridBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    applyDriveLayout('grid');
+  });
 
   function isMobileSidebar() {
     return window.matchMedia('(max-width: 1023px)').matches;
@@ -150,6 +212,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const trashSelectionActions = document.getElementById('trash-selection-actions');
   const trashSelectionCount = document.getElementById('trash-selection-count');
   let justDragged = false;
+  let internalItemDrag = false;
+  const DRIVE_ITEMS_MIME = 'application/x-harbor-drive-items';
 
   // Custom Context Menu Overlay
   const contextMenu = document.createElement('div');
@@ -246,11 +310,55 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Helper to open a folder or preview a file
+  function openItem(item) {
+    const type = item.dataset.type;
+    const id = item.dataset.id;
+    if (type === 'folder') {
+      if (!window.driveContext || window.driveContext.tab === 'my-drive') {
+        window.location.href = `/folders/${id}`;
+      }
+    } else {
+      // Preview file
+      const mime = item.dataset.mime || '';
+      let route = 'code';
+      if (mime.startsWith('image/')) route = 'image';
+      else if (mime === 'application/pdf') route = 'pdf';
+      else if (mime.startsWith('video/')) route = 'video';
+      else if (mime.startsWith('audio/')) route = 'audio';
+      else if (item.dataset.ext === 'md') route = 'markdown';
+      else if (['xls', 'xlsx', 'csv', 'ods'].includes(item.dataset.ext)) route = 'excel';
+      
+      window.open(`/preview/${route}/${id}`, '_blank');
+    }
+  }
+
+  let lastClickTime = 0;
+  let lastClickItem = null;
+
   // Handle single clicks on item cards
   items.forEach(item => {
+    item.draggable = !isTrashTab;
+    item.querySelectorAll('img').forEach(image => {
+      image.draggable = false;
+    });
+
     item.addEventListener('click', (e) => {
       e.stopPropagation();
       contextMenu.classList.add('hidden');
+
+      const currentTime = new Date().getTime();
+      const clickDelay = currentTime - lastClickTime;
+      const isDoubleClick = (lastClickItem === item && clickDelay < 350);
+
+      lastClickTime = currentTime;
+      lastClickItem = item;
+
+      if (isDoubleClick) {
+        openItem(item);
+        return;
+      }
+
       if (e.ctrlKey || e.metaKey) {
         if (item.classList.contains('selected')) {
           deselectItem(item);
@@ -277,25 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Double click to open folders or preview files
     item.addEventListener('dblclick', () => {
-      const type = item.dataset.type;
-      const id = item.dataset.id;
-      if (type === 'folder') {
-        if (!window.driveContext || window.driveContext.tab === 'my-drive') {
-          window.location.href = `/folders/${id}`;
-        }
-      } else {
-        // Preview file
-        const mime = item.dataset.mime || '';
-        let route = 'code';
-        if (mime.startsWith('image/')) route = 'image';
-        else if (mime === 'application/pdf') route = 'pdf';
-        else if (mime.startsWith('video/')) route = 'video';
-        else if (mime.startsWith('audio/')) route = 'audio';
-        else if (item.dataset.ext === 'md') route = 'markdown';
-        else if (['xls', 'xlsx', 'csv', 'ods'].includes(item.dataset.ext)) route = 'excel';
-        
-        window.open(`/preview/${route}/${id}`, '_blank');
-      }
+      openItem(item);
     });
 
     // Right click for context menu
@@ -324,7 +414,126 @@ document.addEventListener('DOMContentLoaded', () => {
       contextMenu.style.top = posY + 'px';
       contextMenu.classList.remove('hidden');
     });
+
+    if (!isTrashTab) {
+      item.addEventListener('dragstart', (e) => {
+        if (!selectedItems.includes(item)) {
+          selectItem(item, false);
+        }
+
+        const payload = selectedItems.map(selected => ({
+          id: selected.dataset.id,
+          type: selected.dataset.type,
+          name: selected.dataset.name || selected.dataset.type
+        }));
+
+        internalItemDrag = true;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData(DRIVE_ITEMS_MIME, JSON.stringify(payload));
+        e.dataTransfer.setData('text/plain', payload.map(entry => entry.name).join(', '));
+        selectedItems.forEach(selected => selected.classList.add('is-dragging'));
+      });
+
+      item.addEventListener('dragend', () => {
+        internalItemDrag = false;
+        items.forEach(candidate => {
+          candidate.classList.remove('is-dragging', 'is-drop-target', 'is-moving');
+        });
+      });
+    }
   });
+
+  function readDraggedDriveItems(dataTransfer) {
+    if (!dataTransfer) return [];
+
+    try {
+      const rawPayload = dataTransfer.getData(DRIVE_ITEMS_MIME);
+      const payload = JSON.parse(rawPayload || '[]');
+      return Array.isArray(payload) ? payload : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async function moveDriveItemsToFolder(draggedItems, destinationFolder) {
+    const destinationFolderId = destinationFolder.dataset.id;
+    if (draggedItems.some(entry => entry.type === 'folder' && entry.id === destinationFolderId)) {
+      throw new Error('A folder cannot be moved into itself.');
+    }
+
+    destinationFolder.classList.add('is-moving');
+
+    try {
+      await Promise.all(draggedItems.map(async entry => {
+        const payload = {
+          destinationFolderId
+        };
+
+        if (entry.type === 'folder') payload.folderId = entry.id;
+        else payload.fileId = entry.id;
+
+        const res = await fetch(`/api/${entry.type}s/move`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrfToken
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `Failed to move ${entry.name}`);
+        }
+      }));
+    } finally {
+      destinationFolder.classList.remove('is-moving');
+    }
+  }
+
+  if (!isTrashTab) {
+    items.forEach(folder => {
+      if (folder.dataset.type !== 'folder') return;
+
+      folder.addEventListener('dragenter', (e) => {
+        if (!internalItemDrag) return;
+        e.preventDefault();
+        e.stopPropagation();
+        folder.classList.add('is-drop-target');
+      });
+
+      folder.addEventListener('dragover', (e) => {
+        if (!internalItemDrag) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        folder.classList.add('is-drop-target');
+      });
+
+      folder.addEventListener('dragleave', (e) => {
+        if (!folder.contains(e.relatedTarget)) {
+          folder.classList.remove('is-drop-target');
+        }
+      });
+
+      folder.addEventListener('drop', async (e) => {
+        if (!internalItemDrag) return;
+        e.preventDefault();
+        e.stopPropagation();
+        folder.classList.remove('is-drop-target');
+
+        const draggedItems = readDraggedDriveItems(e.dataTransfer);
+        if (draggedItems.length === 0) return;
+
+        try {
+          await moveDriveItemsToFolder(draggedItems, folder);
+          window.location.reload();
+        } catch (err) {
+          alert(err.message || 'Unable to move the selected items.');
+        }
+      });
+    });
+  }
 
   // Event handlers for context menu items
   document.getElementById('context-open').addEventListener('click', (e) => {
@@ -580,7 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- BOX DRAG SELECTION ---
-  const gridContainer = document.getElementById('items-grid-container');
+  const gridContainer = itemsGridContainer;
   if (gridContainer) {
     let startClientX = 0, startClientY = 0, isSelecting = false;
     let box = null;
@@ -596,7 +805,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       box = document.createElement('div');
       box.className = 'selection-box';
+      box.style.left = `${startClientX}px`;
+      box.style.top = `${startClientY}px`;
       document.body.appendChild(box);
+      document.body.classList.add('is-box-selecting');
     });
 
     document.addEventListener('mousemove', (e) => {
@@ -610,8 +822,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const boxWidth = Math.abs(startClientX - currentClientX);
       const boxHeight = Math.abs(startClientY - currentClientY);
 
-      box.style.left = (boxLeft + window.scrollX) + 'px';
-      box.style.top = (boxTop + window.scrollY) + 'px';
+      box.style.left = boxLeft + 'px';
+      box.style.top = boxTop + 'px';
       box.style.width = boxWidth + 'px';
       box.style.height = boxHeight + 'px';
 
@@ -653,6 +865,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (box) {
           box.remove();
           box = null;
+          document.body.classList.remove('is-box-selecting');
           justDragged = true;
           setTimeout(() => { justDragged = false; }, 50);
         }
@@ -667,27 +880,504 @@ document.addEventListener('DOMContentLoaded', () => {
   const uploadProgressText = document.getElementById('upload-progress-text');
   const uploadProgressBar = document.getElementById('upload-progress-bar');
   const uploadProgressDetails = document.getElementById('upload-progress-details');
+  const uploadProgressCloseBtn = document.getElementById('upload-progress-close-btn');
+  const uploadProgressPauseBtn = document.getElementById('upload-progress-pause-btn');
+  const uploadProgressToggleBtn = document.getElementById('upload-progress-toggle-btn');
+  const uploadProgressBody = document.getElementById('upload-progress-body');
+  const uploadQueueList = document.getElementById('upload-queue-list');
+  const CHUNK_UPLOAD_CONCURRENCY = 3;
+  const FILE_UPLOAD_CONCURRENCY = 2;
+  let lastProgressUpdateAt = 0;
+  let uploadSessionController = null;
+  let uploadInProgress = false;
+  let uploadCancelled = false;
+  let uploadPaused = false;
+  let uploadPauseReason = null;
+  let uploadResumeWaiters = [];
+  let reconnectTimer = null;
+  let uploadStartedAt = 0;
+  let uploadQueue = [];
+  const uploadQueueByFile = new Map();
+  const activeUploadIds = new Set();
+  const uploadIdentityByFile = new Map();
+  const PENDING_UPLOADS_KEY = 'harbor-drive-pending-uploads-v1';
+
+  window.addEventListener('beforeunload', (e) => {
+    if (!uploadInProgress) return;
+
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  if (uploadProgressCloseBtn) {
+    uploadProgressCloseBtn.addEventListener('click', async (e) => {
+      if (!uploadInProgress) return;
+
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const shouldCancel = await confirm('Cancel the current upload? Uploaded temporary chunks will be removed.');
+      if (!shouldCancel) return;
+
+      await cancelActiveUpload();
+    }, true);
+  }
+
+  if (uploadProgressPauseBtn) {
+    uploadProgressPauseBtn.addEventListener('click', () => {
+      if (!uploadInProgress) return;
+      if (uploadPaused) {
+        resumeUpload();
+      } else {
+        pauseUpload('Paused by you', 'manual');
+      }
+    });
+  }
+
+  window.addEventListener('offline', () => {
+    if (uploadInProgress && !uploadCancelled) {
+      pauseUpload('Connection lost. Waiting to reconnect', 'network');
+    }
+  });
+
+  window.addEventListener('online', () => {
+    if (uploadInProgress && uploadPaused && uploadPauseReason === 'network') {
+      resumeUpload();
+    }
+  });
+
+  if (uploadProgressToggleBtn && uploadProgressBody) {
+    uploadProgressToggleBtn.addEventListener('click', () => {
+      const isCollapsed = uploadProgressBody.classList.toggle('hidden');
+      const icon = uploadProgressToggleBtn.querySelector('i');
+      if (icon) {
+        icon.className = `bi ${isCollapsed ? 'bi-chevron-up' : 'bi-chevron-down'} text-base`;
+      }
+      uploadProgressToggleBtn.title = isCollapsed ? 'Expand upload list' : 'Collapse upload list';
+    });
+  }
+
+  function startUploadSession() {
+    uploadSessionController = new AbortController();
+    uploadInProgress = true;
+    uploadCancelled = false;
+    uploadPaused = false;
+    uploadPauseReason = null;
+    uploadResumeWaiters = [];
+    uploadStartedAt = 0;
+    uploadQueue = [];
+    uploadQueueByFile.clear();
+    activeUploadIds.clear();
+    uploadIdentityByFile.clear();
+    updatePauseButton();
+    if (uploadQueueList) uploadQueueList.replaceChildren();
+  }
+
+  function finishUploadSession() {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    uploadSessionController = null;
+    uploadInProgress = false;
+    uploadCancelled = false;
+    uploadPaused = false;
+    uploadPauseReason = null;
+    uploadResumeWaiters.splice(0).forEach(resolve => resolve());
+    uploadStartedAt = 0;
+    activeUploadIds.clear();
+    uploadIdentityByFile.clear();
+    updatePauseButton();
+  }
+
+  async function cancelActiveUpload() {
+    uploadCancelled = true;
+    uploadSessionController?.abort();
+    uploadResumeWaiters.splice(0).forEach(resolve => resolve());
+    uploadProgressText.textContent = 'Cancelling upload...';
+    updateProgress(0, 'Removing temporary chunks...', { force: true });
+
+    await cleanupActiveUploadChunks();
+    finishUploadSession();
+    if (uploadProgressModal) uploadProgressModal.classList.add('hidden');
+    if (uploadInput) uploadInput.value = '';
+  }
+
+  function updatePauseButton() {
+    if (!uploadProgressPauseBtn) return;
+    const icon = uploadProgressPauseBtn.querySelector('i');
+    if (uploadPaused) {
+      uploadProgressPauseBtn.title = 'Resume upload';
+      uploadProgressPauseBtn.setAttribute('aria-label', 'Resume upload');
+      if (icon) icon.className = 'bi bi-play-fill text-lg';
+    } else {
+      uploadProgressPauseBtn.title = 'Pause upload';
+      uploadProgressPauseBtn.setAttribute('aria-label', 'Pause upload');
+      if (icon) icon.className = 'bi bi-pause-fill text-lg';
+    }
+  }
+
+  function pauseUpload(message, reason = 'manual') {
+    if (!uploadInProgress || uploadCancelled) return;
+    uploadPaused = true;
+    uploadPauseReason = reason;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+
+    uploadQueue.forEach(item => {
+      if (item.status === 'uploading' || item.status === 'queued') {
+        item.statusBeforePause = item.status;
+        setUploadItemState(item.file, 'paused', item.progress);
+      }
+    });
+
+    if (uploadProgressText) uploadProgressText.textContent = 'Upload paused';
+    updateProgress(getAggregateUploadPercent(), message, { force: true });
+    updatePauseButton();
+
+    if (reason === 'network') {
+      reconnectTimer = setTimeout(() => {
+        if (uploadInProgress && uploadPaused && uploadPauseReason === 'network' && navigator.onLine) {
+          resumeUpload();
+        }
+      }, 5000);
+    }
+  }
+
+  function resumeUpload() {
+    if (!uploadInProgress || !uploadPaused) return;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    uploadPaused = false;
+    uploadPauseReason = null;
+
+    uploadQueue.forEach(item => {
+      if (item.status === 'paused') {
+        setUploadItemState(item.file, item.statusBeforePause || 'uploading', item.progress);
+        item.statusBeforePause = null;
+      }
+    });
+
+    updatePauseButton();
+    const waiters = uploadResumeWaiters.splice(0);
+    waiters.forEach(resolve => resolve());
+    updateUploadSummary({ force: true });
+  }
+
+  async function waitForUploadResume() {
+    while (uploadPaused && !uploadCancelled) {
+      await new Promise(resolve => uploadResumeWaiters.push(resolve));
+    }
+    if (uploadCancelled) throw new Error('Upload cancelled');
+  }
+
+  function isNetworkError(err) {
+    return err instanceof TypeError ||
+      err?.message === 'Failed to fetch' ||
+      /network|fetch/i.test(err?.message || '');
+  }
+
+  async function fetchWithConnectionRecovery(url, options) {
+    while (true) {
+      await waitForUploadResume();
+      try {
+        return await fetch(url, options);
+      } catch (err) {
+        if (uploadCancelled || err.name === 'AbortError') throw err;
+        if (!isNetworkError(err)) throw err;
+
+        pauseUpload('Connection lost. Waiting to reconnect', 'network');
+        await waitForUploadResume();
+      }
+    }
+  }
+
+  async function cleanupActiveUploadChunks() {
+    const uploadIds = Array.from(activeUploadIds);
+    if (uploadIds.length > 0) {
+      await fetch('/api/upload/cancel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken
+        },
+        body: JSON.stringify({ uploadIds })
+      }).catch(err => console.warn('Upload cleanup failed:', err));
+    }
+    uploadQueue.forEach(item => clearUploadIdentity(item.file));
+    activeUploadIds.clear();
+  }
+
+  async function finishFailedUpload(err, message) {
+    const wasCancelled = uploadCancelled || err?.name === 'AbortError' || err?.message === 'Upload cancelled';
+    if (!wasCancelled) {
+      uploadSessionController?.abort();
+      console.error(err);
+      if (message && !err?.uploadAlertShown) {
+        alert(message);
+      }
+    }
+
+    finishUploadSession();
+    if (wasCancelled && uploadProgressModal) uploadProgressModal.classList.add('hidden');
+  }
+
+  function formatUploadDuration(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) return 'Calculating time left';
+    if (seconds < 60) return `${Math.max(1, Math.ceil(seconds))} sec left`;
+
+    const minutes = Math.ceil(seconds / 60);
+    if (minutes < 60) return `${minutes} min left`;
+
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes > 0
+      ? `${hours} hr ${remainingMinutes} min left`
+      : `${hours} hr left`;
+  }
+
+  function getUploadFileIcon(file) {
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    if (file.type.startsWith('video/')) return 'bi-file-earmark-play-fill text-red-500';
+    if (file.type.startsWith('image/')) return 'bi-file-earmark-image-fill text-blue-500';
+    if (file.type.startsWith('audio/')) return 'bi-file-earmark-music-fill text-pink-500';
+    if (extension === 'pdf') return 'bi-file-earmark-pdf-fill text-red-500';
+    if (['doc', 'docx'].includes(extension)) return 'bi-file-earmark-word-fill text-blue-600';
+    if (['xls', 'xlsx', 'csv'].includes(extension)) return 'bi-file-earmark-excel-fill text-green-600';
+    return 'bi-file-earmark-fill text-gray-500';
+  }
+
+  function prepareUploadQueue(files) {
+    uploadQueue = files.map((file, index) => ({
+      id: `upload-item-${index}`,
+      file,
+      status: 'queued',
+      progress: 0,
+      uploadedBytes: 0,
+      row: null,
+      statusIcon: null,
+      progressText: null,
+      progressBar: null
+    }));
+
+    uploadQueueByFile.clear();
+    uploadQueue.forEach(item => uploadQueueByFile.set(item.file, item));
+    renderUploadQueue();
+    updateUploadSummary({ force: true });
+  }
+
+  function renderUploadQueue() {
+    if (!uploadQueueList) return;
+    uploadQueueList.replaceChildren();
+
+    uploadQueue.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-3 px-4 py-2.5 min-h-14 text-gray-400';
+
+      const fileIcon = document.createElement('i');
+      fileIcon.className = `bi ${getUploadFileIcon(item.file)} text-lg shrink-0`;
+
+      const details = document.createElement('div');
+      details.className = 'min-w-0 flex-1';
+
+      const name = document.createElement('div');
+      name.className = 'text-sm font-medium truncate';
+      name.textContent = item.file.name;
+
+      const progressTrack = document.createElement('div');
+      progressTrack.className = 'h-1 bg-gray-100 rounded-full overflow-hidden mt-1.5 hidden';
+
+      const progressBar = document.createElement('div');
+      progressBar.className = 'h-full bg-brand-teal transition-[width] duration-150 ease-out';
+      progressBar.style.width = '0%';
+      progressTrack.appendChild(progressBar);
+
+      details.append(name, progressTrack);
+
+      const status = document.createElement('div');
+      status.className = 'w-12 shrink-0 text-right text-[11px] font-semibold text-gray-400';
+      status.textContent = 'Queued';
+
+      row.append(fileIcon, details, status);
+      uploadQueueList.appendChild(row);
+
+      item.row = row;
+      item.statusIcon = status;
+      item.progressText = progressTrack;
+      item.progressBar = progressBar;
+    });
+  }
+
+  function setUploadItemState(file, status, progress = 0) {
+    const item = uploadQueueByFile.get(file);
+    if (!item) return;
+
+    if (uploadPaused && status === 'uploading') {
+      item.statusBeforePause = 'uploading';
+      status = 'paused';
+    }
+
+    item.status = status;
+    item.progress = Math.max(0, Math.min(progress, 100));
+    item.uploadedBytes = Math.round((item.progress / 100) * file.size);
+
+    item.row.classList.toggle('text-gray-400', status === 'queued');
+    item.row.classList.toggle('text-gray-800', status !== 'queued');
+    item.progressText.classList.toggle('hidden', !['uploading', 'paused'].includes(status));
+    item.progressBar.style.width = `${item.progress}%`;
+
+    if (status === 'queued') {
+      item.statusIcon.className = 'w-12 shrink-0 text-right text-[11px] font-semibold text-gray-400';
+      item.statusIcon.textContent = 'Queued';
+    } else if (status === 'uploading') {
+      item.statusIcon.className = 'w-12 shrink-0 text-right text-[11px] font-semibold text-brand-teal';
+      item.statusIcon.textContent = `${Math.round(item.progress)}%`;
+    } else if (status === 'paused') {
+      item.statusIcon.className = 'w-14 shrink-0 text-right text-[11px] font-semibold text-amber-700';
+      item.statusIcon.textContent = 'Paused';
+    } else if (status === 'finalizing') {
+      item.statusIcon.className = 'w-16 shrink-0 text-right text-[11px] font-semibold text-brand-teal';
+      item.statusIcon.textContent = 'Finalizing';
+    } else if (status === 'complete') {
+      item.statusIcon.className = 'w-8 shrink-0 flex justify-end text-green-600';
+      item.statusIcon.innerHTML = '<i class="bi bi-check-circle-fill text-xl"></i>';
+    } else if (status === 'failed') {
+      item.statusIcon.className = 'w-8 shrink-0 flex justify-end text-red-500';
+      item.statusIcon.innerHTML = '<i class="bi bi-exclamation-circle-fill text-xl"></i>';
+    }
+
+    updateUploadSummary();
+  }
+
+  function getAggregateUploadPercent() {
+    if (uploadQueue.length === 0) return 0;
+    const totalBytes = uploadQueue.reduce((sum, item) => sum + item.file.size, 0);
+    const uploadedBytes = uploadQueue.reduce((sum, item) => sum + item.uploadedBytes, 0);
+    return totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 100;
+  }
+
+  function updateUploadSummary({ force = false } = {}) {
+    if (uploadQueue.length === 0) return;
+
+    const totalBytes = uploadQueue.reduce((sum, item) => sum + item.file.size, 0);
+    const uploadedBytes = uploadQueue.reduce((sum, item) => sum + item.uploadedBytes, 0);
+    const completed = uploadQueue.filter(item => item.status === 'complete').length;
+    const failed = uploadQueue.filter(item => item.status === 'failed').length;
+    const finalizing = uploadQueue.filter(item => item.status === 'finalizing').length;
+    const paused = uploadQueue.filter(item => item.status === 'paused').length;
+    const percent = totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 100;
+
+    if (uploadProgressText) {
+      if (uploadPaused || paused > 0) {
+        uploadProgressText.textContent = 'Upload paused';
+      } else if (completed === uploadQueue.length) {
+        uploadProgressText.textContent = `${completed} upload${completed === 1 ? '' : 's'} complete`;
+      } else if (failed > 0) {
+        uploadProgressText.textContent = `${failed} upload${failed === 1 ? '' : 's'} failed`;
+      } else if (finalizing > 0 && completed + finalizing === uploadQueue.length) {
+        uploadProgressText.textContent = `Finalizing ${finalizing} upload${finalizing === 1 ? '' : 's'}`;
+      } else {
+        uploadProgressText.textContent = `Uploading ${uploadQueue.length} item${uploadQueue.length === 1 ? '' : 's'}`;
+      }
+    }
+
+    let detailText = 'Calculating time left';
+    if (uploadPaused || paused > 0) {
+      detailText = uploadPauseReason === 'network'
+        ? 'Connection lost. Waiting to reconnect'
+        : 'Select Resume to continue';
+    } else if (finalizing > 0 && completed + finalizing === uploadQueue.length) {
+      detailText = 'Completing upload';
+    } else if (uploadStartedAt > 0 && uploadedBytes > 0 && uploadedBytes < totalBytes) {
+      const elapsedSeconds = Math.max((Date.now() - uploadStartedAt) / 1000, 0.1);
+      const bytesPerSecond = uploadedBytes / elapsedSeconds;
+      detailText = `${formatUploadDuration((totalBytes - uploadedBytes) / bytesPerSecond)} - ${formatBytes(bytesPerSecond)}/s`;
+    } else if (completed === uploadQueue.length) {
+      detailText = 'All uploads finished';
+    }
+
+    updateProgress(percent, detailText, { force });
+  }
+
+  function getPendingUploads() {
+    try {
+      return JSON.parse(localStorage.getItem(PENDING_UPLOADS_KEY) || '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  function savePendingUploads(pendingUploads) {
+    localStorage.setItem(PENDING_UPLOADS_KEY, JSON.stringify(pendingUploads));
+  }
+
+  function getUploadFingerprint(file, folderId) {
+    return md5(`${file.name}:${file.size}:${file.lastModified}:${folderId ?? ''}`);
+  }
+
+  function getOrCreateUploadIdentity(file, folderId) {
+    const fingerprint = getUploadFingerprint(file, folderId);
+    const pendingUploads = getPendingUploads();
+    const existing = pendingUploads[fingerprint];
+    const uploadId = existing?.uploadId || (
+      window.crypto?.randomUUID
+        ? window.crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    );
+
+    pendingUploads[fingerprint] = {
+      uploadId,
+      name: file.name,
+      size: file.size,
+      lastModified: file.lastModified,
+      folderId: folderId ?? '',
+      updatedAt: Date.now()
+    };
+    savePendingUploads(pendingUploads);
+
+    const identity = { fingerprint, uploadId };
+    uploadIdentityByFile.set(file, identity);
+    return identity;
+  }
+
+  function clearUploadIdentity(file) {
+    const identity = uploadIdentityByFile.get(file);
+    if (!identity) return;
+    const pendingUploads = getPendingUploads();
+    delete pendingUploads[identity.fingerprint];
+    savePendingUploads(pendingUploads);
+    uploadIdentityByFile.delete(file);
+  }
+
+  async function runWithConcurrency(items, concurrency, worker) {
+    let nextIndex = 0;
+    const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+      while (nextIndex < items.length) {
+        await waitForUploadResume();
+        const index = nextIndex++;
+        await worker(items[index], index);
+      }
+    });
+    await Promise.all(workers);
+  }
 
   if (uploadInput) {
     uploadInput.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files);
       if (files.length === 0) return;
 
+      if (window.primeNotificationSound) window.primeNotificationSound();
+      startUploadSession();
+      prepareUploadQueue(files);
       showProgressModal();
       
       try {
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          uploadProgressText.textContent = `Uploading ${file.name}...`;
-          await uploadFileInChunks(file);
-        }
-        await window.playNotificationSound();
+        await uploadFlatFiles(files, { deferStats: files.length > 1 });
+        if (files.length > 1) await refreshUploadStats();
+        uploadInput.value = '';
+        await playUploadSuccessSound();
+        finishUploadSession();
+        window.location.reload();
       } catch (err) {
-        console.error(err);
+        await finishFailedUpload(err);
       }
-
-      // Refresh page after upload completes
-      window.location.reload();
     });
   }
 
@@ -695,6 +1385,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const dragOverlay = document.getElementById('drag-overlay');
   if (dragOverlay) {
     window.addEventListener('dragenter', (e) => {
+      const types = Array.from(e.dataTransfer?.types || []);
+      if (internalItemDrag || types.includes(DRIVE_ITEMS_MIME) || !types.includes('Files')) {
+        return;
+      }
       e.preventDefault();
       dragOverlay.classList.add('active');
     });
@@ -727,8 +1421,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
+    function yieldToBrowser() {
+      return new Promise(resolve => setTimeout(resolve, 0));
+    }
+
     // Recursive depth-first traversal of FileSystemEntry
-    async function traverseEntry(entry, path = '', results = []) {
+    async function traverseEntry(entry, path = '', results = [], scanState = { count: 0 }) {
+      if (uploadCancelled) throw new Error('Upload cancelled');
+
       if (entry.isFile) {
         const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
         results.push({
@@ -736,6 +1436,7 @@ document.addEventListener('DOMContentLoaded', () => {
           file: file,
           path: path
         });
+        scanState.count += 1;
       } else if (entry.isDirectory) {
         const currentPath = path ? `${path}/${entry.name}` : entry.name;
         results.push({
@@ -743,12 +1444,19 @@ document.addEventListener('DOMContentLoaded', () => {
           name: entry.name,
           path: currentPath
         });
+        scanState.count += 1;
         
         const dirReader = entry.createReader();
         const entries = await readAllEntries(dirReader);
         for (const childEntry of entries) {
-          await traverseEntry(childEntry, currentPath, results);
+          await traverseEntry(childEntry, currentPath, results, scanState);
         }
+      }
+
+      if (scanState.count > 0 && scanState.count % 100 === 0) {
+        uploadProgressText.textContent = `Scanning dropped items... ${scanState.count} found`;
+        updateProgress(0, `${scanState.count} items found`);
+        await yieldToBrowser();
       }
     }
 
@@ -760,14 +1468,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Helper to create a folder on the server
-    async function createFolderOnServer(name, parentId) {
-      const res = await fetch('/api/folders', {
+  async function createFolderOnServer(name, parentId, { deferStats = false } = {}) {
+      const res = await fetchWithConnectionRecovery('/api/folders', {
         method: 'POST',
+        signal: uploadSessionController?.signal,
         headers: {
           'Content-Type': 'application/json',
           'x-csrf-token': csrfToken
         },
-        body: JSON.stringify({ name, parentId })
+        body: JSON.stringify({ name, parentId, deferStats })
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -780,21 +1489,36 @@ document.addEventListener('DOMContentLoaded', () => {
     dragOverlay.addEventListener('drop', async (e) => {
       e.preventDefault();
       dragOverlay.classList.remove('active');
+      if (window.primeNotificationSound) window.primeNotificationSound();
+      startUploadSession();
 
       const items = Array.from(e.dataTransfer.items || []);
-      if (items.length === 0) {
-        const files = Array.from(e.dataTransfer.files || []);
-        if (files.length === 0) return;
+      const droppedFiles = Array.from(e.dataTransfer.files || []);
+      const droppedEntries = items
+        .filter(item => item.kind === 'file')
+        .map(item => item.webkitGetAsEntry ? item.webkitGetAsEntry() : null)
+        .filter(Boolean);
+      const hasDroppedDirectory = droppedEntries.some(entry => entry.isDirectory);
 
+      if (droppedFiles.length > 0 && !hasDroppedDirectory) {
+        if (droppedFiles.length === 0) return;
+
+        prepareUploadQueue(droppedFiles);
         showProgressModal();
-
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          uploadProgressText.textContent = `Uploading ${file.name}...`;
-          await uploadFileInChunks(file);
+        try {
+          await uploadFlatFiles(droppedFiles, { deferStats: droppedFiles.length > 1 });
+          if (droppedFiles.length > 1) await refreshUploadStats();
+          await playUploadSuccessSound();
+          finishUploadSession();
+          window.location.reload();
+        } catch (err) {
+          await finishFailedUpload(err);
         }
+        return;
+      }
 
-        window.location.reload();
+      if (items.length === 0) {
+        finishUploadSession();
         return;
       }
 
@@ -803,116 +1527,200 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const queue = [];
       try {
-        for (const item of items) {
-          if (item.kind === 'file') {
-            const entry = item.webkitGetAsEntry();
-            if (entry) {
-              await traverseEntry(entry, '', queue);
-            }
+        const scanState = { count: 0 };
+        for (const entry of droppedEntries) {
+          await traverseEntry(entry, '', queue, scanState);
+        }
+
+        if (queue.length === 0 && droppedFiles.length > 0) {
+          for (const file of droppedFiles) {
+            queue.push({
+              type: 'file',
+              file,
+              path: ''
+            });
           }
         }
       } catch (err) {
-        console.error(err);
-        alert(`Failed to scan files: ${err.message}`);
-        if (uploadProgressModal) uploadProgressModal.classList.add('hidden');
+        await finishFailedUpload(err, `Failed to scan files: ${err.message}`);
         return;
       }
 
       if (queue.length === 0) {
-        if (uploadProgressModal) uploadProgressModal.classList.add('hidden');
+        if (droppedFiles.length > 0) {
+          try {
+            prepareUploadQueue(droppedFiles);
+            await uploadFlatFiles(droppedFiles, { deferStats: droppedFiles.length > 1 });
+            if (droppedFiles.length > 1) await refreshUploadStats();
+            await playUploadSuccessSound();
+            finishUploadSession();
+            window.location.reload();
+          } catch (err) {
+            await finishFailedUpload(err);
+          }
+        } else if (uploadProgressModal) {
+          finishUploadSession();
+          uploadProgressModal.classList.add('hidden');
+        }
         return;
       }
 
       const pathFolderIdMap = {
         '': window.getCurrentFolderId ? window.getCurrentFolderId() : ''
       };
+      const isLargeQueue = queue.length > 1;
+      const directoryItems = queue.filter(item => item.type === 'directory');
+      const fileItems = queue.filter(item => item.type === 'file');
+      prepareUploadQueue(fileItems.map(item => item.file));
 
       try {
-        for (let i = 0; i < queue.length; i++) {
-          const item = queue[i];
-          if (item.type === 'directory') {
-            const parentPath = getParentPath(item.path);
-            const parentFolderId = pathFolderIdMap[parentPath];
-            
-            uploadProgressText.textContent = `Creating folder ${item.name}...`;
-            updateProgress(Math.round((i / queue.length) * 100), `Creating folder ${item.name}`);
-            
-            const folderId = await createFolderOnServer(item.name, parentFolderId);
-            pathFolderIdMap[item.path] = folderId;
-          } else if (item.type === 'file') {
-            const parentPath = item.path;
-            const parentFolderId = pathFolderIdMap[parentPath];
-            
-            uploadProgressText.textContent = `Uploading ${item.file.name}...`;
-            await uploadFileInChunks(item.file, parentFolderId, (percent) => {
-              const baseProgress = Math.round((i / queue.length) * 100);
-              const stepProgress = Math.round((percent / 100) * (1 / queue.length) * 100);
-              updateProgress(baseProgress + stepProgress, `Uploading ${item.file.name}`);
-            });
-          }
-        }
-      } catch (err) {
-        console.error(err);
-        alert(`Drop upload failed: ${err.message}`);
-      }
+        for (let i = 0; i < directoryItems.length; i++) {
+          if (uploadCancelled) throw new Error('Upload cancelled');
 
-      window.location.reload();
+          const item = directoryItems[i];
+          const parentPath = getParentPath(item.path);
+          const parentFolderId = pathFolderIdMap[parentPath];
+          uploadProgressText.textContent = `Creating folders (${i + 1} of ${directoryItems.length})`;
+
+          const folderId = await createFolderOnServer(item.name, parentFolderId, { deferStats: isLargeQueue });
+          pathFolderIdMap[item.path] = folderId;
+        }
+
+        await runWithConcurrency(fileItems, FILE_UPLOAD_CONCURRENCY, async (item) => {
+          if (uploadCancelled) throw new Error('Upload cancelled');
+
+          const parentFolderId = pathFolderIdMap[item.path];
+          await uploadFileInChunks(item.file, parentFolderId, (percent) => {
+            setUploadItemState(item.file, 'uploading', percent);
+          }, { deferStats: isLargeQueue });
+          setUploadItemState(item.file, 'complete', 100);
+        });
+
+        if (isLargeQueue) await refreshUploadStats();
+        await playUploadSuccessSound();
+        finishUploadSession();
+        window.location.reload();
+      } catch (err) {
+        await finishFailedUpload(err, `Drop upload failed: ${err.message}`);
+      }
     });
+  }
+
+  async function uploadFlatFiles(files, { deferStats = false } = {}) {
+    await runWithConcurrency(files, FILE_UPLOAD_CONCURRENCY, async (file) => {
+      if (uploadCancelled) throw new Error('Upload cancelled');
+
+      await uploadFileInChunks(file, undefined, (percent) => {
+        setUploadItemState(file, 'uploading', percent);
+      }, { deferStats });
+      setUploadItemState(file, 'complete', 100);
+    });
+  }
+
+  async function refreshUploadStats() {
+    updateProgress(99, 'Finalizing upload totals...', { force: true });
+    const res = await fetchWithConnectionRecovery('/api/upload/refresh-stats', {
+      method: 'POST',
+      signal: uploadSessionController?.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': csrfToken
+      },
+      body: JSON.stringify({})
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Failed to refresh upload totals');
+    }
+  }
+
+  async function playUploadSuccessSound() {
+    updateProgress(100, 'Upload complete', { force: true });
+    if (window.playNotificationSound) {
+      await window.playNotificationSound();
+    }
   }
 
   function showProgressModal() {
     if (uploadProgressModal) uploadProgressModal.classList.remove('hidden');
-    updateProgress(0, 'Preparing file slices...');
+    updateProgress(0, 'Preparing file slices...', { force: true });
   }
 
-  function updateProgress(percent, detailText) {
+  function updateProgress(percent, detailText, { force = false } = {}) {
+    const now = Date.now();
+    if (!force && now - lastProgressUpdateAt < 100 && percent < 100) {
+      return;
+    }
+    lastProgressUpdateAt = now;
     if (uploadProgressBar) uploadProgressBar.style.width = `${percent}%`;
     if (uploadProgressDetails) uploadProgressDetails.textContent = `${percent}% - ${detailText}`;
   }
 
-  async function uploadFileInChunks(file, folderId, onProgress) {
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    // Unique ID based on name, size and date
-    const uploadId = md5(`${file.name}-${file.size}-${file.lastModified}`);
+  async function uploadFileInChunks(file, folderId, onProgress, { deferStats = false } = {}) {
+    const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
     const resolvedFolderId = folderId !== undefined ? folderId : (window.getCurrentFolderId ? window.getCurrentFolderId() : '');
+    const { uploadId } = getOrCreateUploadIdentity(file, resolvedFolderId);
+    activeUploadIds.add(uploadId);
+    let uploadCompleted = false;
 
     try {
+      if (uploadStartedAt === 0) uploadStartedAt = Date.now();
+      setUploadItemState(file, 'uploading', 0);
+
       // 1. Query server to see which chunks were already successfully uploaded
-      const statusRes = await fetch(`/api/upload/status?uploadId=${uploadId}`);
+      const statusRes = await fetchWithConnectionRecovery(`/api/upload/status?uploadId=${encodeURIComponent(uploadId)}`, {
+        signal: uploadSessionController?.signal
+      });
+      if (!statusRes.ok) throw new Error(`Upload status check failed with status ${statusRes.status}`);
       const statusData = await statusRes.json();
+      if (statusData.completed) {
+        uploadCompleted = true;
+        clearUploadIdentity(file);
+        return;
+      }
       const uploadedChunks = new Set(statusData.uploadedChunks || []);
 
-      // 2. Upload missing chunks sequentially
+      // 2. Upload missing chunks with bounded concurrency.
+      const missingChunkIndices = [];
       for (let i = 0; i < totalChunks; i++) {
-        if (uploadedChunks.has(i)) {
-          const percent = Math.round(((i + 1) / totalChunks) * 100);
-          if (onProgress) onProgress(percent);
-          else updateProgress(percent, `Resuming chunk ${i + 1} of ${totalChunks}`);
-          continue;
-        }
+        if (!uploadedChunks.has(i)) missingChunkIndices.push(i);
+      }
 
+      let completedChunks = uploadedChunks.size;
+      if (completedChunks > 0 && onProgress) {
+        onProgress(Math.round((completedChunks / totalChunks) * 100));
+      }
+
+      await runWithConcurrency(missingChunkIndices, CHUNK_UPLOAD_CONCURRENCY, async (i) => {
+        await waitForUploadResume();
+        if (uploadCancelled) throw new Error('Upload cancelled');
         const start = i * CHUNK_SIZE;
         const end = Math.min(file.size, start + CHUNK_SIZE);
         const chunkBlob = file.slice(start, end);
-        
+
         const formData = new FormData();
         formData.append('uploadId', uploadId);
         formData.append('chunkIndex', i);
+        formData.append('chunkOffset', start);
+        formData.append('fileSize', file.size);
         formData.append('chunk', chunkBlob, `chunk_${i}`);
 
         await uploadChunkWithRetry(formData);
-        
-        const percent = Math.round(((i + 1) / totalChunks) * 100);
+
+        completedChunks += 1;
+        const percent = Math.min(98, Math.round((completedChunks / totalChunks) * 98));
         if (onProgress) onProgress(percent);
         else updateProgress(percent, `Uploaded chunk ${i + 1} of ${totalChunks}`);
-      }
+      });
 
       // 3. Request final merge
-      if (onProgress) onProgress(99);
-      else updateProgress(99, 'Assembling slices on disk...');
+      setUploadItemState(file, 'finalizing', 100);
+      if (!onProgress) updateProgress(99, 'Verifying uploaded data on disk...', { force: true });
       
-      const completeRes = await fetch('/api/upload/complete', {
+      const completeRes = await fetchWithConnectionRecovery('/api/upload/complete', {
         method: 'POST',
+        signal: uploadSessionController?.signal,
         headers: {
           'Content-Type': 'application/json',
           'x-csrf-token': csrfToken
@@ -921,7 +1729,9 @@ document.addEventListener('DOMContentLoaded', () => {
           uploadId,
           totalChunks,
           filename: file.name,
-          folderId: resolvedFolderId
+          fileSize: file.size,
+          folderId: resolvedFolderId,
+          deferStats
         })
       });
 
@@ -929,28 +1739,55 @@ document.addEventListener('DOMContentLoaded', () => {
         const errData = await completeRes.json().catch(() => ({}));
         throw new Error(errData.error || 'Merge request failed on the server');
       }
+      uploadCompleted = true;
+      clearUploadIdentity(file);
 
     } catch (err) {
-      console.error(err);
-      alert(`Upload failed for ${file.name}: ${err.message}`);
+      if (!uploadCancelled && err.name !== 'AbortError') {
+        setUploadItemState(file, 'failed', 0);
+        console.error(err);
+        alert(`Upload stopped for ${file.name}: ${err.message}. Uploaded chunks were kept; select the same file again to resume.`);
+        err.uploadAlertShown = true;
+      }
+      throw err;
+    } finally {
+      if (uploadCompleted) {
+        activeUploadIds.delete(uploadId);
+      }
     }
   }
 
   async function uploadChunkWithRetry(formData, attempt = 1) {
     try {
-      const res = await fetch('/api/upload/chunk', {
+      await waitForUploadResume();
+      const res = await fetchWithConnectionRecovery('/api/upload/chunk', {
         method: 'POST',
+        signal: uploadSessionController?.signal,
         headers: {
           'x-csrf-token': csrfToken
         },
         body: formData
       });
 
+      if (res.status === 429) {
+        const retryAfterSeconds = parseInt(res.headers.get('Retry-After') || '', 10);
+        const retryDelay = Number.isFinite(retryAfterSeconds)
+          ? retryAfterSeconds * 1000
+          : 5000 * attempt;
+        throw Object.assign(new Error('Upload is being rate limited'), {
+          isRateLimited: true,
+          retryDelay
+        });
+      }
+
       if (!res.ok) throw new Error(`Status ${res.status}`);
     } catch (err) {
-      if (attempt < 3) {
+      if (err.name === 'AbortError' || uploadCancelled) throw err;
+
+      if (attempt < 5) {
+        const retryDelay = err.isRateLimited ? err.retryDelay : 1000 * attempt;
         console.warn(`Chunk upload retry attempt ${attempt}...`);
-        await new Promise(r => setTimeout(r, 1000 * attempt));
+        await new Promise(r => setTimeout(r, retryDelay));
         return uploadChunkWithRetry(formData, attempt + 1);
       }
       throw err;

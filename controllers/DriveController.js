@@ -10,6 +10,15 @@ const jobRepository = require('../repositories/JobRepository');
 const storageService = require('../services/StorageService');
 const driveService = require('../services/DriveService');
 
+async function fileExists(fullPath) {
+  try {
+    await fs.promises.access(fullPath, fs.constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 class DriveController {
   constructor() {
     this.renderDashboard = this.renderDashboard.bind(this);
@@ -84,13 +93,13 @@ class DriveController {
         }
       }
 
-      let stats = await db.select().from(userStorageStats).where(eq(userStorageStats.userId, userId)).limit(1);
-      let storageStats = stats[0] || { totalSize: 0, totalFolders: 0, totalFiles: 0 };
+      const statsPromise = db.select().from(userStorageStats).where(eq(userStorageStats.userId, userId)).limit(1);
+      let storageStats = { totalSize: 0, totalFolders: 0, totalFiles: 0 };
 
       let itemsList = { folders: [], files: [] };
 
       if (searchQuery.trim() !== '') {
-        const searchResults = await fileRepository.searchFiles(userId, {
+        const searchResultsPromise = fileRepository.searchFiles(userId, {
           query: searchQuery,
           type: fileType,
           sortBy,
@@ -98,10 +107,8 @@ class DriveController {
           limit: 100,
           offset: 0
         });
-        
-        itemsList.files = searchResults;
 
-        itemsList.folders = await db.select()
+        const foldersPromise = db.select()
           .from(folders)
           .leftJoin(trashItems, and(eq(trashItems.entityId, folders.id), eq(trashItems.entityType, 'folder')))
           .where(and(
@@ -110,20 +117,24 @@ class DriveController {
             sql`${trashItems.id} IS NULL`
           ))
           .limit(30);
-        itemsList.folders = itemsList.folders.map(r => r.folders);
+
+        const [searchResults, folderResults] = await Promise.all([searchResultsPromise, foldersPromise]);
+        itemsList.files = searchResults;
+        itemsList.folders = folderResults.map(r => r.folders);
       } else if (tab === 'starred') {
-        const favFolders = await db.select({ folder: folders })
+        const favFoldersPromise = db.select({ folder: folders })
           .from(favorites)
           .innerJoin(folders, eq(favorites.folderId, folders.id))
           .leftJoin(trashItems, and(eq(trashItems.entityId, folders.id), eq(trashItems.entityType, 'folder')))
           .where(and(eq(favorites.userId, userId), sql`${trashItems.id} IS NULL`));
         
-        const favFiles = await db.select({ file: files })
+        const favFilesPromise = db.select({ file: files })
           .from(favorites)
           .innerJoin(files, eq(favorites.fileId, files.id))
           .leftJoin(trashItems, and(eq(trashItems.entityId, files.id), eq(trashItems.entityType, 'file')))
           .where(and(eq(favorites.userId, userId), sql`${trashItems.id} IS NULL`));
 
+        const [favFolders, favFiles] = await Promise.all([favFoldersPromise, favFilesPromise]);
         itemsList.folders = favFolders.map(r => r.folder);
         itemsList.files = favFiles.map(r => r.file);
       } else if (tab === 'recent') {
@@ -137,32 +148,37 @@ class DriveController {
 
         itemsList.files = recents.map(r => r.file);
       } else if (tab === 'trash') {
-        const trashedFolders = await db.select({ folder: folders, trash: trashItems })
+        const trashedFoldersPromise = db.select({ folder: folders, trash: trashItems })
           .from(trashItems)
           .innerJoin(folders, and(eq(trashItems.entityId, folders.id), eq(trashItems.entityType, 'folder')))
           .where(eq(trashItems.userId, userId));
         
-        const trashedFiles = await db.select({ file: files, trash: trashItems })
+        const trashedFilesPromise = db.select({ file: files, trash: trashItems })
           .from(trashItems)
           .innerJoin(files, and(eq(trashItems.entityId, files.id), eq(trashItems.entityType, 'file')))
           .where(eq(trashItems.userId, userId));
 
+        const [trashedFolders, trashedFiles] = await Promise.all([trashedFoldersPromise, trashedFilesPromise]);
         itemsList.folders = trashedFolders.map(r => ({ ...r.folder, trashedAt: r.trash.deletedAt }));
         itemsList.files = trashedFiles.map(r => ({ ...r.file, trashedAt: r.trash.deletedAt }));
       } else {
-        const subfoldersJoin = await folderRepository.findSubfolders(userId, currentFolderId);
+        const [subfoldersJoin, filesJoin] = await Promise.all([
+          folderRepository.findSubfolders(userId, currentFolderId),
+          fileRepository.findFilesInFolder(userId, currentFolderId)
+        ]);
         itemsList.folders = subfoldersJoin.map(r => r.folders);
-
-        const filesJoin = await fileRepository.findFilesInFolder(userId, currentFolderId);
         itemsList.files = filesJoin.map(r => r.files);
       }
 
-      const userStarred = await db.select().from(favorites).where(eq(favorites.userId, userId));
+      const [stats, userStarred, userRootFolders, allUserFolders] = await Promise.all([
+        statsPromise,
+        db.select().from(favorites).where(eq(favorites.userId, userId)),
+        folderRepository.findUserRootFolders(userId),
+        db.select().from(folders).where(eq(folders.userId, userId))
+      ]);
+      storageStats = stats[0] || storageStats;
       const starredFolderIds = new Set(userStarred.filter(f => f.folderId).map(f => f.folderId));
       const starredFileIds = new Set(userStarred.filter(f => f.fileId).map(f => f.fileId));
-
-      const userRootFolders = await folderRepository.findUserRootFolders(userId);
-      const allUserFolders = await db.select().from(folders).where(eq(folders.userId, userId));
 
       res.render('dashboard/index', {
         tab,
@@ -188,7 +204,7 @@ class DriveController {
   }
 
   async createFolder(req, res) {
-    const { name, parentId } = req.body;
+    const { name, parentId, deferStats } = req.body;
     const userId = req.session.userId;
     if (!name || name.trim() === '') {
       return res.status(400).json({ error: 'Folder name is required' });
@@ -207,7 +223,9 @@ class DriveController {
       }
 
       const folder = await folderRepository.createFolder(userId, parsedParentId, name, pathPrefix);
-      await driveService.updateStorageStats(userId);
+      if (!deferStats) {
+        await driveService.updateStorageStats(userId);
+      }
       res.status(200).json({ success: true, folder });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -317,21 +335,49 @@ class DriveController {
       return res.status(400).json({ error: 'uploadId parameter is required' });
     }
     try {
+      const receipt = await storageService.getUploadReceipt(uploadId);
+      if (receipt?.userId === req.session.userId) {
+        return res.status(200).json({
+          success: true,
+          completed: true,
+          fileId: receipt.fileId,
+          uploadedChunks: []
+        });
+      }
+
       const uploadedIndices = await storageService.getUploadedChunks(uploadId);
-      res.status(200).json({ success: true, uploadedChunks: uploadedIndices });
+      res.status(200).json({ success: true, completed: false, uploadedChunks: uploadedIndices });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
   }
 
   async uploadChunk(req, res) {
-    const { uploadId, chunkIndex } = req.body;
+    const { uploadId, chunkIndex, chunkOffset, fileSize } = req.body;
     if (!uploadId || chunkIndex === undefined || !req.file) {
       return res.status(400).json({ error: 'Missing chunk upload arguments' });
     }
 
     try {
-      await storageService.saveChunk(uploadId, parseInt(chunkIndex), req.file.buffer);
+      const parsedChunkIndex = Number.parseInt(chunkIndex, 10);
+      const parsedChunkOffset = chunkOffset === undefined ? null : Number(chunkOffset);
+      const parsedFileSize = fileSize === undefined ? null : Number(fileSize);
+      if (!Number.isSafeInteger(parsedChunkIndex) || parsedChunkIndex < 0) {
+        return res.status(400).json({ error: 'Invalid chunk index' });
+      }
+      if (parsedChunkOffset !== null && (!Number.isSafeInteger(parsedChunkOffset) || parsedChunkOffset < 0)) {
+        return res.status(400).json({ error: 'Invalid chunk offset' });
+      }
+      if (parsedChunkOffset !== null) {
+        if (!Number.isSafeInteger(parsedFileSize) || parsedFileSize < 0) {
+          return res.status(400).json({ error: 'Invalid file size' });
+        }
+        if (parsedChunkOffset + req.file.size > parsedFileSize) {
+          return res.status(400).json({ error: 'Chunk exceeds declared file size' });
+        }
+      }
+
+      await storageService.saveChunk(uploadId, parsedChunkIndex, req.file.buffer, parsedChunkOffset);
       res.status(200).json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -339,17 +385,31 @@ class DriveController {
   }
 
   async completeUpload(req, res) {
-    const { uploadId, totalChunks, filename, folderId } = req.body;
+    const { uploadId, totalChunks, filename, fileSize, folderId, deferStats } = req.body;
     const userId = req.session.userId;
+    let result = null;
+    let fileCreated = false;
 
     if (!uploadId || !totalChunks || !filename) {
       return res.status(400).json({ error: 'Missing merge details' });
     }
 
     try {
+      const existingReceipt = await storageService.getUploadReceipt(uploadId);
+      if (existingReceipt?.userId === userId) {
+        return res.status(200).json({ success: true, fileId: existingReceipt.fileId, resumed: true });
+      }
+
       const destFolderId = folderId ? parseInt(folderId) : null;
       
-      const result = await storageService.assembleChunks(uploadId, parseInt(totalChunks), userId, filename);
+      const parsedFileSize = fileSize === undefined ? null : Number(fileSize);
+      result = await storageService.assembleChunks(
+        uploadId,
+        parseInt(totalChunks),
+        userId,
+        filename,
+        parsedFileSize
+      );
 
       const mimeType = require('mime-types').lookup(filename) || 'application/octet-stream';
       const ext = path.extname(filename).substring(1).toLowerCase();
@@ -365,14 +425,56 @@ class DriveController {
         result.path,
         result.checksum
       );
+      fileCreated = true;
 
-      await driveService.updateStorageStats(userId);
+      await storageService.saveUploadReceipt(uploadId, { userId, fileId }).catch(err => {
+        console.error(`Failed to save upload receipt for ${uploadId}:`, err.message);
+      });
+
+      if (!deferStats) {
+        await driveService.updateStorageStats(userId).catch(err => {
+          console.error(`Failed to refresh storage stats after upload ${uploadId}:`, err.message);
+        });
+      }
 
       if (mimeType.startsWith('image/')) {
-        await jobRepository.createJob('thumbnail', { fileId });
+        await jobRepository.createJob('thumbnail', { fileId }).catch(err => {
+          console.error(`Failed to queue thumbnail for file ${fileId}:`, err.message);
+        });
       }
 
       res.status(200).json({ success: true, fileId });
+    } catch (err) {
+      if (result?.path && !fileCreated) {
+        await storageService.deleteDiskFile(result.path).catch(() => {});
+      }
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  async refreshStorageStats(req, res) {
+    try {
+      await driveService.updateStorageStats(req.session.userId);
+      res.status(200).json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  async cancelUpload(req, res) {
+    const uploadIds = Array.isArray(req.body.uploadIds)
+      ? req.body.uploadIds
+      : req.body.uploadId
+        ? [req.body.uploadId]
+        : [];
+
+    if (uploadIds.length === 0) {
+      return res.status(400).json({ error: 'No upload ids provided' });
+    }
+
+    try {
+      await Promise.all(uploadIds.map(uploadId => storageService.discardChunks(uploadId)));
+      res.status(200).json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -395,8 +497,9 @@ class DriveController {
   }
 
   async uploadNewVersionComplete(req, res) {
-    const { uploadId, totalChunks, filename, fileId } = req.body;
+    const { uploadId, totalChunks, filename, fileSize, fileId } = req.body;
     const userId = req.session.userId;
+    let merge = null;
 
     try {
       const file = await fileRepository.findById(parseInt(fileId));
@@ -404,7 +507,13 @@ class DriveController {
         return res.status(404).json({ error: 'File not found' });
       }
 
-      const merge = await storageService.assembleChunks(uploadId, parseInt(totalChunks), userId, filename);
+      merge = await storageService.assembleChunks(
+        uploadId,
+        parseInt(totalChunks),
+        userId,
+        filename,
+        fileSize === undefined ? null : Number(fileSize)
+      );
 
       const existingVersions = await fileRepository.getVersions(file.id);
       const nextVerNum = existingVersions.length > 0 ? existingVersions[0].versionNumber + 1 : 1;
@@ -441,6 +550,9 @@ class DriveController {
 
       res.status(200).json({ success: true });
     } catch (err) {
+      if (merge?.path) {
+        await storageService.deleteDiskFile(merge.path).catch(() => {});
+      }
       res.status(500).json({ error: err.message });
     }
   }
@@ -534,7 +646,7 @@ class DriveController {
       }
 
       const fullPath = path.join(storageService.storageRoot, filePath);
-      if (!fs.existsSync(fullPath)) {
+      if (!(await fileExists(fullPath))) {
         return res.status(404).send('Physical file not found on disk');
       }
 

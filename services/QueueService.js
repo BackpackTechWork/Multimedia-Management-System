@@ -13,6 +13,13 @@ class QueueService {
   constructor() {
     this.isRunning = false;
     this.intervalId = null;
+    this.verboseJobs = process.env.VERBOSE_JOBS === 'true';
+  }
+
+  logJob(message) {
+    if (this.verboseJobs) {
+      console.log(message);
+    }
   }
 
   start() {
@@ -37,7 +44,7 @@ class QueueService {
       const job = await jobRepository.getNextPendingJob();
       if (!job) return; // No pending jobs
 
-      console.log(`Processing job ${job.id} (type: ${job.type})...`);
+      this.logJob(`Processing job ${job.id} (type: ${job.type})...`);
       
       try {
         switch (job.type) {
@@ -51,7 +58,7 @@ class QueueService {
             console.warn(`Unknown job type: ${job.type}`);
         }
         await jobRepository.updateJobStatus(job.id, 'completed');
-        console.log(`Job ${job.id} completed successfully.`);
+        this.logJob(`Job ${job.id} completed successfully.`);
       } catch (err) {
         console.error(`Job ${job.id} failed:`, err.message);
         await jobRepository.updateJobStatus(job.id, 'failed');
@@ -85,7 +92,7 @@ class QueueService {
         .toFormat('jpeg')
         .toFile(destPath);
         
-      console.log(`Generated thumbnail ${size} for fileId ${fileId}`);
+      this.logJob(`Generated thumbnail ${size} for fileId ${fileId}`);
     }
   }
 

@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { db } = require('../config/db');
 const { files, recentActivity, shares } = require('../models/schema');
-const { eq, and, sql } = require('drizzle-orm');
+const { eq, and, inArray } = require('drizzle-orm');
 const fileRepository = require('../repositories/FileRepository');
 const storageService = require('../services/StorageService');
 
@@ -19,21 +19,32 @@ class PreviewController {
     this.serveRawStream = this.serveRawStream.bind(this);
   }
 
-  async checkAccess(req, fileId) {
+  async fileExists(fullPath) {
+    try {
+      await fs.promises.access(fullPath, fs.constants.F_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async checkAccess(req, fileId, { recordRecent = true } = {}) {
     const userId = req.session.userId;
     const file = await fileRepository.findById(fileId);
     if (!file) return null;
 
     if (file.userId === userId) {
-      await db.insert(recentActivity)
-        .values({
-          userId,
-          fileId: file.id,
-          lastOpenedAt: new Date()
-        })
-        .onDuplicateKeyUpdate({
-          set: { lastOpenedAt: new Date() }
-        });
+      if (recordRecent) {
+        await db.insert(recentActivity)
+          .values({
+            userId,
+            fileId: file.id,
+            lastOpenedAt: new Date()
+          })
+          .onDuplicateKeyUpdate({
+            set: { lastOpenedAt: new Date() }
+          });
+      }
       return file;
     }
 
@@ -41,12 +52,15 @@ class PreviewController {
       return file;
     }
 
-    const fileShares = await db.select().from(shares).where(eq(shares.fileId, file.id));
-    for (let share of fileShares) {
-      if (req.session.sharedAccess && req.session.sharedAccess[share.token]) {
-        if (!share.expiresAt || new Date(share.expiresAt) > new Date()) {
-          return file;
-        }
+    const accessTokens = Object.keys(req.session.sharedAccess || {});
+    if (accessTokens.length > 0) {
+      const [share] = await db.select()
+        .from(shares)
+        .where(and(eq(shares.fileId, file.id), inArray(shares.token, accessTokens)))
+        .limit(1);
+
+      if (share && (!share.expiresAt || new Date(share.expiresAt) > new Date())) {
+        return file;
       }
     }
 
@@ -110,20 +124,20 @@ class PreviewController {
   }
 
   async serveRawStream(req, res) {
-    const file = await this.checkAccess(req, parseInt(req.params.id));
+    const file = await this.checkAccess(req, parseInt(req.params.id), { recordRecent: false });
     if (!file) return res.status(403).send('Access Denied');
 
     let filePath = file.path;
     if (req.query.thumbnail) {
       const size = parseInt(req.query.thumbnail, 10);
       const thumbPath = storageService.getThumbnailPath(file.filename, size);
-      if (fs.existsSync(thumbPath)) {
+      if (await this.fileExists(thumbPath)) {
         filePath = path.relative(storageService.storageRoot, thumbPath).replace(/\\/g, '/');
       }
     }
 
     const fullPath = path.join(storageService.storageRoot, filePath);
-    if (!fs.existsSync(fullPath)) {
+    if (!(await this.fileExists(fullPath))) {
       return res.status(404).send('File not found');
     }
 

@@ -64,21 +64,14 @@ class DrizzleSessionStore extends session.Store {
 
   async touch(sid, sessionData, callback) {
     try {
-      const sess = await sessionRepository.findBySessionId(sid);
-      if (!sess) {
-        return callback(null);
-      }
-
       let expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       if (sessionData.cookie && sessionData.cookie.expires) {
         expiresAt = new Date(sessionData.cookie.expires);
       }
 
-      await sessionRepository.createOrUpdateSession(
+      await sessionRepository.touchSession(
         sid,
-        sessionData.userId || sess.userId,
-        sess.ipAddress,
-        sess.userAgent,
+        sessionData.userId || null,
         JSON.stringify(sessionData),
         new Date(),
         expiresAt

@@ -16,6 +16,10 @@ const globalLimiter = rateLimit({
   message: { error: 'Too many requests. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => (
+    req.path.startsWith('/api/upload/') ||
+    (req.method === 'POST' && req.path === '/api/folders')
+  ),
 });
 
 const helmetConfig = helmet({
