@@ -1,17 +1,34 @@
 <%- include('../partials/header') %>
 
+<% 
+  let headerIcon = 'bi-file-earmark-fill text-gray-400';
+  if (type === 'image') headerIcon = 'bi-file-image-fill text-blue-500';
+  else if (type === 'pdf') headerIcon = 'bi-file-pdf-fill text-red-500';
+  else if (type === 'excel') headerIcon = 'bi-file-earmark-spreadsheet-fill text-green-600';
+  else if (type === 'presentation') headerIcon = 'bi-file-earmark-slides-fill text-orange-600';
+  else if (type === 'markdown') headerIcon = 'bi-markdown-fill text-indigo-500';
+  else if (type === 'code') headerIcon = 'bi-file-code-fill text-gray-500';
+  else if (type === 'video') headerIcon = 'bi-file-play-fill text-red-600';
+  else if (type === 'audio') headerIcon = 'bi-file-music-fill text-pink-500';
+  else if (type === 'zip') headerIcon = 'bi-file-zip-fill text-yellow-600';
+%>
+
 <!-- Preview Header -->
-<header class="bg-gray-900 border-b border-gray-800 h-16 flex items-center justify-between px-6 sticky top-0 z-40 select-none text-white">
+<header class="bg-white/90 backdrop-blur-md border-b border-gray-150 h-16 flex items-center justify-between px-6 sticky top-0 z-40 select-none">
   <div class="flex items-center gap-3">
-    <a href="/" class="bg-gray-800 text-gray-400 p-2 rounded-lg flex items-center justify-center hover:bg-gray-700 transition">
-      <i class="bi bi-arrow-left"></i>
+    <a href="/" class="text-gray-500 hover:text-gray-800 hover:bg-gray-100 h-9 w-9 rounded-full flex items-center justify-center transition-colors duration-200" title="Back to Drive">
+      <i class="bi bi-arrow-left text-lg"></i>
     </a>
-    <span class="text-sm font-semibold truncate max-w-md"><%= file.originalName %></span>
+    <div class="flex items-center gap-2 min-w-0">
+      <i class="bi <%= headerIcon %> text-lg shrink-0"></i>
+      <span class="text-sm font-semibold truncate max-w-md text-gray-800"><%= file.originalName %></span>
+      <span class="text-xs text-gray-400 font-normal select-none hidden sm:inline">(<%= formatBytes(file.size) %>)</span>
+    </div>
   </div>
   <div class="flex items-center gap-2">
     <a 
       href="/api/files/download/<%= file.id %>" 
-      class="bg-brand-teal text-white py-2 px-4 rounded-lg text-xs font-semibold hover:bg-brand-teal-dark transition flex items-center gap-1.5"
+      class="bg-brand-teal text-white py-2 px-4 rounded-lg text-xs font-semibold hover:bg-brand-teal-dark shadow-sm transition flex items-center gap-1.5"
     >
       <i class="bi bi-download"></i> Download File
     </a>
@@ -30,13 +47,13 @@
     <link rel="stylesheet" href="/vendor/lightgallery/css/lightgallery-bundle.css">
     <script src="/vendor/lightgallery/lightgallery.min.js"></script>
 
-    <div id="lightgallery-container" class="lg-item border border-gray-800 rounded-lg overflow-hidden bg-gray-950 p-2 shadow-2xl max-w-3xl w-full flex items-center justify-center" data-src="/preview/stream/<%= file.id %>">
+    <div id="lightgallery-container" class="lg-item border border-gray-200 rounded-lg overflow-hidden bg-white p-2 shadow-md max-w-3xl w-full flex items-center justify-center" data-src="/preview/stream/<%= file.id %>">
       <img src="/preview/stream/<%= file.id %>" alt="<%= file.originalName %>" class="max-h-[70vh] object-contain rounded cursor-pointer">
     </div>
 
   <!-- 2. PDF PREVIEW (EmbedPDF) -->
   <% } else if (type === 'pdf') { %>
-    <div class="w-full max-w-5xl embed-pdf-container bg-gray-850 rounded-xl overflow-hidden shadow-2xl border border-gray-800">
+    <div class="w-full embed-pdf-container bg-white rounded-xl overflow-hidden shadow-md border border-gray-200">
       <!-- Iframe pointing to our isolated self-hosted PDF viewer -->
       <iframe src="/vendor/embedpdf/viewer.html?file=/preview/stream/<%= file.id %>" class="w-full h-full border-none"></iframe>
     </div>
@@ -48,9 +65,46 @@
     <script src="/vendor/excel-viewer/excel-viewer.js"></script>
     <!-- Fallback if XLSX is also copied in vendor -->
     
-    <div class="w-full max-w-6xl bg-gray-900 border border-gray-800 rounded-xl shadow-2xl p-4 sm:p-6 overflow-hidden flex flex-col">
-      <h3 class="text-sm font-semibold text-gray-400 mb-4 flex items-center gap-1.5"><i class="bi bi-file-spreadsheet text-green-500"></i> Sheet Viewer</h3>
-      <div id="excel-container" class="flex-1 overflow-auto text-gray-200"></div>
+    <div class="w-full max-w-6xl bg-white border border-gray-200 rounded-xl shadow-md p-4 sm:p-6 overflow-hidden flex flex-col">
+      <h3 class="text-sm font-semibold text-gray-500 mb-4 flex items-center gap-1.5"><i class="bi bi-file-spreadsheet text-green-600"></i> Sheet Viewer</h3>
+      <div id="excel-container" class="flex-1 overflow-auto text-gray-700"></div>
+    </div>
+
+  <!-- 3.5. PRESENTATION PREVIEW -->
+  <% } else if (type === 'presentation') { %>
+    <script src="/vendor/pptx-preview/pptx-preview.js"></script>
+    <style>
+      #pptx-container-wrapper:fullscreen {
+        background-color: #111827 !important;
+        padding: 0 !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+    </style>
+    
+    <div class="w-full max-w-5xl bg-white border border-gray-200 rounded-xl shadow-md p-4 sm:p-6 overflow-hidden flex flex-col items-center justify-center min-h-[500px]">
+      <h3 class="w-full text-left text-sm font-semibold text-gray-500 mb-4 flex items-center gap-1.5"><i class="bi bi-file-earmark-slides text-orange-600"></i> Presentation Viewer</h3>
+      
+      <!-- Slide controls and pagination status -->
+      <div id="pptx-controls" class="flex items-center justify-between w-full mb-4 px-2 select-none hidden">
+        <div class="flex items-center gap-2">
+          <button id="pptx-prev-btn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 py-1.5 px-3 rounded-lg text-xs font-semibold border border-gray-200 transition flex items-center gap-1">
+            <i class="bi bi-chevron-left"></i> Previous
+          </button>
+          <span id="pptx-page-num" class="text-xs text-gray-500 font-medium">Slide 1 / 1</span>
+          <button id="pptx-next-btn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 py-1.5 px-3 rounded-lg text-xs font-semibold border border-gray-200 transition flex items-center gap-1">
+            Next <i class="bi bi-chevron-right"></i>
+          </button>
+        </div>
+        <button id="pptx-fullscreen-btn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 py-1.5 px-3 rounded-lg text-xs font-semibold border border-gray-200 transition flex items-center gap-1">
+          <i class="bi bi-fullscreen"></i> Fullscreen
+        </button>
+      </div>
+
+      <div id="pptx-container-wrapper" class="w-full flex-1 flex items-center justify-center bg-gray-100 rounded-lg overflow-auto py-8">
+        <div id="pptx-container" class="shadow-lg bg-white"></div>
+      </div>
     </div>
 
   <!-- 4. MARKDOWN PREVIEW (Marked) -->
@@ -58,8 +112,8 @@
     <script src="/vendor/marked/marked.min.js"></script>
 
     <textarea id="markdown-raw" class="hidden"><%= content %></textarea>
-    <div class="w-full max-w-4xl bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-8 shadow-2xl overflow-auto max-h-[75vh]">
-      <article id="markdown-content" class="prose prose-invert max-w-none text-gray-200 text-sm leading-relaxed"></article>
+    <div class="w-full max-w-4xl bg-white border border-gray-200 rounded-xl p-4 sm:p-8 shadow-md overflow-auto max-h-[75vh]">
+      <article id="markdown-content" class="prose max-w-none text-gray-700 text-sm leading-relaxed"></article>
     </div>
 
   <!-- 5. CODE PREVIEW (js-beautify) -->
@@ -70,26 +124,462 @@
     <script src="/vendor/js-beautify/beautify-html.js"></script>
 
     <textarea id="code-raw" class="hidden"><%= content %></textarea>
-    <div class="w-full max-w-5xl code-container bg-gray-950 border border-gray-900 rounded-xl p-4 shadow-2xl max-h-[75vh]">
-      <div id="code-content" class="text-left text-gray-300"></div>
+    <div class="w-full max-w-5xl code-container bg-white border border-gray-250 rounded-xl p-4 shadow-md max-h-[75vh]">
+      <div id="code-content" class="text-left text-gray-800"></div>
     </div>
 
   <!-- 6. VIDEO PREVIEW -->
   <% } else if (type === 'video') { %>
-    <div class="w-full max-w-4xl bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-900">
+    <div class="w-full max-w-4xl bg-black rounded-xl overflow-hidden shadow-md border border-gray-200">
       <video src="/preview/stream/<%= file.id %>" controls class="w-full max-h-[75vh]" autoplay></video>
     </div>
 
   <!-- 7. AUDIO PREVIEW -->
   <% } else if (type === 'audio') { %>
-    <div class="bg-gray-900 border border-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md flex flex-col items-center">
-      <div class="bg-brand-teal text-white w-20 h-20 rounded-full flex items-center justify-center shadow-lg mb-6 animate-pulse">
+    <div class="bg-white border border-gray-200 p-8 rounded-2xl shadow-md w-full max-w-md flex flex-col items-center">
+      <div class="bg-blue-50 text-blue-600 w-20 h-20 rounded-full flex items-center justify-center shadow-sm mb-6 animate-pulse border border-blue-100">
         <i class="bi bi-music-note-beamed text-4xl"></i>
       </div>
-      <h3 class="font-bold text-base text-gray-200 truncate w-full text-center mb-1"><%= file.originalName %></h3>
-      <span class="text-xs text-gray-500 uppercase font-semibold mb-6">Mime: <%= file.mimeType %></span>
-      <audio src="/preview/stream/<%= file.id %>" controls class="w-full" autoplay></audio>
+      <h3 class="font-bold text-base text-gray-800 truncate w-full text-center mb-1"><%= file.originalName %></h3>
+      <span class="text-xs text-gray-400 uppercase font-semibold mb-6">Mime: <%= file.mimeType %></span>
+      <audio src="/preview/stream/<%= file.id %>" controls class="w-full bg-gray-50 rounded" autoplay></audio>
     </div>
+  <% } else if (type === 'zip') { %>
+    <div class="w-full bg-white border border-gray-200 rounded-xl shadow-md flex flex-col overflow-hidden max-h-[75vh]">
+      <!-- Explorer Header -->
+      <div class="px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/50 select-none">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 rounded-lg bg-brand-teal/10 flex items-center justify-center text-brand-teal border border-brand-teal/20 shadow-sm">
+            <i class="bi bi-file-zip-fill text-2xl"></i>
+          </div>
+          <div>
+            <h4 class="font-bold text-gray-800 text-sm md:text-base leading-tight"><%= file.originalName %></h4>
+            <p class="text-xs text-gray-500 mt-0.5"><span id="zip-files-count">0</span> items · <span id="zip-total-size">0</span> uncompressed</p>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-3">
+          <div class="relative">
+            <i class="bi bi-search absolute left-3 top-2.5 text-gray-400 text-sm"></i>
+            <input 
+              type="text" 
+              id="zip-search" 
+              placeholder="Search in archive..." 
+              class="w-full sm:w-64 pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:outline-none focus:border-brand-teal transition text-xs shadow-sm"
+            >
+          </div>
+        </div>
+      </div>
+
+      <!-- Breadcrumbs Path -->
+      <div class="px-6 py-3 border-b border-gray-200 bg-gray-50/20 flex items-center gap-2 text-xs font-semibold text-gray-500 select-none overflow-x-auto whitespace-nowrap">
+        <span class="text-gray-400">Path:</span>
+        <div id="zip-breadcrumbs" class="flex items-center gap-1.5 text-gray-550">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- File List -->
+      <div class="flex-1 overflow-y-auto bg-white">
+        <div class="min-w-[600px]">
+          <!-- Grid Header -->
+          <div class="grid grid-cols-12 gap-4 px-6 py-3 border-b border-gray-150 text-[11px] font-bold uppercase tracking-wider text-gray-400 select-none">
+            <div class="col-span-7">Name</div>
+            <div class="col-span-2 text-right">Size</div>
+            <div class="col-span-3 text-right">Actions</div>
+          </div>
+
+          <!-- Rows Container -->
+          <div id="zip-items-list" class="divide-y divide-gray-100">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ZIP Preview Modal -->
+    <div id="zip-preview-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 hidden transition-opacity duration-300">
+      <div class="bg-white border border-gray-200 rounded-xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden max-h-[85vh]">
+        <!-- Modal Header -->
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50/80 select-none">
+          <h4 id="zip-modal-title" class="font-bold text-gray-850 text-sm md:text-base truncate max-w-lg">File Preview</h4>
+          <div class="flex items-center gap-3">
+            <a id="zip-modal-download" href="#" class="bg-blue-600 text-white py-1.5 px-3 rounded-lg text-xs font-semibold hover:bg-blue-700 transition flex items-center gap-1.5 shadow-sm">
+              <i class="bi bi-download"></i> Download
+            </a>
+            <button onclick="closePreview()" class="text-gray-400 hover:text-gray-600 transition text-lg leading-none p-1">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Modal Content Container -->
+        <div class="flex-1 overflow-auto p-6 flex items-center justify-center min-h-[300px] bg-gray-50/30">
+          <!-- Image Container -->
+          <div id="zip-modal-img-container" class="hidden w-full flex justify-center">
+            <img id="zip-modal-img" class="max-h-[60vh] max-w-full object-contain rounded shadow-md border border-gray-200">
+          </div>
+          
+          <!-- Iframe Container (for PDF) -->
+          <div id="zip-modal-iframe-container" class="hidden w-full h-[60vh]">
+            <iframe id="zip-modal-iframe" class="w-full h-full border-none rounded bg-white shadow-sm border border-gray-200"></iframe>
+          </div>
+          
+          <!-- Monospace Code/Text Container -->
+          <div id="zip-modal-text-container" class="hidden w-full max-h-[60vh] overflow-auto">
+            <pre class="bg-white p-4 rounded-lg text-gray-800 text-xs font-mono overflow-auto max-h-[58vh] text-left border border-gray-200 shadow-inner"><code id="zip-modal-code"></code></pre>
+          </div>
+          
+          <!-- Unsupported Container -->
+          <div id="zip-modal-unsupported-container" class="hidden text-center py-12">
+            <i class="bi bi-file-earmark-lock text-5xl text-gray-400 mb-4 block"></i>
+            <p class="text-sm text-gray-500 mb-4">Preview not supported for this file type.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Injection -->
+    <script id="zip-entries-data" type="application/json">
+      <%- content %>
+    </script>
+
+    <script>
+      (function() {
+        const fileId = "<%= file.id %>";
+        const rawEntries = JSON.parse(document.getElementById('zip-entries-data').textContent);
+        
+        // Build list of all items (files and folders)
+        const itemsMap = new Map();
+        let totalSize = 0;
+        let filesCount = 0;
+
+        rawEntries.forEach(entry => {
+          if (!entry.isDir) {
+            totalSize += entry.size;
+            filesCount++;
+          }
+          
+          const parts = entry.path.split('/');
+          let currentPath = '';
+          
+          for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            if (!part) continue;
+            
+            const isLast = (i === parts.length - 1);
+            const parentPath = currentPath;
+            currentPath = parentPath ? `${parentPath}/${part}` : part;
+            
+            const isFolder = !isLast || entry.isDir;
+            
+            if (!itemsMap.has(currentPath)) {
+              itemsMap.set(currentPath, {
+                name: part,
+                path: currentPath,
+                parentPath: parentPath,
+                isDir: isFolder,
+                size: isFolder ? 0 : entry.size,
+                lastModified: entry.lastModified
+              });
+            } else if (!isFolder) {
+              const existing = itemsMap.get(currentPath);
+              existing.isDir = false;
+              existing.size = entry.size;
+              existing.lastModified = entry.lastModified;
+            }
+          }
+        });
+
+        const zipItems = Array.from(itemsMap.values());
+        
+        document.getElementById('zip-files-count').textContent = filesCount;
+        document.getElementById('zip-total-size').textContent = formatBytes(totalSize);
+
+        let currentDir = ''; // Root folder
+        let searchQuery = '';
+
+        function formatBytes(bytes) {
+          if (bytes === 0) return '0 Bytes';
+          const k = 1024;
+          const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function getIconClass(name, isDir) {
+          if (isDir) return 'bi-folder-fill text-yellow-500';
+          const ext = name.split('.').pop().toLowerCase();
+          if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico'].includes(ext)) return 'bi-file-image-fill text-blue-400';
+          if (ext === 'pdf') return 'bi-file-pdf-fill text-red-400';
+          if (['doc', 'docx', 'rtf', 'txt', 'pages'].includes(ext)) return 'bi-file-earmark-text-fill text-blue-300';
+          if (['xls', 'xlsx', 'csv', 'ods', 'numbers'].includes(ext)) return 'bi-file-earmark-spreadsheet-fill text-green-500';
+          if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'bi-file-zip-fill text-purple-400';
+          if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext)) return 'bi-file-music-fill text-pink-400';
+          if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) return 'bi-file-play-fill text-red-500';
+          if (['js', 'ts', 'html', 'css', 'json', 'py', 'sh', 'bat', 'sql', 'xml', 'yaml', 'yml', 'md', 'cpp', 'h', 'c', 'cs', 'java', 'go', 'rs'].includes(ext)) return 'bi-file-code-fill text-gray-400';
+          return 'bi-file-earmark-fill text-gray-400';
+        }
+
+        function isPreviewable(name) {
+          const ext = name.split('.').pop().toLowerCase();
+          return ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'pdf', 'txt', 'md', 'js', 'ts', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'ini', 'conf', 'sql', 'py', 'sh', 'bat', 'cpp', 'h', 'c', 'cs', 'java', 'go', 'rs'].includes(ext);
+        }
+
+        function renderBreadcrumbs() {
+          const container = document.getElementById('zip-breadcrumbs');
+          container.innerHTML = '';
+
+          // Root breadcrumb
+          const rootSpan = document.createElement('span');
+          rootSpan.className = 'hover:text-blue-600 cursor-pointer transition text-gray-500 font-medium';
+          rootSpan.textContent = 'Root';
+          rootSpan.addEventListener('click', () => {
+            currentDir = '';
+            searchQuery = '';
+            document.getElementById('zip-search').value = '';
+            render();
+          });
+          container.appendChild(rootSpan);
+
+          if (searchQuery) {
+            const separator = document.createElement('span');
+            separator.className = 'text-gray-300 select-none';
+            separator.textContent = '/';
+            container.appendChild(separator);
+
+            const searchSpan = document.createElement('span');
+            searchSpan.className = 'text-blue-600 font-semibold';
+            searchSpan.textContent = `Search results for "${searchQuery}"`;
+            container.appendChild(searchSpan);
+            return;
+          }
+
+          if (currentDir) {
+            const parts = currentDir.split('/');
+            let accumulatedPath = '';
+            parts.forEach((part) => {
+              accumulatedPath = accumulatedPath ? `${accumulatedPath}/${part}` : part;
+              const thisPath = accumulatedPath;
+
+              const separator = document.createElement('span');
+              separator.className = 'text-gray-300 select-none';
+              separator.textContent = '/';
+              container.appendChild(separator);
+
+              const partSpan = document.createElement('span');
+              partSpan.className = 'hover:text-blue-600 cursor-pointer transition max-w-[120px] truncate text-gray-700 font-medium';
+              partSpan.textContent = part;
+              partSpan.title = part;
+              partSpan.addEventListener('click', () => {
+                currentDir = thisPath;
+                render();
+              });
+              container.appendChild(partSpan);
+            });
+          }
+        }
+
+        function render() {
+          renderBreadcrumbs();
+
+          const listContainer = document.getElementById('zip-items-list');
+          listContainer.innerHTML = '';
+
+          let filteredItems = [];
+          if (searchQuery) {
+            const lowerQuery = searchQuery.toLowerCase();
+            filteredItems = zipItems.filter(item => item.name.toLowerCase().includes(lowerQuery) || item.path.toLowerCase().includes(lowerQuery));
+          } else {
+            filteredItems = zipItems.filter(item => item.parentPath === currentDir);
+          }
+
+          // Sort: directories first, then files alphabetically
+          filteredItems.sort((a, b) => {
+            if (a.isDir && !b.isDir) return -1;
+            if (!a.isDir && b.isDir) return 1;
+            return a.name.localeCompare(b.name);
+          });
+
+          // If currentDir is not root, add a ".." navigation row (only when not searching)
+          if (currentDir && !searchQuery) {
+            const parentPath = currentDir.includes('/') ? currentDir.split('/').slice(0, -1).join('/') : '';
+            const row = document.createElement('div');
+            row.className = 'grid grid-cols-12 gap-4 px-6 py-2.5 items-center hover:bg-gray-50 transition text-gray-500 cursor-pointer select-none';
+            row.innerHTML = `
+              <div class="col-span-12 flex items-center gap-3">
+                <span class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 shrink-0">
+                  <i class="bi bi-arrow-up text-sm"></i>
+                </span>
+                <span class="font-medium text-sm text-gray-700">.. (Parent Directory)</span>
+              </div>
+            `;
+            row.addEventListener('click', () => {
+              currentDir = parentPath;
+              render();
+            });
+            listContainer.appendChild(row);
+          }
+
+          if (filteredItems.length === 0) {
+            const row = document.createElement('div');
+            row.className = 'px-6 py-16 text-center text-gray-400 text-sm';
+            row.innerHTML = searchQuery 
+              ? `<i class="bi bi-search text-3xl text-gray-300 mb-2 block"></i> No items match "${searchQuery}"`
+              : `<i class="bi bi-folder text-3xl text-gray-300 mb-2 block"></i> This folder is empty`;
+            listContainer.appendChild(row);
+            return;
+          }
+
+          filteredItems.forEach(item => {
+            const row = document.createElement('div');
+            row.className = 'grid grid-cols-12 gap-4 px-6 py-2.5 items-center hover:bg-gray-50 transition text-gray-700 border-b border-gray-100/50';
+            
+            const iconClass = getIconClass(item.name, item.isDir);
+            const sizeStr = item.isDir ? '-' : formatBytes(item.size);
+            const showPath = searchQuery && item.path.includes('/');
+            
+            // Build actions
+            let actionsHtml = '';
+            if (item.isDir) {
+              actionsHtml = `
+                <button class="bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 px-3 py-1 rounded text-xs font-semibold transition flex items-center gap-1.5 ml-auto border border-gray-200 shadow-sm">
+                  <i class="bi bi-folder-symlink"></i> Open
+                </button>
+              `;
+            } else {
+              const previewBtn = isPreviewable(item.name) 
+                ? `<button class="preview-btn bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 px-2.5 py-1 rounded text-xs font-semibold transition border border-gray-200 shadow-sm"><i class="bi bi-eye"></i> Preview</button>`
+                : '';
+              actionsHtml = `
+                <div class="flex items-center justify-end gap-2">
+                  ${previewBtn}
+                  <a href="/preview/zip-entry/${fileId}?path=${encodeURIComponent(item.path)}&download=true" class="bg-brand-teal/10 hover:bg-brand-teal/20 text-brand-teal px-2.5 py-1 rounded text-xs font-semibold transition border border-brand-teal/25 shadow-sm"><i class="bi bi-download"></i></a>
+                </div>
+              `;
+            }
+
+            row.innerHTML = `
+              <div class="col-span-7 min-w-0 flex items-center gap-3 cursor-pointer item-name-col">
+                <span class="h-8 w-8 rounded bg-gray-100 flex items-center justify-center shrink-0 border border-gray-200/60">
+                  <i class="bi ${iconClass} text-base"></i>
+                </span>
+                <div class="min-w-0">
+                  <span class="font-medium text-sm truncate block text-gray-800">${item.name}</span>
+                  ${showPath ? `<span class="text-[10px] text-gray-400 truncate block">${item.path}</span>` : ''}
+                </div>
+              </div>
+              <div class="col-span-2 text-right text-xs font-medium text-gray-500">${sizeStr}</div>
+              <div class="col-span-3 text-right">${actionsHtml}</div>
+            `;
+
+            // Row click behaviors
+            const nameCol = row.querySelector('.item-name-col');
+            if (item.isDir) {
+              const openFolder = () => {
+                currentDir = item.path;
+                searchQuery = '';
+                document.getElementById('zip-search').value = '';
+                render();
+              };
+              nameCol.addEventListener('click', openFolder);
+              const openBtn = row.querySelector('button');
+              if (openBtn) openBtn.addEventListener('click', openFolder);
+            } else {
+              nameCol.addEventListener('click', () => {
+                if (isPreviewable(item.name)) {
+                  window.openPreview(item.path);
+                } else {
+                  // Trigger download
+                  window.location.href = `/preview/zip-entry/${fileId}?path=${encodeURIComponent(item.path)}&download=true`;
+                }
+              });
+              const previewBtn = row.querySelector('.preview-btn');
+              if (previewBtn) {
+                previewBtn.addEventListener('click', () => {
+                  window.openPreview(item.path);
+                });
+              }
+            }
+
+            listContainer.appendChild(row);
+          });
+        }
+
+        // Setup Search
+        document.getElementById('zip-search').addEventListener('input', (e) => {
+          searchQuery = e.target.value;
+          render();
+        });
+
+        // Expose Preview functions to global scope
+        window.openPreview = function(filePath) {
+          const ext = filePath.split('.').pop().toLowerCase();
+          const modal = document.getElementById('zip-preview-modal');
+          const modalTitle = document.getElementById('zip-modal-title');
+          const modalDownload = document.getElementById('zip-modal-download');
+          
+          document.getElementById('zip-modal-img-container').classList.add('hidden');
+          document.getElementById('zip-modal-iframe-container').classList.add('hidden');
+          document.getElementById('zip-modal-text-container').classList.add('hidden');
+          document.getElementById('zip-modal-unsupported-container').classList.add('hidden');
+          
+          modalTitle.textContent = filePath.split('/').pop();
+          modalDownload.href = `/preview/zip-entry/${fileId}?path=${encodeURIComponent(filePath)}&download=true`;
+          
+          const streamUrl = `/preview/zip-entry/${fileId}?path=${encodeURIComponent(filePath)}`;
+          
+          if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico'].includes(ext)) {
+            const img = document.getElementById('zip-modal-img');
+            img.src = '';
+            img.src = streamUrl;
+            document.getElementById('zip-modal-img-container').classList.remove('hidden');
+          } else if (ext === 'pdf') {
+            const iframe = document.getElementById('zip-modal-iframe');
+            iframe.src = '';
+            iframe.src = `/vendor/embedpdf/viewer.html?file=${encodeURIComponent(streamUrl)}`;
+            document.getElementById('zip-modal-iframe-container').classList.remove('hidden');
+          } else if (['txt', 'md', 'js', 'ts', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'ini', 'conf', 'sql', 'py', 'sh', 'bat', 'cpp', 'h', 'c', 'cs', 'java', 'go', 'rs'].includes(ext)) {
+            const codeBlock = document.getElementById('zip-modal-code');
+            codeBlock.textContent = 'Loading file contents...';
+            document.getElementById('zip-modal-text-container').classList.remove('hidden');
+            
+            fetch(streamUrl)
+              .then(res => {
+                if (!res.ok) throw new Error('Failed to load file content');
+                return res.text();
+              })
+              .then(text => {
+                codeBlock.textContent = text;
+              })
+              .catch(err => {
+                codeBlock.textContent = 'Error: ' + err.message;
+              });
+          } else {
+            document.getElementById('zip-modal-unsupported-container').classList.remove('hidden');
+          }
+          
+          modal.classList.remove('hidden');
+        };
+
+        window.closePreview = function() {
+          document.getElementById('zip-preview-modal').classList.add('hidden');
+          document.getElementById('zip-modal-img').src = '';
+          document.getElementById('zip-modal-iframe').src = '';
+          document.getElementById('zip-modal-code').textContent = '';
+        };
+
+        // Esc key closes modal
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            closePreview();
+          }
+        });
+
+        // Initialize Render
+        render();
+      })();
+    </script>
   <% } %>
 
 </div>

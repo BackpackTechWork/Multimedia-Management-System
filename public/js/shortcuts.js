@@ -6,9 +6,14 @@ document.addEventListener('DOMContentLoaded', () => {
     items: []
   };
 
+  let awaitingSequenceKey = false;
+  let sequenceTimeoutId = null;
+
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       e.preventDefault();
+      awaitingSequenceKey = false;
+      clearTimeout(sequenceTimeoutId);
 
       const openModals = document.querySelectorAll('.fixed.inset-0:not(.hidden)');
       openModals.forEach(m => m.classList.add('hidden'));
@@ -28,6 +33,42 @@ document.addEventListener('DOMContentLoaded', () => {
       activeElement.tagName === 'TEXTAREA' || 
       activeElement.contentEditable === 'true'
     )) {
+      return;
+    }
+
+    if (awaitingSequenceKey) {
+      const key = e.key.toLowerCase();
+      if (['f', 'u', 'i'].includes(key)) {
+        e.preventDefault();
+        e.stopPropagation();
+        awaitingSequenceKey = false;
+        clearTimeout(sequenceTimeoutId);
+
+        if (key === 'f') {
+          const openModalBtn = document.getElementById('new-folder-modal-btn');
+          if (openModalBtn) openModalBtn.click();
+        } else if (key === 'u') {
+          const uploadInput = document.getElementById('upload-input');
+          if (uploadInput) uploadInput.click();
+        } else if (key === 'i') {
+          const folderUploadInput = document.getElementById('folder-upload-input');
+          if (folderUploadInput) folderUploadInput.click();
+        }
+        return;
+      } else {
+        awaitingSequenceKey = false;
+        clearTimeout(sequenceTimeoutId);
+      }
+    }
+
+    if (e.altKey && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      e.stopPropagation();
+      awaitingSequenceKey = true;
+      clearTimeout(sequenceTimeoutId);
+      sequenceTimeoutId = setTimeout(() => {
+        awaitingSequenceKey = false;
+      }, 2000);
       return;
     }
 

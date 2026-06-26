@@ -124,6 +124,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // 5. PRESENTATION PREVIEW (PPTX)
+  if (fileType === 'presentation') {
+    const container = document.getElementById('pptx-container');
+    const controls = document.getElementById('pptx-controls');
+    if (container && typeof pptxPreview !== 'undefined') {
+      container.innerHTML = '<div class="text-center py-8 text-gray-400"><i class="bi bi-arrow-repeat animate-spin text-2xl mr-2"></i>Loading presentation data...</div>';
+      try {
+        const streamUrl = `/preview/stream/${fileId}`;
+        const response = await fetch(streamUrl);
+        const arrayBuffer = await response.arrayBuffer();
+
+        container.innerHTML = '';
+        const previewer = pptxPreview.init(container, {
+          mode: 'slide',
+          width: 800,
+          height: 600
+        });
+
+        await previewer.preview(arrayBuffer);
+
+        // Update controls
+        if (controls) {
+          controls.classList.remove('hidden');
+          const pageNumEl = document.getElementById('pptx-page-num');
+          const updatePageNum = () => {
+            if (pageNumEl) {
+              pageNumEl.textContent = `Slide ${previewer.currentIndex + 1} / ${previewer.slideCount}`;
+            }
+          };
+          updatePageNum();
+
+          document.getElementById('pptx-prev-btn')?.addEventListener('click', () => {
+            previewer.renderPreSlide();
+            updatePageNum();
+          });
+
+          document.getElementById('pptx-next-btn')?.addEventListener('click', () => {
+            previewer.renderNextSlide();
+            updatePageNum();
+          });
+
+          document.getElementById('pptx-fullscreen-btn')?.addEventListener('click', () => {
+            const wrapper = document.getElementById('pptx-container-wrapper');
+            if (wrapper) {
+              if (wrapper.requestFullscreen) {
+                wrapper.requestFullscreen();
+              } else if (wrapper.webkitRequestFullscreen) {
+                wrapper.webkitRequestFullscreen();
+              } else if (wrapper.msRequestFullscreen) {
+                wrapper.msRequestFullscreen();
+              }
+            }
+          });
+        }
+      } catch (err) {
+        container.innerHTML = `<div class="text-red-500 py-8">Failed to render presentation: ${err.message}</div>`;
+      }
+    }
+  }
+
   function escapeHtml(text) {
     return text
       .replace(/&/g, "&amp;")

@@ -21,26 +21,69 @@
       
       <!-- Dropdown items -->
       <div id="new-dropdown-menu" class="absolute left-0 mt-2 w-full bg-white border border-gray-200 rounded-xl shadow-lg py-2 hidden z-30">
-        <button id="sidebar-upload-btn" class="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3">
-          <i class="bi bi-file-earmark-arrow-up text-brand-teal text-lg"></i>
-          <span>Upload File</span>
+        <button id="new-folder-modal-btn" class="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <i class="bi bi-folder-plus text-brand-teal text-lg"></i>
+            <span>New folder</span>
+          </div>
+          <span class="text-xs text-gray-400 font-normal whitespace-nowrap">Alt+C then F</span>
         </button>
-        <button id="new-folder-modal-btn" class="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3">
-          <i class="bi bi-folder-plus text-brand-teal text-lg"></i>
-          <span>New Folder</span>
+        <div class="h-px bg-gray-200 my-1"></div>
+        <button id="sidebar-upload-btn" class="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <i class="bi bi-file-earmark-arrow-up text-brand-teal text-lg"></i>
+            <span>File upload</span>
+          </div>
+          <span class="text-xs text-gray-400 font-normal whitespace-nowrap">Alt+C then U</span>
+        </button>
+        <button id="sidebar-folder-upload-btn" class="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <i class="bi bi-folder-symlink text-brand-teal text-lg"></i>
+            <span>Folder upload</span>
+          </div>
+          <span class="text-xs text-gray-400 font-normal whitespace-nowrap">Alt+C then I</span>
         </button>
       </div>
     </div>
 
     <!-- Hidden native file input for trigger -->
     <input type="file" id="upload-input" multiple class="hidden">
+    <input type="file" id="folder-upload-input" webkitdirectory directory multiple class="hidden">
 
     <!-- 2. Core Navigation Links -->
     <nav class="flex flex-col gap-1">
-      <a href="/" class="sidebar-link <%= locals.tab === 'my-drive' ? 'active' : '' %>">
-        <i class="bi bi-hdd-fill text-lg"></i>
-        <span>My Drive</span>
-      </a>
+      <% if (locals.userRootFolders && userRootFolders.length > 0) { %>
+        <details class="sidebar-group" open>
+          <summary class="sidebar-link <%= locals.tab === 'my-drive' ? 'active' : '' %> list-none flex items-center justify-between !p-0 select-none">
+            <a href="/" class="sidebar-folder-drop-target flex items-center gap-2 flex-1 px-4 py-2.5 cursor-pointer" onclick="event.stopPropagation();" data-id="" data-type="folder" data-name="My Drive">
+              <i class="bi bi-hdd-fill text-lg"></i>
+              <span>My Drive</span>
+            </a>
+            <div class="chevron-toggle flex items-center justify-center p-2.5 text-gray-400 hover:text-gray-600 rounded-md">
+              <i class="bi bi-chevron-down text-sm transition-transform"></i>
+            </div>
+          </summary>
+          <div class="ml-4 mt-1 flex flex-col gap-1 pl-3 border-l border-gray-200">
+            <% userRootFolders.forEach(folder => { %>
+              <a 
+                href="/folders/<%= folder.id %>" 
+                class="sidebar-folder-drop-target flex items-center gap-2 hover:bg-gray-50 px-2 py-1.5 rounded transition text-sm text-gray-600"
+                data-id="<%= folder.id %>"
+                data-type="folder"
+                data-name="<%= folder.name %>"
+              >
+                <i class="bi bi-folder-fill text-yellow-500"></i>
+                <span class="truncate"><%= folder.name %></span>
+              </a>
+            <% }) %>
+          </div>
+        </details>
+      <% } else { %>
+        <a href="/" class="sidebar-folder-drop-target sidebar-link <%= locals.tab === 'my-drive' ? 'active' : '' %>" data-id="" data-type="folder" data-name="My Drive">
+          <i class="bi bi-hdd-fill text-lg"></i>
+          <span>My Drive</span>
+        </a>
+      <% } %>
       <a href="/recent" class="sidebar-link <%= locals.tab === 'recent' ? 'active' : '' %>">
         <i class="bi bi-clock-history text-lg"></i>
         <span>Recent</span>
@@ -49,33 +92,18 @@
         <i class="bi bi-star-fill text-lg"></i>
         <span>Starred</span>
       </a>
-      <a href="/trash" class="sidebar-link <%= locals.tab === 'trash' ? 'active' : '' %>">
-        <i class="bi bi-trash-fill text-lg"></i>
-        <span>Trash</span>
-      </a>
-    </nav>
+        <a href="/trash" class="sidebar-link <%= locals.tab === 'trash' ? 'active' : '' %>">
+          <i class="bi bi-trash-fill text-lg"></i>
+          <span>Trash</span>
+        </a>
+      </nav>
 
-    <!-- 3. Mini Folders Tree (Visual Navigation) -->
-    <div class="border-t border-gray-100 pt-4">
-      <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-3 px-2">Folders tree</span>
-      <div class="overflow-y-auto max-h-64 flex flex-col gap-1 text-sm font-medium text-gray-600">
-        <% if (locals.userRootFolders && userRootFolders.length > 0) { %>
-          <% userRootFolders.forEach(folder => { %>
-            <a href="/folders/<%= folder.id %>" class="flex items-center gap-2 hover:bg-gray-50 px-2 py-1.5 rounded transition">
-              <i class="bi bi-folder-fill text-yellow-500"></i>
-              <span class="truncate"><%= folder.name %></span>
-            </a>
-          <% }) %>
-        <% } else { %>
-          <div class="text-xs text-gray-400 italic px-2">No folders created yet</div>
-        <% } %>
-      </div>
-    </div>
+    <!-- 3. Removed duplicate folders tree; now shown under My Drive -->
   </div>
 
   <!-- 4. Pre-calculated Storage Meter -->
   <% if (locals.storageStats) { %>
-    <div class="border-t border-gray-100 pt-4 flex flex-col gap-2">
+    <a href="/storage" class="border-t border-gray-100 pt-4 flex flex-col gap-2 rounded-lg transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 <%= locals.tab === 'storage' ? 'text-brand-teal' : '' %>" aria-label="Open storage analytics">
       <div class="flex items-center gap-2 text-gray-500 text-sm">
         <i class="bi bi-cloud-check text-lg text-brand-teal"></i>
         <span class="font-medium">Storage</span>
@@ -83,6 +111,6 @@
       <div class="text-xs text-gray-400 leading-tight">
         <%= formatBytes(storageStats.totalSize) %> used
       </div>
-    </div>
+    </a>
   <% } %>
 </aside>

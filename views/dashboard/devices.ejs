@@ -1,6 +1,14 @@
 <%- include('../partials/header') %>
 
+<% locals.showSidebarToggle = true; %>
 <%- include('../partials/navbar') %>
+
+<script>
+  window.driveContext = {
+    tab: 'devices',
+    currentFolderId: ''
+  };
+</script>
 
 <div class="flex-1 flex overflow-hidden">
   <!-- Sidebar Navigation -->
@@ -8,7 +16,7 @@
 
   <!-- Main Drive Panel -->
   <main class="flex-1 flex flex-col min-w-0 bg-[#F8F9FA] overflow-y-auto p-6 md:p-8">
-    <div class="max-w-4xl mx-auto w-full">
+    <div class="w-full">
       
       <!-- Page title -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 select-none">
@@ -18,7 +26,7 @@
           </h2>
           <p class="text-xs text-gray-400 mt-1">Review and manage the devices currently logged into your account.</p>
         </div>
-        <button id="revoke-others-btn" class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg text-xs font-semibold border border-red-200 transition self-start sm:self-auto shrink-0">
+        <button id="revoke-others-btn" type="button" class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg text-xs font-semibold border border-red-200 transition self-start sm:self-auto shrink-0">
           Sign Out of Other Devices
         </button>
       </div>
@@ -58,7 +66,8 @@
 
               <% if (sess.sessionId !== currentSessionId) { %>
                 <button 
-                  onclick="revokeSession(<%= sess.id %>)" 
+                  type="button"
+                  data-revoke-session-id="<%= sess.id %>"
                   class="text-red-500 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-100 p-2 rounded-lg text-xs font-semibold transition shrink-0"
                 >
                   Revoke
@@ -77,42 +86,64 @@
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-    
-    // Revoke single session
-    window.revokeSession = async function(id) {
-      if (!await confirm('Log this device out? Any unsaved changes on that device will be lost.')) return;
-      
-      fetch('/auth/devices/revoke', {
+
+    async function postDeviceAction(url, body) {
+      if (!csrfToken) {
+        throw new Error('Missing security token. Refresh the page and try again.');
+      }
+
+      const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-csrf-token': csrfToken
         },
-        body: JSON.stringify({ id })
-      })
-      .then(res => {
-        if (res.ok) window.location.reload();
-        else alert('Revocation failed');
+        body: body ? JSON.stringify(body) : undefined
       });
-    };
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Operation failed');
+      }
+    }
+
+    document.querySelectorAll('[data-revoke-session-id]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!confirm('Log this device out? Any unsaved changes on that device will be lost.')) return;
+
+        button.disabled = true;
+        const originalText = button.textContent;
+        button.textContent = 'Revoking...';
+
+        try {
+          await postDeviceAction('/auth/devices/revoke', { id: button.dataset.revokeSessionId });
+          window.location.reload();
+        } catch (err) {
+          alert(err.message || 'Revocation failed');
+          button.disabled = false;
+          button.textContent = originalText;
+        }
+      });
+    });
 
     // Revoke all other sessions
     const revokeOthersBtn = document.getElementById('revoke-others-btn');
     if (revokeOthersBtn) {
       revokeOthersBtn.addEventListener('click', async () => {
-        if (!await confirm('Sign out of all other devices? This will immediately disconnect all active logins except this one.')) return;
+        if (!confirm('Sign out of all other devices? This will immediately disconnect all active logins except this one.')) return;
 
-        fetch('/auth/devices/revoke-others', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-csrf-token': csrfToken
-          }
-        })
-        .then(res => {
-          if (res.ok) window.location.reload();
-          else alert('Operation failed');
-        });
+        revokeOthersBtn.disabled = true;
+        const originalText = revokeOthersBtn.textContent;
+        revokeOthersBtn.textContent = 'Signing out...';
+
+        try {
+          await postDeviceAction('/auth/devices/revoke-others');
+          window.location.reload();
+        } catch (err) {
+          alert(err.message || 'Operation failed');
+          revokeOthersBtn.disabled = false;
+          revokeOthersBtn.textContent = originalText;
+        }
       });
     }
   });

@@ -4,61 +4,96 @@
   <meta charset="UTF-8">
   <title>EmbedPDF Viewer</title>
   <script src="/vendor/embedpdf/pdf.min.js"></script>
+  <link rel="stylesheet" href="/vendor/bootstrap-icons/bootstrap-icons.css">
   <style>
     body {
       margin: 0;
-      background-color: #3e3e3e;
+      background-color: #f1f3f4;
       font-family: 'Inter', system-ui, sans-serif;
       display: flex;
       flex-direction: column;
       height: 100vh;
-      color: #fff;
+      color: #3c4043;
     }
+    
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f3f4;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #dadce0;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #bdc1c6;
+    }
+
     .toolbar {
-      background-color: #2a2a2a;
+      background-color: #ffffff;
       height: 48px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 16px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      border-bottom: 1px solid #e8eaed;
       z-index: 10;
       user-select: none;
     }
     .toolbar-group {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
     }
-    .btn {
-      background: none;
-      border: none;
-      color: #ccc;
-      cursor: pointer;
-      padding: 6px 12px;
-      border-radius: 4px;
-      font-size: 14px;
-      transition: all 0.1s ease;
+    .btn-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
       display: flex;
       align-items: center;
-      gap: 6px;
+      justify-content: center;
+      padding: 0;
+      color: #5f6368;
+      transition: all 0.2s ease;
+      border: none;
+      background: none;
+      cursor: pointer;
+      outline: none;
     }
-    .btn:hover {
-      background-color: #444;
-      color: #fff;
+    .btn-icon:hover {
+      background-color: #f1f3f4;
+      color: #202124;
     }
-    .btn:disabled {
-      opacity: 0.4;
+    .btn-icon:disabled {
+      opacity: 0.3;
       cursor: not-allowed;
+      background-color: transparent;
+    }
+    .btn-icon i {
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .page-input {
-      background-color: #1a1a1a;
-      border: 1px solid #444;
-      color: #fff;
-      padding: 4px;
-      width: 40px;
+      background-color: #ffffff;
+      border: 1px solid #dadce0;
+      color: #3c4043;
+      padding: 3px 6px;
+      width: 28px;
       text-align: center;
       border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      outline: none;
+    }
+    .page-input:focus {
+      border-color: #1a73e8;
     }
     .viewer-container {
       flex: 1;
@@ -66,12 +101,13 @@
       display: flex;
       justify-content: center;
       align-items: flex-start;
-      padding: 20px;
+      padding: 24px;
     }
     .pdf-canvas-wrapper {
-      background-color: #fff;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      background-color: #ffffff;
+      box-shadow: 0 1px 3px rgba(60,64,67,0.3), 0 4px 8px 3px rgba(60,64,67,0.15);
       border-radius: 4px;
+      margin-bottom: 24px;
     }
     canvas {
       display: block;
@@ -81,20 +117,29 @@
 <body>
   <div class="toolbar">
     <div class="toolbar-group">
-      <button class="btn" id="prev-btn" disabled>Prev</button>
-      <span>
+      <button class="btn-icon" id="prev-btn" title="Previous page" disabled>
+        <i class="bi bi-chevron-left"></i>
+      </button>
+      <span style="display: inline-flex; align-items: center; gap: 4px;">
         Page <input type="text" class="page-input" id="page-num" value="1"> of <span id="page-count">-</span>
       </span>
-      <button class="btn" id="next-btn" disabled>Next</button>
+      <button class="btn-icon" id="next-btn" title="Next page" disabled>
+        <i class="bi bi-chevron-right"></i>
+      </button>
     </div>
     <div class="toolbar-group">
-      <button class="btn" id="zoom-out-btn">Zoom Out</button>
-      <span id="zoom-text">100%</span>
-      <button class="btn" id="zoom-in-btn">Zoom In</button>
+      <button class="btn-icon" id="zoom-out-btn" title="Zoom Out">
+        <i class="bi bi-zoom-out"></i>
+      </button>
+      <span id="zoom-text" style="min-width: 44px; text-align: center;">130%</span>
+      <button class="btn-icon" id="zoom-in-btn" title="Zoom In">
+        <i class="bi bi-zoom-in"></i>
+      </button>
     </div>
     <div class="toolbar-group">
-      <button class="btn" id="print-btn">Print</button>
-      <button class="btn" id="download-btn">Download</button>
+      <button class="btn-icon" id="download-btn" title="Download">
+        <i class="bi bi-download"></i>
+      </button>
     </div>
   </div>
 
@@ -219,14 +264,21 @@
       window.open(fileUrl, '_blank');
     });
 
-    document.getElementById('print-btn').addEventListener('click', () => {
-      const printIframe = document.createElement('iframe');
-      printIframe.style.display = 'none';
-      printIframe.src = fileUrl;
-      document.body.appendChild(printIframe);
-      printIframe.contentWindow.focus();
-      printIframe.contentWindow.print();
-    });
+
+    // Touchpad Zoom (pinch-to-zoom)
+    document.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const delta = e.deltaY;
+        if (delta < 0) {
+          scale = Math.min(3.0, scale + 0.05);
+        } else {
+          scale = Math.max(0.5, scale - 0.05);
+        }
+        document.getElementById('zoom-text').textContent = Math.round(scale * 100) + '%';
+        queueRenderPage(pageNum);
+      }
+    }, { passive: false });
   </script>
 </body>
 </html>

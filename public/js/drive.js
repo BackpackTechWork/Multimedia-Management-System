@@ -218,45 +218,66 @@ document.addEventListener('DOMContentLoaded', () => {
   // Custom Context Menu Overlay
   const contextMenu = document.createElement('div');
   contextMenu.id = 'custom-context-menu';
-  contextMenu.className = 'fixed bg-white border border-gray-200 rounded-xl shadow-xl py-1.5 w-56 z-[9999] hidden select-none text-gray-700 text-sm font-semibold transition-all duration-100';
+  contextMenu.className = 'fixed bg-white border border-gray-200 rounded-xl shadow-xl py-1 w-48 z-[9999] hidden select-none text-gray-700 text-xs font-semibold transition-all duration-100';
   contextMenu.innerHTML = `
-    <button id="context-open" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-3 transition duration-150">
-      <i class="bi bi-folder2-open text-gray-500 text-base"></i>
+    <button id="context-open" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-folder2-open text-gray-500 text-sm"></i>
       <span>Open</span>
     </button>
     <div class="h-px bg-gray-200 my-1"></div>
-    <button id="context-download" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-3 transition duration-150">
-      <i class="bi bi-download text-gray-500 text-base"></i>
+    <button id="context-download" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-download text-gray-500 text-sm"></i>
       <span>Download</span>
     </button>
-    <button id="context-rename" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-3 transition duration-150">
-      <i class="bi bi-pencil text-gray-500 text-base"></i>
+    <button id="context-rename" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-pencil text-gray-500 text-sm"></i>
       <span>Rename</span>
     </button>
-    <button id="context-copy" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-3 transition duration-150">
-      <i class="bi bi-file-earmark-medical text-gray-500 text-base"></i>
+    <button id="context-copy" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-file-earmark-medical text-gray-500 text-sm"></i>
       <span>Make a copy</span>
     </button>
     <div class="h-px bg-gray-200 my-1"></div>
-    <button id="context-share" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-3 transition duration-150">
-      <i class="bi bi-share text-gray-500 text-base"></i>
+    <button id="context-share" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-share text-gray-500 text-sm"></i>
       <span>Share</span>
     </button>
-    <button id="context-move" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-3 transition duration-150">
-      <i class="bi bi-folder-symlink text-gray-500 text-base"></i>
+    <button id="context-move" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-folder-symlink text-gray-500 text-sm"></i>
       <span>Move to</span>
     </button>
-    <button id="context-properties" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-3 transition duration-150">
-      <i class="bi bi-info-circle text-gray-500 text-base"></i>
+    <button id="context-properties" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-info-circle text-gray-500 text-sm"></i>
       <span>Properties</span>
     </button>
     <div class="h-px bg-gray-200 my-1"></div>
-    <button id="context-delete" class="w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600 flex items-center gap-3 transition duration-150">
-      <i class="bi bi-trash text-red-500 text-base"></i>
+    <button id="context-delete" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 text-red-600 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-trash text-red-500 text-sm"></i>
       <span>${isTrashTab ? 'Delete permanently' : 'Move to bin'}</span>
     </button>
   `;
   document.body.appendChild(contextMenu);
+
+  // Custom Context Menu for Empty Space of the Drive
+  const emptySpaceContextMenu = document.createElement('div');
+  emptySpaceContextMenu.id = 'empty-space-context-menu';
+  emptySpaceContextMenu.className = 'fixed bg-white border border-gray-200 rounded-xl shadow-xl py-1 w-48 z-[9999] hidden select-none text-gray-700 text-xs font-semibold transition-all duration-100';
+  emptySpaceContextMenu.innerHTML = `
+    <button id="empty-context-new-folder" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-folder-plus text-brand-teal text-sm"></i>
+      <span>New folder</span>
+    </button>
+    <div class="h-px bg-gray-200 my-1"></div>
+    <button id="empty-context-upload-file" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-file-earmark-arrow-up text-brand-teal text-sm"></i>
+      <span>File upload</span>
+    </button>
+    <button id="empty-context-upload-folder" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-folder-symlink text-brand-teal text-sm"></i>
+      <span>Folder upload</span>
+    </button>
+  `;
+  document.body.appendChild(emptySpaceContextMenu);
 
   const toolbarDeleteBtn = document.getElementById('detail-delete-btn');
   if (toolbarDeleteBtn && isTrashTab) {
@@ -328,13 +349,12 @@ document.addEventListener('DOMContentLoaded', () => {
       else if (mime.startsWith('audio/')) route = 'audio';
       else if (item.dataset.ext === 'md') route = 'markdown';
       else if (['xls', 'xlsx', 'csv', 'ods'].includes(item.dataset.ext)) route = 'excel';
+      else if (['ppt', 'pptx'].includes(item.dataset.ext) || mime === 'application/vnd.ms-powerpoint' || mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') route = 'presentation';
+      else if (item.dataset.ext === 'zip' || mime === 'application/zip' || mime === 'application/x-zip-compressed') route = 'zip';
       
       window.open(`/preview/${route}/${id}`, '_blank');
     }
   }
-
-  let lastClickTime = 0;
-  let lastClickItem = null;
 
   // Handle single clicks on item cards
   items.forEach(item => {
@@ -346,18 +366,6 @@ document.addEventListener('DOMContentLoaded', () => {
     item.addEventListener('click', (e) => {
       e.stopPropagation();
       contextMenu.classList.add('hidden');
-
-      const currentTime = new Date().getTime();
-      const clickDelay = currentTime - lastClickTime;
-      const isDoubleClick = (lastClickItem === item && clickDelay < 350);
-
-      lastClickTime = currentTime;
-      lastClickItem = item;
-
-      if (isDoubleClick) {
-        openItem(item);
-        return;
-      }
 
       if (e.ctrlKey || e.metaKey) {
         if (item.classList.contains('selected')) {
@@ -456,7 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function moveDriveItemsToFolder(draggedItems, destinationFolder) {
-    const destinationFolderId = destinationFolder.dataset.id;
+    const destinationFolderId = destinationFolder.dataset.id || null;
     if (draggedItems.some(entry => entry.type === 'folder' && entry.id === destinationFolderId)) {
       throw new Error('A folder cannot be moved into itself.');
     }
@@ -492,9 +500,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (!isTrashTab) {
-    items.forEach(folder => {
-      if (folder.dataset.type !== 'folder') return;
-
+    const dropTargets = document.querySelectorAll('.grid-item[data-type="folder"], .sidebar-folder-drop-target');
+    dropTargets.forEach(folder => {
       folder.addEventListener('dragenter', (e) => {
         if (!internalItemDrag) return;
         e.preventDefault();
@@ -595,6 +602,28 @@ document.addEventListener('DOMContentLoaded', () => {
     contextMenu.classList.add('hidden');
   });
 
+  // Event handlers for empty space context menu items
+  document.getElementById('empty-context-new-folder').addEventListener('click', (e) => {
+    e.stopPropagation();
+    emptySpaceContextMenu.classList.add('hidden');
+    const btn = document.getElementById('new-folder-modal-btn');
+    if (btn) btn.click();
+  });
+
+  document.getElementById('empty-context-upload-file').addEventListener('click', (e) => {
+    e.stopPropagation();
+    emptySpaceContextMenu.classList.add('hidden');
+    const btn = document.getElementById('sidebar-upload-btn');
+    if (btn) btn.click();
+  });
+
+  document.getElementById('empty-context-upload-folder').addEventListener('click', (e) => {
+    e.stopPropagation();
+    emptySpaceContextMenu.classList.add('hidden');
+    const btn = document.getElementById('sidebar-folder-upload-btn');
+    if (btn) btn.click();
+  });
+
   async function applyTrashAction(action, selected, { confirmMessage, emptyMessage, failureMessage }) {
     if (!selected || selected.length === 0) {
       if (emptyMessage) alert(emptyMessage);
@@ -690,13 +719,54 @@ document.addEventListener('DOMContentLoaded', () => {
     if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
     if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
     contextMenu.classList.add('hidden');
+    emptySpaceContextMenu.classList.add('hidden');
   });
 
   document.addEventListener('contextmenu', (e) => {
     if (!e.target.closest('.grid-item')) {
       contextMenu.classList.add('hidden');
     }
+    if (!e.target.closest('#items-grid-container')) {
+      emptySpaceContextMenu.classList.add('hidden');
+    }
   });
+
+  // Right-click on empty space inside items grid container
+  if (itemsGridContainer) {
+    itemsGridContainer.addEventListener('contextmenu', (e) => {
+      // If right click is on a grid item, do nothing here (item contextmenu handler will handle it)
+      if (e.target.closest('.grid-item')) {
+        emptySpaceContextMenu.classList.add('hidden');
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Clear selection
+      clearSelection();
+
+      // Position and show empty space context menu
+      const menuWidth = 224;
+      const menuHeight = 150;
+      let posX = e.clientX;
+      let posY = e.clientY;
+
+      if (posX + menuWidth > window.innerWidth) {
+        posX = window.innerWidth - menuWidth - 10;
+      }
+      if (posY + menuHeight > window.innerHeight) {
+        posY = window.innerHeight - menuHeight - 10;
+      }
+
+      emptySpaceContextMenu.style.left = posX + 'px';
+      emptySpaceContextMenu.style.top = posY + 'px';
+      emptySpaceContextMenu.classList.remove('hidden');
+
+      // Hide the item context menu
+      contextMenu.classList.add('hidden');
+    });
+  }
 
   // --- DETAILS PANE RENDERER ---
   function updateDetailsPane() {
@@ -795,6 +865,25 @@ document.addEventListener('DOMContentLoaded', () => {
     let box = null;
 
     gridContainer.addEventListener('mousedown', (e) => {
+      if (e.target.closest('#custom-context-menu') || 
+          e.target.closest('#empty-space-context-menu') || 
+          e.target.closest('#new-dropdown-menu') || 
+          e.target.closest('#profile-dropdown-menu')) {
+        return;
+      }
+
+      const isContextMenuOpen = !contextMenu.classList.contains('hidden') || !emptySpaceContextMenu.classList.contains('hidden');
+      const isNewDropdownOpen = newDropdownMenu && !newDropdownMenu.classList.contains('hidden');
+      const isProfileDropdownOpen = profileDropdownMenu && !profileDropdownMenu.classList.contains('hidden');
+
+      if (isContextMenuOpen || isNewDropdownOpen || isProfileDropdownOpen) {
+        contextMenu.classList.add('hidden');
+        emptySpaceContextMenu.classList.add('hidden');
+        if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
+        if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
+        return;
+      }
+
       if (e.button !== 0 || e.target.closest('.grid-item') || e.target.closest('button') || e.target.closest('input')) return;
       e.preventDefault();
       
@@ -1384,6 +1473,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Drag and Drop uploads
   const dragOverlay = document.getElementById('drag-overlay');
   if (dragOverlay) {
+    let activeDropTarget = null;
+
     window.addEventListener('dragenter', (e) => {
       const types = Array.from(e.dataTransfer?.types || []);
       if (internalItemDrag || types.includes(DRIVE_ITEMS_MIME) || !types.includes('Files')) {
@@ -1395,11 +1486,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     dragOverlay.addEventListener('dragover', (e) => {
       e.preventDefault();
+
+      dragOverlay.style.pointerEvents = 'none';
+      const element = document.elementFromPoint(e.clientX, e.clientY);
+      dragOverlay.style.pointerEvents = '';
+
+      const dropTarget = element ? element.closest('.grid-item[data-type="folder"], .sidebar-folder-drop-target') : null;
+      if (dropTarget !== activeDropTarget) {
+        if (activeDropTarget) {
+          activeDropTarget.classList.remove('is-drop-target');
+        }
+        activeDropTarget = dropTarget;
+        if (activeDropTarget) {
+          activeDropTarget.classList.add('is-drop-target');
+        }
+      }
     });
 
     dragOverlay.addEventListener('dragleave', (e) => {
       if (e.relatedTarget === null) {
         dragOverlay.classList.remove('active');
+        if (activeDropTarget) {
+          activeDropTarget.classList.remove('is-drop-target');
+          activeDropTarget = null;
+        }
       }
     });
 
@@ -1460,35 +1570,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Helper to resolve parent path of a relative path
-    function getParentPath(path) {
-      const idx = path.lastIndexOf('/');
-      if (idx === -1) return '';
-      return path.substring(0, idx);
-    }
-
-    // Helper to create a folder on the server
-  async function createFolderOnServer(name, parentId, { deferStats = false } = {}) {
-      const res = await fetchWithConnectionRecovery('/api/folders', {
-        method: 'POST',
-        signal: uploadSessionController?.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-csrf-token': csrfToken
-        },
-        body: JSON.stringify({ name, parentId, deferStats })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to create directory');
-      }
-      const data = await res.json();
-      return data.folder.id;
-    }
-
     dragOverlay.addEventListener('drop', async (e) => {
       e.preventDefault();
       dragOverlay.classList.remove('active');
+
+      const destinationFolderId = activeDropTarget ? activeDropTarget.dataset.id : undefined;
+      if (activeDropTarget) {
+        activeDropTarget.classList.remove('is-drop-target');
+        activeDropTarget = null;
+      }
+
+      if (window.clearSelection) window.clearSelection();
       if (window.primeNotificationSound) window.primeNotificationSound();
       startUploadSession();
 
@@ -1506,7 +1598,10 @@ document.addEventListener('DOMContentLoaded', () => {
         prepareUploadQueue(droppedFiles);
         showProgressModal();
         try {
-          await uploadFlatFiles(droppedFiles, { deferStats: droppedFiles.length > 1 });
+          await uploadFlatFiles(droppedFiles, { 
+            deferStats: droppedFiles.length > 1, 
+            destinationFolderId 
+          });
           if (droppedFiles.length > 1) await refreshUploadStats();
           await playUploadSuccessSound();
           finishUploadSession();
@@ -1550,7 +1645,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (droppedFiles.length > 0) {
           try {
             prepareUploadQueue(droppedFiles);
-            await uploadFlatFiles(droppedFiles, { deferStats: droppedFiles.length > 1 });
+            await uploadFlatFiles(droppedFiles, { 
+              deferStats: droppedFiles.length > 1,
+              destinationFolderId
+            });
             if (droppedFiles.length > 1) await refreshUploadStats();
             await playUploadSuccessSound();
             finishUploadSession();
@@ -1566,7 +1664,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const pathFolderIdMap = {
-        '': window.getCurrentFolderId ? window.getCurrentFolderId() : ''
+        '': destinationFolderId !== undefined ? destinationFolderId : (window.getCurrentFolderId ? window.getCurrentFolderId() : '')
       };
       const isLargeQueue = queue.length > 1;
       const directoryItems = queue.filter(item => item.type === 'directory');
@@ -1606,14 +1704,142 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  async function uploadFlatFiles(files, { deferStats = false } = {}) {
+  async function uploadFlatFiles(files, { deferStats = false, destinationFolderId = undefined } = {}) {
     await runWithConcurrency(files, FILE_UPLOAD_CONCURRENCY, async (file) => {
       if (uploadCancelled) throw new Error('Upload cancelled');
 
-      await uploadFileInChunks(file, undefined, (percent) => {
+      await uploadFileInChunks(file, destinationFolderId, (percent) => {
         setUploadItemState(file, 'uploading', percent);
       }, { deferStats });
       setUploadItemState(file, 'complete', 100);
+    });
+  }
+
+  // Helper to resolve parent path of a relative path
+  function getParentPath(path) {
+    const idx = path.lastIndexOf('/');
+    if (idx === -1) return '';
+    return path.substring(0, idx);
+  }
+
+  // Helper to create a folder on the server
+  async function createFolderOnServer(name, parentId, { deferStats = false } = {}) {
+    const res = await fetchWithConnectionRecovery('/api/folders', {
+      method: 'POST',
+      signal: uploadSessionController?.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': csrfToken
+      },
+      body: JSON.stringify({ name, parentId, deferStats })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to create directory');
+    }
+    const data = await res.json();
+    return data.folder.id;
+  }
+
+  // Sidebar folder upload button
+  const sidebarFolderUploadBtn = document.getElementById('sidebar-folder-upload-btn');
+  if (sidebarFolderUploadBtn) {
+    sidebarFolderUploadBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
+      const folderUploadInput = document.getElementById('folder-upload-input');
+      if (folderUploadInput) folderUploadInput.click();
+    });
+  }
+
+  const folderUploadInput = document.getElementById('folder-upload-input');
+  if (folderUploadInput) {
+    folderUploadInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+
+      if (window.primeNotificationSound) window.primeNotificationSound();
+      startUploadSession();
+
+      const queue = [];
+      const seenDirs = new Set();
+
+      files.forEach(file => {
+        const relativePath = file.webkitRelativePath || '';
+        const parts = relativePath.split('/');
+        let currentPath = '';
+        for (let i = 0; i < parts.length - 1; i++) {
+          const dirName = parts[i];
+          currentPath = currentPath ? `${currentPath}/${dirName}` : dirName;
+          if (!seenDirs.has(currentPath)) {
+            seenDirs.add(currentPath);
+          }
+        }
+      });
+
+      const sortedDirs = Array.from(seenDirs).sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b));
+
+      sortedDirs.forEach(dirPath => {
+        const parts = dirPath.split('/');
+        const dirName = parts[parts.length - 1];
+        queue.push({
+          type: 'directory',
+          name: dirName,
+          path: dirPath
+        });
+      });
+
+      files.forEach(file => {
+        const relativePath = file.webkitRelativePath || '';
+        const parts = relativePath.split('/');
+        queue.push({
+          type: 'file',
+          file: file,
+          path: parts.slice(0, -1).join('/')
+        });
+      });
+
+      const pathFolderIdMap = {
+        '': window.getCurrentFolderId ? window.getCurrentFolderId() : ''
+      };
+      const isLargeQueue = queue.length > 1;
+      const directoryItems = queue.filter(item => item.type === 'directory');
+      const fileItems = queue.filter(item => item.type === 'file');
+      prepareUploadQueue(fileItems.map(item => item.file));
+      showProgressModal();
+
+      try {
+        for (let i = 0; i < directoryItems.length; i++) {
+          if (uploadCancelled) throw new Error('Upload cancelled');
+
+          const item = directoryItems[i];
+          const parentPath = getParentPath(item.path);
+          const parentFolderId = pathFolderIdMap[parentPath];
+          uploadProgressText.textContent = `Creating folders (${i + 1} of ${directoryItems.length})`;
+
+          const folderId = await createFolderOnServer(item.name, parentFolderId, { deferStats: isLargeQueue });
+          pathFolderIdMap[item.path] = folderId;
+        }
+
+        await runWithConcurrency(fileItems, FILE_UPLOAD_CONCURRENCY, async (item) => {
+          if (uploadCancelled) throw new Error('Upload cancelled');
+
+          const parentFolderId = pathFolderIdMap[item.path];
+          await uploadFileInChunks(item.file, parentFolderId, (percent) => {
+            setUploadItemState(item.file, 'uploading', percent);
+          }, { deferStats: isLargeQueue });
+          setUploadItemState(item.file, 'complete', 100);
+        });
+
+        if (isLargeQueue) await refreshUploadStats();
+        folderUploadInput.value = '';
+        await playUploadSuccessSound();
+        finishUploadSession();
+        window.location.reload();
+      } catch (err) {
+        folderUploadInput.value = '';
+        await finishFailedUpload(err, `Folder upload failed: ${err.message}`);
+      }
     });
   }
 

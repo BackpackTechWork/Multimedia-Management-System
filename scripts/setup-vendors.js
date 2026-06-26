@@ -122,6 +122,15 @@ async function main() {
     console.error('js-beautify not found in node_modules');
   }
 
+  // 8. pptx-preview
+  const pptxSrc = path.join(__dirname, '../node_modules/pptx-preview');
+  const pptxDest = path.join(__dirname, '../public/vendor/pptx-preview');
+  if (fs.existsSync(pptxSrc)) {
+    await copyFile(path.join(pptxSrc, 'dist/pptx-preview.umd.js'), path.join(pptxDest, 'pptx-preview.js'));
+  } else {
+    console.error('pptx-preview not found in node_modules');
+  }
+
   console.log('Vendor setup complete!');
 }
 

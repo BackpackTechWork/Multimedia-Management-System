@@ -546,3 +546,9 @@ body.is-box-selecting {
     scroll-behavior: auto !important;
   }
 }
+
+.sidebar-folder-drop-target.is-drop-target {
+  background-color: rgba(41, 115, 115, 0.15) !important;
+  color: var(--teal) !important;
+  box-shadow: 0 0 0 1px var(--teal) !important;
+}

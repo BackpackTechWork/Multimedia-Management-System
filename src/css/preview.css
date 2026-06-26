@@ -14,8 +14,8 @@
 
 body {
   font-family: 'Inter', sans-serif;
-  background-color: #1A202C;
-  color: #F7FAFC;
+  background-color: #F8F9FA;
+  color: #202124;
 }
 
 .preview-container {
@@ -37,8 +37,8 @@ body {
 }
 
 .code-view-pre {
-  background-color: #2D3748;
-  color: #EDF2F7;
+  background-color: #F8F9FA;
+  color: #202124;
   padding: 16px;
   border-radius: 8px;
   font-family: 'Courier New', Courier, monospace;
@@ -47,6 +47,7 @@ body {
   overflow: auto;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
+  border: 1px solid #E8EAED;
 }
 
 @media (max-width: 768px) {
@@ -70,4 +71,20 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #dadce0;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #bdc1c6;
 }

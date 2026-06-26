@@ -22,6 +22,62 @@ async function fileExists(fullPath) {
 class DriveController {
   constructor() {
     this.renderDashboard = this.renderDashboard.bind(this);
+    this.renderStorage = this.renderStorage.bind(this);
+  }
+
+  getStorageCategory(file) {
+    const mimeType = file.mimeType || '';
+    const extension = (file.extension || '').toLowerCase();
+
+    if (mimeType.startsWith('image/')) return 'Images';
+    if (mimeType.startsWith('video/')) return 'Videos';
+    if (mimeType.startsWith('audio/')) return 'Audio';
+    if (['doc', 'docx', 'txt', 'rtf', 'odt', 'pdf', 'ppt', 'pptx'].includes(extension)) return 'Documents';
+    if (['xls', 'xlsx', 'csv', 'ods'].includes(extension)) return 'Spreadsheets';
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension)) return 'Archives';
+    if (['js', 'ts', 'html', 'css', 'json', 'xml', 'sql', 'php', 'py', 'go', 'rs', 'cpp', 'c', 'cs', 'md'].includes(extension)) return 'Code';
+    return 'Other';
+  }
+
+  getPreviewRoute(file) {
+    const mimeType = file.mimeType || '';
+    const extension = (file.extension || '').toLowerCase();
+
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType === 'application/pdf') return 'pdf';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    if (extension === 'md') return 'markdown';
+    if (['xls', 'xlsx', 'csv', 'ods'].includes(extension)) return 'excel';
+    if (extension === 'zip' || mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed') return 'zip';
+    return 'code';
+  }
+
+  matchesStorageType(file, type) {
+    if (!type || type === 'all') return true;
+    const category = this.getStorageCategory(file).toLowerCase();
+
+    if (type === 'documents') return category === 'documents';
+    if (type === 'spreadsheets') return category === 'spreadsheets';
+    if (type === 'archives') return category === 'archives';
+    return category === type;
+  }
+
+  matchesStorageModified(file, modified) {
+    if (!modified || modified === 'all') return true;
+
+    const createdAt = file.createdAt ? new Date(file.createdAt) : null;
+    if (!createdAt || Number.isNaN(createdAt.getTime())) return false;
+
+    const now = new Date();
+    const ageMs = now.getTime() - createdAt.getTime();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    if (modified === 'today') return createdAt.toDateString() === now.toDateString();
+    if (modified === 'week') return ageMs <= 7 * dayMs;
+    if (modified === 'month') return ageMs <= 30 * dayMs;
+    if (modified === 'year') return ageMs <= 365 * dayMs;
+    return true;
   }
 
   getDashboardRouteState(req) {
@@ -194,6 +250,99 @@ class DriveController {
         fileType,
         sortBy,
         sortOrder,
+        allUserFolders,
+        userRootFolders: userRootFolders.map(r => r.folders)
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Internal Server Error');
+    }
+  }
+
+  async renderStorage(req, res) {
+    const userId = req.session.userId;
+    const typeFilter = req.query.type || 'all';
+    const modifiedFilter = req.query.modified || 'all';
+    const sourceFilter = req.query.source || 'all';
+
+    try {
+      const activeFilesPromise = db.select({ file: files, folder: folders })
+        .from(files)
+        .leftJoin(folders, eq(files.folderId, folders.id))
+        .leftJoin(trashItems, and(eq(trashItems.entityId, files.id), eq(trashItems.entityType, 'file')))
+        .where(and(eq(files.userId, userId), sql`${trashItems.id} IS NULL`))
+        .orderBy(desc(files.size));
+
+      const statsPromise = db.select().from(userStorageStats).where(eq(userStorageStats.userId, userId)).limit(1);
+
+      const [activeFileRows, stats, userRootFolders, allUserFolders] = await Promise.all([
+        activeFilesPromise,
+        statsPromise,
+        folderRepository.findUserRootFolders(userId),
+        db.select().from(folders).where(eq(folders.userId, userId))
+      ]);
+
+      const activeFiles = activeFileRows.map(row => ({
+        ...row.file,
+        folderName: row.folder ? row.folder.name : 'My Drive'
+      }));
+
+      const storageStats = stats[0] || { totalSize: 0, totalFolders: 0, totalFiles: 0 };
+      const activeTotalSize = activeFiles.reduce((sum, file) => sum + (Number(file.size) || 0), 0);
+      const categoryTotalsMap = activeFiles.reduce((acc, file) => {
+        const category = this.getStorageCategory(file);
+        acc.set(category, (acc.get(category) || 0) + (Number(file.size) || 0));
+        return acc;
+      }, new Map());
+
+      const categoryPalette = {
+        Videos: { color: '#EF4444', icon: 'bi-camera-reels-fill' },
+        Images: { color: '#3B82F6', icon: 'bi-image-fill' },
+        Documents: { color: '#F59E0B', icon: 'bi-file-earmark-text-fill' },
+        Spreadsheets: { color: '#16A34A', icon: 'bi-file-earmark-spreadsheet-fill' },
+        Audio: { color: '#EC4899', icon: 'bi-file-music-fill' },
+        Archives: { color: '#8B5CF6', icon: 'bi-file-zip-fill' },
+        Code: { color: '#4B5563', icon: 'bi-file-code-fill' },
+        Other: { color: '#9CA3AF', icon: 'bi-file-earmark-fill' }
+      };
+
+      const categoryTotals = Array.from(categoryTotalsMap.entries())
+        .map(([name, size]) => ({
+          name,
+          size,
+          percent: activeTotalSize > 0 ? (size / activeTotalSize) * 100 : 0,
+          color: categoryPalette[name]?.color || categoryPalette.Other.color,
+          icon: categoryPalette[name]?.icon || categoryPalette.Other.icon
+        }))
+        .sort((a, b) => b.size - a.size);
+
+      const filteredFiles = activeFiles
+        .filter(file => this.matchesStorageType(file, typeFilter))
+        .filter(file => this.matchesStorageModified(file, modifiedFilter))
+        .filter(file => sourceFilter === 'all' || file.visibility === sourceFilter)
+        .map(file => {
+          const category = this.getStorageCategory(file);
+          return {
+            ...file,
+            category,
+            categoryIcon: categoryPalette[category]?.icon || categoryPalette.Other.icon,
+            categoryColor: categoryPalette[category]?.color || categoryPalette.Other.color,
+            previewRoute: this.getPreviewRoute(file)
+          };
+        });
+
+      res.render('dashboard/storage', {
+        tab: 'storage',
+        storageStats: {
+          ...storageStats,
+          totalSize: activeTotalSize,
+          totalFiles: activeFiles.length
+        },
+        files: filteredFiles,
+        categoryTotals,
+        typeFilter,
+        modifiedFilter,
+        sourceFilter,
         allUserFolders,
         userRootFolders: userRootFolders.map(r => r.folders)
       });
