@@ -23,6 +23,7 @@ router.get('/', driveController.renderDashboard);
 router.get('/my-drive', driveController.renderDashboard);
 router.get('/recent', driveController.renderDashboard);
 router.get('/starred', driveController.renderDashboard);
+router.get('/shared', driveController.renderDashboard);
 router.get('/trash', driveController.renderDashboard);
 router.get('/storage', driveController.renderStorage);
 router.get('/folders/:folderId(\\d+)', driveController.renderDashboard);

@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `role` varchar(50) DEFAULT 'user' NOT NULL;

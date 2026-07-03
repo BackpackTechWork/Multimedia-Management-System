@@ -18,7 +18,9 @@ const globalLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => (
     req.path.startsWith('/api/upload/') ||
-    (req.method === 'POST' && req.path === '/api/folders')
+    (req.method === 'POST' && req.path === '/api/folders') ||
+    (req.method === 'POST' && /^\/share\/[^/]+\/upload(?:\/refresh-stats)?$/.test(req.path)) ||
+    (req.method === 'POST' && /^\/share\/[^/]+\/folders$/.test(req.path))
   ),
 });
 

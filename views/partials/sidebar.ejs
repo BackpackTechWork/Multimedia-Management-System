@@ -92,6 +92,16 @@
         <i class="bi bi-star-fill text-lg"></i>
         <span>Starred</span>
       </a>
+      <a href="/shared" class="sidebar-link <%= locals.tab === 'shared' ? 'active' : '' %>">
+        <i class="bi bi-people text-lg"></i>
+        <span>Shared</span>
+      </a>
+      <% if (locals.isSuperAdmin) { %>
+        <a href="/admin/users" class="sidebar-link <%= locals.tab === 'admin' ? 'active' : '' %>">
+          <i class="bi bi-people-fill text-lg"></i>
+          <span>Users</span>
+        </a>
+      <% } %>
         <a href="/trash" class="sidebar-link <%= locals.tab === 'trash' ? 'active' : '' %>">
           <i class="bi bi-trash-fill text-lg"></i>
           <span>Trash</span>

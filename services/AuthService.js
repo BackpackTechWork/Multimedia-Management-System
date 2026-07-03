@@ -2,7 +2,7 @@ const bcrypt = require('bcrypt');
 const userRepository = require('../repositories/UserRepository');
 
 class AuthService {
-  async register(name, email, password) {
+  async register(name, email, password, role = 'user') {
     const existingUser = await userRepository.findByEmail(email);
     if (existingUser) {
       throw new Error('Email is already registered');
@@ -11,7 +11,7 @@ class AuthService {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    return await userRepository.createUser(name, email, passwordHash);
+    return await userRepository.createUser(name, email, passwordHash, role);
   }
 
   async login(email, password) {

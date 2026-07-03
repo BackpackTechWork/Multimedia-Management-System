@@ -1,0 +1,58 @@
+<%- include('../partials/header') %>
+
+<div class="share-page flex-1 flex flex-col">
+  <header class="share-topbar select-none">
+    <div class="flex items-center gap-3 min-w-0">
+      <img src="/web-app-manifest-512x512.png" alt="Harbor Drive" class="h-10 w-10 rounded-lg shadow-sm object-cover shrink-0">
+      <span class="text-lg sm:text-xl font-bold tracking-tight text-brand-dark-grey truncate">
+        Harbor <span class="text-brand-teal font-medium">Drive</span>
+      </span>
+    </div>
+    <span class="share-pill hidden sm:inline-flex">
+      <i class="bi bi-person-lock text-brand-teal"></i>
+      Restricted link
+    </span>
+  </header>
+
+  <main class="share-main flex-1 flex items-center justify-center">
+    <section class="share-auth-panel share-auth-panel--wide animate-fade-up select-none">
+      <div class="flex items-start gap-4 mb-6">
+        <div class="share-icon-box share-icon-box--secure animate-pulse-teal hover-shake">
+          <i class="bi bi-shield-lock text-3xl text-brand-teal"></i>
+        </div>
+        <div class="min-w-0">
+          <p class="text-xs font-bold uppercase tracking-wider text-brand-teal mb-1">Access required</p>
+          <h1 class="text-2xl font-bold tracking-tight text-gray-800">This shared item is restricted</h1>
+          <p class="text-sm text-gray-500 mt-2"><%= message %></p>
+        </div>
+      </div>
+
+      <div class="share-restricted-note">
+        <div class="share-restricted-note__icon <%= isSignedIn ? 'text-red-500 bg-red-50' : 'text-brand-teal bg-teal-50' %>">
+          <i class="bi <%= isSignedIn ? 'bi-person-x' : 'bi-box-arrow-in-right' %> text-lg"></i>
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm font-bold text-gray-800">
+            <%= isSignedIn ? 'Your current account does not have access.' : 'You need to sign in first.' %>
+          </p>
+          <p class="text-sm text-gray-500 mt-1">
+            <%= isSignedIn ? 'Ask the owner to add this account, or sign in with an account already added to the share.' : 'Use an account that the owner added to this restricted share.' %>
+          </p>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-3 mt-6">
+        <a href="/auth/login?returnTo=<%= encodeURIComponent('/share/' + token) %>" class="inline-flex flex-1 items-center justify-center gap-2 bg-brand-teal text-white py-3 px-4 rounded-lg font-bold hover:bg-brand-teal-dark active:scale-[0.98] transition">
+          <i class="bi bi-box-arrow-in-right"></i>
+          <span>Sign in</span>
+        </a>
+        <a href="/" class="inline-flex flex-1 items-center justify-center gap-2 border border-gray-200 bg-white text-gray-700 py-3 px-4 rounded-lg font-bold hover:bg-gray-50 active:scale-[0.98] transition">
+          <i class="bi bi-house"></i>
+          <span>Go to Drive</span>
+        </a>
+      </div>
+    </section>
+  </main>
+</div>
+
+<%- include('../partials/footer') %>

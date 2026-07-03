@@ -5,11 +5,14 @@ const { db } = require('../config/db');
 const { files, recentActivity, shares } = require('../models/schema');
 const { eq, and, inArray } = require('drizzle-orm');
 const fileRepository = require('../repositories/FileRepository');
+const folderRepository = require('../repositories/FolderRepository');
+const shareRepository = require('../repositories/ShareRepository');
 const storageService = require('../services/StorageService');
 
 class PreviewController {
   constructor() {
     this.checkAccess = this.checkAccess.bind(this);
+    this.renderPreview = this.renderPreview.bind(this);
     this.previewImage = this.previewImage.bind(this);
     this.previewPdf = this.previewPdf.bind(this);
     this.previewExcel = this.previewExcel.bind(this);
@@ -37,7 +40,7 @@ class PreviewController {
     const file = await fileRepository.findById(fileId);
     if (!file) return null;
 
-    if (file.userId === userId) {
+    if (file.userId === userId || req.session.userRole === 'super_admin') {
       if (recordRecent) {
         await db.insert(recentActivity)
           .values({
@@ -56,6 +59,52 @@ class PreviewController {
       return file;
     }
 
+    if (req.query.shareToken) {
+      const share = await shareRepository.findByToken(req.query.shareToken);
+      if (share && (!share.expiresAt || new Date(share.expiresAt) > new Date())) {
+        const passwordOk = !share.passwordHash || Boolean(req.session.sharedAccess?.[share.token]);
+        let linkAccessOk = (share.linkAccess || 'anyone') === 'anyone';
+
+        if (!linkAccessOk && userId) {
+          linkAccessOk = req.session.userRole === 'super_admin'
+            || Number(share.createdById) === Number(userId)
+            || await shareRepository.userCanAccessShare(userId, share.id);
+        }
+
+        if (passwordOk && linkAccessOk) {
+          if (share.fileId && Number(share.fileId) === Number(file.id)) {
+            return file;
+          }
+
+          if (share.folderId && file.folderId) {
+            const [sharedRoot, fileFolder] = await Promise.all([
+              folderRepository.findById(share.folderId),
+              folderRepository.findById(file.folderId)
+            ]);
+
+            if (sharedRoot && fileFolder && fileFolder.path.startsWith(sharedRoot.path)) {
+              return file;
+            }
+          }
+        }
+      }
+    }
+
+    if (await shareRepository.userCanAccessFile(userId, file)) {
+      if (recordRecent) {
+        await db.insert(recentActivity)
+          .values({
+            userId,
+            fileId: file.id,
+            lastOpenedAt: new Date()
+          })
+          .onDuplicateKeyUpdate({
+            set: { lastOpenedAt: new Date() }
+          });
+      }
+      return file;
+    }
+
     const accessTokens = Object.keys(req.session.sharedAccess || {});
     if (accessTokens.length > 0) {
       const [share] = await db.select()
@@ -71,28 +120,73 @@ class PreviewController {
     return null;
   }
 
+  async getShareBackUrl(req, file) {
+    const token = req.query.shareToken;
+    if (!token) return '/';
+
+    const share = await shareRepository.findByToken(token);
+    if (!share || (share.expiresAt && new Date(share.expiresAt) <= new Date())) {
+      return '/';
+    }
+
+    if (share.fileId && Number(share.fileId) === Number(file.id)) {
+      return `/share/${encodeURIComponent(token)}`;
+    }
+
+    if (share.folderId && file.folderId) {
+      const [sharedRoot, fileFolder] = await Promise.all([
+        folderRepository.findById(share.folderId),
+        folderRepository.findById(file.folderId)
+      ]);
+
+      if (sharedRoot && fileFolder && fileFolder.path.startsWith(sharedRoot.path)) {
+        return fileFolder.id === sharedRoot.id
+          ? `/share/${encodeURIComponent(token)}`
+          : `/share/${encodeURIComponent(token)}/folders/${fileFolder.id}`;
+      }
+    }
+
+    return '/';
+  }
+
+  async renderPreview(req, res, type, file, content = null) {
+    const shareToken = req.query.shareToken || '';
+    const previewAccessQuery = shareToken ? `?shareToken=${encodeURIComponent(shareToken)}` : '';
+    const previewAccessParam = shareToken ? `shareToken=${encodeURIComponent(shareToken)}` : '';
+    const backUrl = await this.getShareBackUrl(req, file);
+
+    return res.render('preview/index', {
+      type,
+      file,
+      content,
+      backUrl,
+      previewAccessQuery,
+      previewAccessParam
+    });
+  }
+
   async previewImage(req, res) {
     const file = await this.checkAccess(req, parseInt(req.params.id));
     if (!file) return res.status(403).send('Access Denied');
-    res.render('preview/index', { type: 'image', file, content: null });
+    return this.renderPreview(req, res, 'image', file);
   }
 
   async previewPdf(req, res) {
     const file = await this.checkAccess(req, parseInt(req.params.id));
     if (!file) return res.status(403).send('Access Denied');
-    res.render('preview/index', { type: 'pdf', file, content: null });
+    return this.renderPreview(req, res, 'pdf', file);
   }
 
   async previewExcel(req, res) {
     const file = await this.checkAccess(req, parseInt(req.params.id));
     if (!file) return res.status(403).send('Access Denied');
-    res.render('preview/index', { type: 'excel', file, content: null });
+    return this.renderPreview(req, res, 'excel', file);
   }
 
   async previewPresentation(req, res) {
     const file = await this.checkAccess(req, parseInt(req.params.id));
     if (!file) return res.status(403).send('Access Denied');
-    res.render('preview/index', { type: 'presentation', file, content: null });
+    return this.renderPreview(req, res, 'presentation', file);
   }
 
   async previewMarkdown(req, res) {
@@ -102,7 +196,7 @@ class PreviewController {
     try {
       const fullPath = path.join(storageService.storageRoot, file.path);
       const content = await fs.promises.readFile(fullPath, 'utf-8');
-      res.render('preview/index', { type: 'markdown', file, content });
+      return this.renderPreview(req, res, 'markdown', file, content);
     } catch (err) {
       res.status(500).send('Error reading file content');
     }
@@ -115,7 +209,7 @@ class PreviewController {
     try {
       const fullPath = path.join(storageService.storageRoot, file.path);
       const content = await fs.promises.readFile(fullPath, 'utf-8');
-      res.render('preview/index', { type: 'code', file, content });
+      return this.renderPreview(req, res, 'code', file, content);
     } catch (err) {
       res.status(500).send('Error reading file content');
     }
@@ -124,13 +218,13 @@ class PreviewController {
   async previewVideo(req, res) {
     const file = await this.checkAccess(req, parseInt(req.params.id));
     if (!file) return res.status(403).send('Access Denied');
-    res.render('preview/index', { type: 'video', file, content: null });
+    return this.renderPreview(req, res, 'video', file);
   }
 
   async previewAudio(req, res) {
     const file = await this.checkAccess(req, parseInt(req.params.id));
     if (!file) return res.status(403).send('Access Denied');
-    res.render('preview/index', { type: 'audio', file, content: null });
+    return this.renderPreview(req, res, 'audio', file);
   }
 
   async serveRawStream(req, res) {
@@ -211,7 +305,7 @@ class PreviewController {
         });
       });
 
-      res.render('preview/index', { type: 'zip', file, content: JSON.stringify(entries) });
+      return this.renderPreview(req, res, 'zip', file, JSON.stringify(entries));
     } catch (err) {
       console.error(err);
       res.status(500).send('Error reading zip archive');

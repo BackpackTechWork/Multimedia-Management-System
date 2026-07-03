@@ -303,6 +303,21 @@ class StorageService {
     };
   }
 
+  async saveUploadedBuffer(userId, originalFilename, buffer) {
+    const ext = path.extname(originalFilename);
+    const uniqueFilename = `${crypto.randomUUID()}${ext}`;
+    const userDir = this.getUserStorageDir(userId);
+    const destinationPath = path.join(userDir, uniqueFilename);
+    await fs.promises.writeFile(destinationPath, buffer);
+
+    return {
+      filename: uniqueFilename,
+      path: path.relative(this.storageRoot, destinationPath).replace(/\\/g, '/'),
+      size: buffer.length,
+      checksum: crypto.createHash('sha256').update(buffer).digest('hex')
+    };
+  }
+
   async deleteDiskFile(relativeStoragePath) {
     const fullPath = path.join(this.storageRoot, relativeStoragePath);
     if (fs.existsSync(fullPath)) {

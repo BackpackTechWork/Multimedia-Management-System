@@ -11,12 +11,15 @@
   else if (type === 'video') headerIcon = 'bi-file-play-fill text-red-600';
   else if (type === 'audio') headerIcon = 'bi-file-music-fill text-pink-500';
   else if (type === 'zip') headerIcon = 'bi-file-zip-fill text-yellow-600';
+
+  const streamUrl = `/preview/stream/${file.id}${previewAccessQuery || ''}`;
+  const encodedStreamUrl = encodeURIComponent(streamUrl);
 %>
 
 <!-- Preview Header -->
 <header class="bg-white/90 backdrop-blur-md border-b border-gray-150 h-16 flex items-center justify-between px-6 sticky top-0 z-40 select-none">
   <div class="flex items-center gap-3">
-    <a href="/" class="text-gray-500 hover:text-gray-800 hover:bg-gray-100 h-9 w-9 rounded-full flex items-center justify-center transition-colors duration-200" title="Back to Drive">
+    <a href="<%= backUrl || '/' %>" class="text-gray-500 hover:text-gray-800 hover:bg-gray-100 h-9 w-9 rounded-full flex items-center justify-center transition-colors duration-200" title="Back">
       <i class="bi bi-arrow-left text-lg"></i>
     </a>
     <div class="flex items-center gap-2 min-w-0">
@@ -47,15 +50,15 @@
     <link rel="stylesheet" href="/vendor/lightgallery/css/lightgallery-bundle.css">
     <script src="/vendor/lightgallery/lightgallery.min.js"></script>
 
-    <div id="lightgallery-container" class="lg-item border border-gray-200 rounded-lg overflow-hidden bg-white p-2 shadow-md max-w-3xl w-full flex items-center justify-center" data-src="/preview/stream/<%= file.id %>">
-      <img src="/preview/stream/<%= file.id %>" alt="<%= file.originalName %>" class="max-h-[70vh] object-contain rounded cursor-pointer">
+    <div id="lightgallery-container" class="lg-item border border-gray-200 rounded-lg overflow-hidden bg-white p-2 shadow-md max-w-3xl w-full flex items-center justify-center" data-src="<%= streamUrl %>">
+      <img src="<%= streamUrl %>" alt="<%= file.originalName %>" class="max-h-[70vh] object-contain rounded cursor-pointer">
     </div>
 
   <!-- 2. PDF PREVIEW (EmbedPDF) -->
   <% } else if (type === 'pdf') { %>
     <div class="w-full embed-pdf-container bg-white rounded-xl overflow-hidden shadow-md border border-gray-200">
       <!-- Iframe pointing to our isolated self-hosted PDF viewer -->
-      <iframe src="/vendor/embedpdf/viewer.html?file=/preview/stream/<%= file.id %>" class="w-full h-full border-none"></iframe>
+      <iframe src="/vendor/embedpdf/viewer.html?file=<%= encodedStreamUrl %>" class="w-full h-full border-none"></iframe>
     </div>
 
   <!-- 3. EXCEL PREVIEW -->
@@ -131,7 +134,7 @@
   <!-- 6. VIDEO PREVIEW -->
   <% } else if (type === 'video') { %>
     <div class="w-full max-w-4xl bg-black rounded-xl overflow-hidden shadow-md border border-gray-200">
-      <video src="/preview/stream/<%= file.id %>" controls class="w-full max-h-[75vh]" autoplay></video>
+      <video src="<%= streamUrl %>" controls class="w-full max-h-[75vh]" autoplay></video>
     </div>
 
   <!-- 7. AUDIO PREVIEW -->
@@ -142,7 +145,7 @@
       </div>
       <h3 class="font-bold text-base text-gray-800 truncate w-full text-center mb-1"><%= file.originalName %></h3>
       <span class="text-xs text-gray-400 uppercase font-semibold mb-6">Mime: <%= file.mimeType %></span>
-      <audio src="/preview/stream/<%= file.id %>" controls class="w-full bg-gray-50 rounded" autoplay></audio>
+      <audio src="<%= streamUrl %>" controls class="w-full bg-gray-50 rounded" autoplay></audio>
     </div>
   <% } else if (type === 'zip') { %>
     <div class="w-full bg-white border border-gray-200 rounded-xl shadow-md flex flex-col overflow-hidden max-h-[75vh]">
@@ -247,6 +250,7 @@
     <script>
       (function() {
         const fileId = "<%= file.id %>";
+        const zipAccessSuffix = "<%= previewAccessParam ? '&' + previewAccessParam : '' %>";
         const rawEntries = JSON.parse(document.getElementById('zip-entries-data').textContent);
         
         // Build list of all items (files and folders)
@@ -454,7 +458,7 @@
               actionsHtml = `
                 <div class="flex items-center justify-end gap-2">
                   ${previewBtn}
-                  <a href="/preview/zip-entry/${fileId}?path=${encodeURIComponent(item.path)}&download=true" class="bg-brand-teal/10 hover:bg-brand-teal/20 text-brand-teal px-2.5 py-1 rounded text-xs font-semibold transition border border-brand-teal/25 shadow-sm"><i class="bi bi-download"></i></a>
+                  <a href="/preview/zip-entry/${fileId}?path=${encodeURIComponent(item.path)}&download=true${zipAccessSuffix}" class="bg-brand-teal/10 hover:bg-brand-teal/20 text-brand-teal px-2.5 py-1 rounded text-xs font-semibold transition border border-brand-teal/25 shadow-sm"><i class="bi bi-download"></i></a>
                 </div>
               `;
             }
@@ -491,7 +495,7 @@
                   window.openPreview(item.path);
                 } else {
                   // Trigger download
-                  window.location.href = `/preview/zip-entry/${fileId}?path=${encodeURIComponent(item.path)}&download=true`;
+                  window.location.href = `/preview/zip-entry/${fileId}?path=${encodeURIComponent(item.path)}&download=true${zipAccessSuffix}`;
                 }
               });
               const previewBtn = row.querySelector('.preview-btn');
@@ -525,9 +529,9 @@
           document.getElementById('zip-modal-unsupported-container').classList.add('hidden');
           
           modalTitle.textContent = filePath.split('/').pop();
-          modalDownload.href = `/preview/zip-entry/${fileId}?path=${encodeURIComponent(filePath)}&download=true`;
+          modalDownload.href = `/preview/zip-entry/${fileId}?path=${encodeURIComponent(filePath)}&download=true${zipAccessSuffix}`;
           
-          const streamUrl = `/preview/zip-entry/${fileId}?path=${encodeURIComponent(filePath)}`;
+          const streamUrl = `/preview/zip-entry/${fileId}?path=${encodeURIComponent(filePath)}${zipAccessSuffix}`;
           
           if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico'].includes(ext)) {
             const img = document.getElementById('zip-modal-img');

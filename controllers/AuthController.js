@@ -1,39 +1,27 @@
 const authService = require('../services/AuthService');
 const sessionRepository = require('../repositories/SessionRepository');
 
+function getSafeReturnTo(value) {
+  if (!value || typeof value !== 'string') return null;
+  if (!value.startsWith('/') || value.startsWith('//')) return null;
+  return value;
+}
+
 class AuthController {
   renderLogin(req, res) {
-    res.render('auth/login', { error: null, success: null });
-  }
-
-  renderRegister(req, res) {
-    res.render('auth/register', { error: null, success: null });
-  }
-
-  async handleRegister(req, res) {
-    const { name, email, password, confirmPassword } = req.body;
-
-    if (!name || !email || !password || !confirmPassword) {
-      return res.render('auth/register', { error: 'All fields are required', success: null });
-    }
-
-    if (password !== confirmPassword) {
-      return res.render('auth/register', { error: 'Passwords do not match', success: null });
-    }
-
-    try {
-      await authService.register(name, email, password);
-      res.render('auth/login', { error: null, success: 'Registration successful. Please log in.' });
-    } catch (err) {
-      res.render('auth/register', { error: err.message, success: null });
-    }
+    res.render('auth/login', {
+      error: null,
+      success: null,
+      returnTo: getSafeReturnTo(req.query.returnTo)
+    });
   }
 
   async handleLogin(req, res) {
     const { email, password, rememberMe } = req.body;
+    const returnTo = getSafeReturnTo(req.body.returnTo);
 
     if (!email || !password) {
-      return res.render('auth/login', { error: 'Email and password are required', success: null });
+      return res.render('auth/login', { error: 'Email and password are required', success: null, returnTo });
     }
 
     try {
@@ -41,12 +29,13 @@ class AuthController {
       
       req.session.regenerate(async (err) => {
         if (err) {
-          return res.render('auth/login', { error: 'Session regeneration failed', success: null });
+          return res.render('auth/login', { error: 'Session regeneration failed', success: null, returnTo });
         }
 
         req.session.userId = user.id;
         req.session.userName = user.name;
         req.session.userEmail = user.email;
+        req.session.userRole = user.role || 'user';
 
         if (rememberMe) {
           req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
@@ -67,10 +56,10 @@ class AuthController {
           expiresAt
         );
 
-        res.redirect('/');
+        res.redirect(returnTo || '/');
       });
     } catch (err) {
-      res.render('auth/login', { error: err.message, success: null });
+      res.render('auth/login', { error: err.message, success: null, returnTo });
     }
   }
 

@@ -9,6 +9,8 @@ const shareRepository = require('../repositories/ShareRepository');
 const fileRepository = require('../repositories/FileRepository');
 const folderRepository = require('../repositories/FolderRepository');
 const storageService = require('../services/StorageService');
+const driveService = require('../services/DriveService');
+const jobRepository = require('../repositories/JobRepository');
 
 async function fileExists(fullPath) {
   try {
@@ -20,58 +22,197 @@ async function fileExists(fullPath) {
 }
 
 class ShareController {
+  constructor() {
+    [
+      'createShare',
+      'getShareSettings',
+      'deleteShare',
+      'renderShare',
+      'handleSharePassword',
+      'uploadSharedFile',
+      'refreshSharedUploadStats',
+      'downloadSharedFile',
+      'createSharedFolder'
+    ].forEach(method => {
+      this[method] = this[method].bind(this);
+    });
+  }
+
+  canManage(req, item) {
+    return item && (req.session.userRole === 'super_admin' || item.userId === req.session.userId);
+  }
+
+  async getManagedItem(req, fileId, folderId) {
+    if (fileId) {
+      const file = await fileRepository.findById(parseInt(fileId));
+      if (!this.canManage(req, file)) return null;
+      return { type: 'file', item: file };
+    }
+
+    if (folderId) {
+      const folder = await folderRepository.findById(parseInt(folderId));
+      if (!this.canManage(req, folder)) return null;
+      return { type: 'folder', item: folder };
+    }
+
+    return null;
+  }
+
+  async findShareForItem(fileId, folderId) {
+    if (fileId) return await shareRepository.findShareByFileId(parseInt(fileId));
+    if (folderId) return await shareRepository.findShareByFolderId(parseInt(folderId));
+    return null;
+  }
+
   async createShare(req, res) {
-    const { fileId, folderId, password, expiresAt, allowDownload } = req.body;
+    const { fileId, folderId, password, removePassword, expiresAt, allowDownload, recipientEmails, recipientUserIds, linkAccess, linkRole } = req.body;
     const userId = req.session.userId;
 
     try {
-      if (fileId) {
-        const file = await fileRepository.findById(parseInt(fileId));
-        if (!file || file.userId !== userId) {
-          return res.status(403).json({ error: 'Unauthorized to share this file' });
-        }
-      } else if (folderId) {
-        const folder = await folderRepository.findById(parseInt(folderId));
-        if (!folder || folder.userId !== userId) {
-          return res.status(403).json({ error: 'Unauthorized to share this folder' });
-        }
-      } else {
+      const managedItem = await this.getManagedItem(req, fileId, folderId);
+      if (!managedItem) {
         return res.status(400).json({ error: 'Missing fileId or folderId parameter' });
       }
 
-      let existingShare = null;
-      if (fileId) {
-        existingShare = await shareRepository.findShareByFileId(parseInt(fileId));
-      } else {
-        existingShare = await shareRepository.findShareByFolderId(parseInt(folderId));
+      const userIds = this.parseRecipientUserIds(recipientUserIds).filter(id => id !== Number(userId));
+      const emails = this.parseRecipientEmails(recipientEmails);
+      const [recipientsById, recipientsByEmail] = await Promise.all([
+        shareRepository.findUsersByIds(userIds),
+        shareRepository.findUsersByEmails(emails)
+      ]);
+      const recipientMap = new Map();
+      [...recipientsById, ...recipientsByEmail].forEach(user => {
+        if (user.id !== Number(userId)) recipientMap.set(user.id, user);
+      });
+      const recipients = Array.from(recipientMap.values());
+      const foundIds = new Set(recipientsById.map(user => Number(user.id)));
+      const missingIds = userIds.filter(id => !foundIds.has(id));
+      const foundEmails = new Set(recipients.map(user => user.email.toLowerCase()));
+      const missingEmails = emails.filter(email => !foundEmails.has(email.toLowerCase()));
+
+      if (missingIds.length > 0) {
+        return res.status(400).json({ error: 'One or more selected accounts no longer exist.' });
       }
 
-      if (existingShare) {
-        await shareRepository.deleteShare(existingShare.id);
+      if (missingEmails.length > 0) {
+        return res.status(400).json({ error: `No account found for: ${missingEmails.join(', ')}` });
       }
 
-      const token = crypto.randomBytes(12).toString('hex');
+      const existingShare = await this.findShareForItem(fileId, folderId);
       let passwordHash = null;
-      if (password && password.trim() !== '') {
+      if (removePassword === 'true' || removePassword === true) {
+        passwordHash = null;
+      } else if (password && password.trim() !== '') {
         passwordHash = await bcrypt.hash(password, 10);
+      } else if (existingShare) {
+        passwordHash = undefined;
       }
 
       const parsedExpiry = expiresAt ? new Date(expiresAt) : null;
       const downloadAllowed = allowDownload === 'true' || allowDownload === true;
+      const normalizedLinkAccess = linkAccess === 'anyone' ? 'anyone' : 'restricted';
+      const normalizedLinkRole = linkRole === 'editor' ? 'editor' : 'viewer';
 
-      await shareRepository.createShare(
-        token,
+      let token;
+      let shareId;
+      if (existingShare) {
+        token = existingShare.token;
+        shareId = existingShare.id;
+        await shareRepository.updateShare(shareId, {
+          passwordHash,
+          expiresAt: parsedExpiry,
+          allowDownload: downloadAllowed,
+          linkAccess: normalizedLinkAccess,
+          linkRole: normalizedLinkRole
+        });
+      } else {
+        token = crypto.randomBytes(12).toString('hex');
+        shareId = await shareRepository.createShare(
+          token,
+          userId,
+          fileId ? parseInt(fileId) : null,
+          folderId ? parseInt(folderId) : null,
+          passwordHash,
+          parsedExpiry,
+          downloadAllowed,
+          normalizedLinkAccess,
+          normalizedLinkRole
+        );
+      }
+
+      await shareRepository.deleteOtherSharesForItem(
         fileId ? parseInt(fileId) : null,
         folderId ? parseInt(folderId) : null,
-        passwordHash,
-        parsedExpiry,
-        downloadAllowed
+        shareId
       );
+      await shareRepository.replaceRecipients(shareId, recipients.map(user => user.id));
 
-      res.status(200).json({ success: true, token });
+      res.status(200).json({ success: true, token, recipients });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
+  }
+
+  parseRecipientEmails(value) {
+    if (!value) return [];
+    const rawItems = Array.isArray(value) ? value : String(value).split(/[\s,;]+/);
+    return [...new Set(rawItems.map(item => item.trim().toLowerCase()).filter(Boolean))];
+  }
+
+  parseRecipientUserIds(value) {
+    if (!value) return [];
+    const rawItems = Array.isArray(value) ? value : String(value).split(/[\s,;]+/);
+    return [...new Set(rawItems.map(item => Number(item)).filter(Number.isInteger))];
+  }
+
+  async getShareSettings(req, res) {
+    const { fileId, folderId } = req.query;
+
+    try {
+      const managedItem = await this.getManagedItem(req, fileId, folderId);
+      if (!managedItem) {
+        return res.status(400).json({ error: 'Missing fileId or folderId parameter' });
+      }
+
+      const share = await this.findShareForItem(fileId, folderId);
+      if (!share) {
+        return res.status(200).json({ exists: false });
+      }
+
+      const recipients = await shareRepository.findShareRecipients(share.id);
+      res.status(200).json({
+        exists: true,
+        token: share.token,
+        allowDownload: share.allowDownload,
+        expiresAt: share.expiresAt,
+        hasPassword: Boolean(share.passwordHash),
+        linkAccess: share.linkAccess || 'anyone',
+        linkRole: share.linkRole || 'viewer',
+        recipients
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  async canOpenShare(req, share) {
+    if (!share) return false;
+    if ((share.linkAccess || 'anyone') === 'anyone') return true;
+
+    const userId = req.session?.userId;
+    if (!userId) return false;
+    if (req.session.userRole === 'super_admin') return true;
+    if (Number(share.createdById) === Number(userId)) return true;
+
+    return await shareRepository.userCanAccessShare(userId, share.id);
+  }
+
+  renderRestrictedShare(req, res, token, message) {
+    return res.status(403).render('share/restricted', {
+      token,
+      isSignedIn: Boolean(req.session?.userId),
+      message
+    });
   }
 
   async deleteShare(req, res) {
@@ -85,10 +226,10 @@ class ShareController {
 
       if (share.fileId) {
         const file = await fileRepository.findById(share.fileId);
-        if (!file || file.userId !== userId) return res.status(403).json({ error: 'Unauthorized' });
+        if (!this.canManage(req, file)) return res.status(403).json({ error: 'Unauthorized' });
       } else if (share.folderId) {
         const folder = await folderRepository.findById(share.folderId);
-        if (!folder || folder.userId !== userId) return res.status(403).json({ error: 'Unauthorized' });
+        if (!this.canManage(req, folder)) return res.status(403).json({ error: 'Unauthorized' });
       }
 
       await shareRepository.deleteShare(share.id);
@@ -114,6 +255,15 @@ class ShareController {
 
       if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
         return res.status(410).send('This sharing link has expired.');
+      }
+
+      if (!(await this.canOpenShare(req, share))) {
+        return this.renderRestrictedShare(
+          req,
+          res,
+          token,
+          'Sign in with an account this item was shared with to open this restricted link.'
+        );
       }
 
       const isAuthorized = req.session.sharedAccess && req.session.sharedAccess[token];
@@ -204,6 +354,155 @@ class ShareController {
     }
   }
 
+  async uploadSharedFile(req, res) {
+    const { token } = req.params;
+    const targetFolderId = req.body.folderId ? parseInt(req.body.folderId, 10) : null;
+    const deferStats = req.body.deferStats === 'true' || req.body.deferStats === true;
+
+    try {
+      const share = await shareRepository.findByToken(token);
+      if (!share || !share.folderId) return res.status(404).send('Share link not found.');
+      if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
+        return res.status(410).send('This sharing link has expired.');
+      }
+      if ((share.linkRole || 'viewer') !== 'editor') {
+        return res.status(403).send('This shared folder is view only.');
+      }
+      if (!(await this.canOpenShare(req, share))) {
+        return this.renderRestrictedShare(
+          req,
+          res,
+          token,
+          'Sign in with an account this item was shared with to upload to this restricted link.'
+        );
+      }
+      if (share.passwordHash && (!req.session.sharedAccess || !req.session.sharedAccess[token])) {
+        return res.status(403).send('Enter the share password before uploading.');
+      }
+      if (!req.file) {
+        return res.status(400).send('Choose a file to upload.');
+      }
+
+      const rootFolder = await folderRepository.findById(share.folderId);
+      const targetFolder = targetFolderId ? await folderRepository.findById(targetFolderId) : rootFolder;
+      if (!rootFolder || !targetFolder || !targetFolder.path.startsWith(rootFolder.path)) {
+        return res.status(400).send('Invalid shared folder destination.');
+      }
+
+      const saved = await storageService.saveUploadedBuffer(rootFolder.userId, req.file.originalname, req.file.buffer);
+      const mimeType = req.file.mimetype || require('mime-types').lookup(req.file.originalname) || 'application/octet-stream';
+      const ext = path.extname(req.file.originalname).substring(1).toLowerCase();
+      const fileId = await fileRepository.createFile(
+        rootFolder.userId,
+        targetFolder.id,
+        saved.filename,
+        req.file.originalname,
+        ext,
+        mimeType,
+        saved.size,
+        saved.path,
+        saved.checksum
+      );
+
+      if (!deferStats) {
+        await driveService.updateStorageStats(rootFolder.userId).catch(err => {
+          console.error(`Failed to refresh storage stats after shared upload ${fileId}:`, err.message);
+        });
+      }
+      if (mimeType.startsWith('image/')) {
+        await jobRepository.createJob('thumbnail', { fileId }).catch(err => {
+          console.error(`Failed to queue thumbnail for shared upload ${fileId}:`, err.message);
+        });
+      }
+
+      if (req.xhr || (req.headers.accept && req.headers.accept.includes('application/json'))) {
+        return res.status(200).json({ success: true });
+      }
+      const destination = targetFolder.id === rootFolder.id
+        ? `/share/${encodeURIComponent(token)}`
+        : `/share/${encodeURIComponent(token)}/folders/${targetFolder.id}`;
+      res.redirect(destination);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Upload failed.');
+    }
+  }
+
+  async refreshSharedUploadStats(req, res) {
+    const { token } = req.params;
+
+    try {
+      const share = await shareRepository.findByToken(token);
+      if (!share || !share.folderId) return res.status(404).json({ error: 'Share link not found.' });
+      if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
+        return res.status(410).json({ error: 'This sharing link has expired.' });
+      }
+      if ((share.linkRole || 'viewer') !== 'editor') {
+        return res.status(403).json({ error: 'This shared folder is view only.' });
+      }
+      if (!(await this.canOpenShare(req, share))) {
+        return res.status(403).json({ error: 'Access denied.' });
+      }
+      if (share.passwordHash && (!req.session.sharedAccess || !req.session.sharedAccess[token])) {
+        return res.status(403).json({ error: 'Enter the share password first.' });
+      }
+
+      const rootFolder = await folderRepository.findById(share.folderId);
+      if (!rootFolder) return res.status(404).json({ error: 'Shared folder no longer exists.' });
+
+      await driveService.updateStorageStats(rootFolder.userId);
+      res.status(200).json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Failed to refresh upload totals.' });
+    }
+  }
+
+  async createSharedFolder(req, res) {
+    const { token } = req.params;
+    const { name, parentId, deferStats } = req.body;
+
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ error: 'Folder name is required' });
+    }
+
+    try {
+      const share = await shareRepository.findByToken(token);
+      if (!share || !share.folderId) return res.status(404).json({ error: 'Share link not found.' });
+      if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
+        return res.status(410).json({ error: 'This sharing link has expired.' });
+      }
+      if ((share.linkRole || 'viewer') !== 'editor') {
+        return res.status(403).json({ error: 'This shared folder is view only.' });
+      }
+      if (!(await this.canOpenShare(req, share))) {
+        return res.status(403).json({ error: 'Access denied.' });
+      }
+      if (share.passwordHash && (!req.session.sharedAccess || !req.session.sharedAccess[token])) {
+        return res.status(403).json({ error: 'Enter the share password first.' });
+      }
+
+      const rootFolder = await folderRepository.findById(share.folderId);
+      const parsedParentId = parentId ? parseInt(parentId, 10) : rootFolder.id;
+      const parentFolder = await folderRepository.findById(parsedParentId);
+      
+      if (!rootFolder || !parentFolder || !parentFolder.path.startsWith(rootFolder.path)) {
+        return res.status(400).json({ error: 'Invalid shared folder destination.' });
+      }
+
+      const folder = await folderRepository.createFolder(rootFolder.userId, parentFolder.id, name, parentFolder.path);
+      if (!deferStats) {
+        await driveService.updateStorageStats(rootFolder.userId).catch(() => {});
+      }
+
+      res.status(200).json({ success: true, folder });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Failed to create folder.' });
+    }
+  }
+
+
   async downloadSharedFile(req, res) {
     const { token } = req.params;
     const { fileId } = req.query;
@@ -214,6 +513,15 @@ class ShareController {
 
       if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
         return res.status(410).send('Link expired.');
+      }
+
+      if (!(await this.canOpenShare(req, share))) {
+        return this.renderRestrictedShare(
+          req,
+          res,
+          token,
+          'Sign in with an account this item was shared with to download from this restricted link.'
+        );
       }
 
       if (share.passwordHash && (!req.session.sharedAccess || !req.session.sharedAccess[token])) {

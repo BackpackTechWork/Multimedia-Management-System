@@ -51,10 +51,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
   const currentTab = window.driveContext?.tab || 'my-drive';
   const isTrashTab = currentTab === 'trash';
+  const currentFolderCanEdit = window.driveContext?.currentFolderCanEdit === true || window.driveContext?.currentFolderCanEdit === 'true';
   
   // --- CLICK-BASED DROPDOWNS & SIDEBAR ACTIONS ---
   const newDropdownBtn = document.getElementById('new-dropdown-btn');
   const newDropdownMenu = document.getElementById('new-dropdown-menu');
+  const sidebarUploadBtn = document.getElementById('sidebar-upload-btn');
+  const sidebarNewFolderBtn = document.getElementById('new-folder-modal-btn');
+  const sidebarFolderUploadBtn = document.getElementById('sidebar-folder-upload-btn');
   const profileDropdownBtn = document.getElementById('profile-dropdown-btn');
   const profileDropdownMenu = document.getElementById('profile-dropdown-menu');
   const mobileSidebarToggle = document.getElementById('mobile-sidebar-toggle');
@@ -122,6 +126,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mobileSidebarToggle) mobileSidebarToggle.setAttribute('aria-expanded', 'false');
   }
 
+  function canWriteCurrentFolder() {
+    if (currentFolderCanEdit) return true;
+    alert('You only have viewer access here. Ask the owner for editor access to upload or create folders.');
+    return false;
+  }
+
+  [newDropdownBtn, sidebarNewFolderBtn, sidebarUploadBtn, sidebarFolderUploadBtn].forEach(control => {
+    if (!control || currentFolderCanEdit) return;
+    control.classList.add('opacity-50', 'cursor-not-allowed');
+    control.title = 'Editor access is required to upload or create folders here';
+  });
+
   if (mobileSidebarToggle) {
     mobileSidebarToggle.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -162,6 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (newDropdownBtn && newDropdownMenu) {
     newDropdownBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (!canWriteCurrentFolder()) return;
       newDropdownMenu.classList.toggle('hidden');
       if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
     });
@@ -176,10 +193,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Sidebar upload button
-  const sidebarUploadBtn = document.getElementById('sidebar-upload-btn');
   if (sidebarUploadBtn) {
     sidebarUploadBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (!canWriteCurrentFolder()) return;
       if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
       const uploadInput = document.getElementById('upload-input');
       if (uploadInput) uploadInput.click();
@@ -187,10 +204,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Sidebar new folder button
-  const sidebarNewFolderBtn = document.getElementById('new-folder-modal-btn');
   if (sidebarNewFolderBtn) {
     sidebarNewFolderBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (!canWriteCurrentFolder()) return;
       if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
       const modal = document.getElementById('new-folder-modal');
       if (modal) {
@@ -336,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const type = item.dataset.type;
     const id = item.dataset.id;
     if (type === 'folder') {
-      if (!window.driveContext || window.driveContext.tab === 'my-drive') {
+      if (!window.driveContext || window.driveContext.tab === 'my-drive' || window.driveContext.tab === 'shared') {
         window.location.href = `/folders/${id}`;
       }
     } else {
@@ -606,6 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('empty-context-new-folder').addEventListener('click', (e) => {
     e.stopPropagation();
     emptySpaceContextMenu.classList.add('hidden');
+    if (!canWriteCurrentFolder()) return;
     const btn = document.getElementById('new-folder-modal-btn');
     if (btn) btn.click();
   });
@@ -613,6 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('empty-context-upload-file').addEventListener('click', (e) => {
     e.stopPropagation();
     emptySpaceContextMenu.classList.add('hidden');
+    if (!canWriteCurrentFolder()) return;
     const btn = document.getElementById('sidebar-upload-btn');
     if (btn) btn.click();
   });
@@ -620,6 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('empty-context-upload-folder').addEventListener('click', (e) => {
     e.stopPropagation();
     emptySpaceContextMenu.classList.add('hidden');
+    if (!canWriteCurrentFolder()) return;
     const btn = document.getElementById('sidebar-folder-upload-btn');
     if (btn) btn.click();
   });
@@ -976,6 +996,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const uploadQueueList = document.getElementById('upload-queue-list');
   const CHUNK_UPLOAD_CONCURRENCY = 3;
   const FILE_UPLOAD_CONCURRENCY = 2;
+  const MAX_RENDERED_UPLOAD_ROWS = 250;
+  const MAX_PENDING_UPLOAD_RECORDS = 400;
   let lastProgressUpdateAt = 0;
   let uploadSessionController = null;
   let uploadInProgress = false;
@@ -1256,7 +1278,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!uploadQueueList) return;
     uploadQueueList.replaceChildren();
 
-    uploadQueue.forEach(item => {
+    const renderedItems = uploadQueue.slice(0, MAX_RENDERED_UPLOAD_ROWS);
+    renderedItems.forEach(item => {
       const row = document.createElement('div');
       row.className = 'flex items-center gap-3 px-4 py-2.5 min-h-14 text-gray-400';
 
@@ -1292,6 +1315,14 @@ document.addEventListener('DOMContentLoaded', () => {
       item.progressText = progressTrack;
       item.progressBar = progressBar;
     });
+
+    const hiddenCount = uploadQueue.length - renderedItems.length;
+    if (hiddenCount > 0) {
+      const summaryRow = document.createElement('div');
+      summaryRow.className = 'px-4 py-3 text-xs font-semibold text-gray-500 bg-gray-50 border-t border-gray-100';
+      summaryRow.textContent = `${hiddenCount} more file${hiddenCount === 1 ? '' : 's'} will upload in the background`;
+      uploadQueueList.appendChild(summaryRow);
+    }
   }
 
   function setUploadItemState(file, status, progress = 0) {
@@ -1306,6 +1337,11 @@ document.addEventListener('DOMContentLoaded', () => {
     item.status = status;
     item.progress = Math.max(0, Math.min(progress, 100));
     item.uploadedBytes = Math.round((item.progress / 100) * file.size);
+
+    if (!item.row) {
+      updateUploadSummary();
+      return;
+    }
 
     item.row.classList.toggle('text-gray-400', status === 'queued');
     item.row.classList.toggle('text-gray-800', status !== 'queued');
@@ -1394,7 +1430,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function savePendingUploads(pendingUploads) {
-    localStorage.setItem(PENDING_UPLOADS_KEY, JSON.stringify(pendingUploads));
+    try {
+      const entries = Object.entries(pendingUploads)
+        .sort((a, b) => (b[1]?.updatedAt || 0) - (a[1]?.updatedAt || 0))
+        .slice(0, MAX_PENDING_UPLOAD_RECORDS);
+      localStorage.setItem(PENDING_UPLOADS_KEY, JSON.stringify(Object.fromEntries(entries)));
+    } catch (err) {
+      console.warn('Upload resume metadata could not be saved:', err);
+    }
   }
 
   function getUploadFingerprint(file, folderId) {
@@ -1451,6 +1494,10 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadInput.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files);
       if (files.length === 0) return;
+      if (!canWriteCurrentFolder()) {
+        uploadInput.value = '';
+        return;
+      }
 
       if (window.primeNotificationSound) window.primeNotificationSound();
       startUploadSession();
@@ -1535,12 +1582,24 @@ document.addEventListener('DOMContentLoaded', () => {
       return new Promise(resolve => setTimeout(resolve, 0));
     }
 
+    function recordSkippedEntry(scanState, entry, err) {
+      scanState.skipped = (scanState.skipped || 0) + 1;
+      const entryName = entry?.fullPath || entry?.name || 'Unknown entry';
+      console.warn(`Skipping dropped item "${entryName}":`, err);
+    }
+
     // Recursive depth-first traversal of FileSystemEntry
-    async function traverseEntry(entry, path = '', results = [], scanState = { count: 0 }) {
+    async function traverseEntry(entry, path = '', results = [], scanState = { count: 0, skipped: 0 }) {
       if (uploadCancelled) throw new Error('Upload cancelled');
 
       if (entry.isFile) {
-        const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+        let file;
+        try {
+          file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+        } catch (err) {
+          recordSkippedEntry(scanState, entry, err);
+          return;
+        }
         results.push({
           type: 'file',
           file: file,
@@ -1557,7 +1616,13 @@ document.addEventListener('DOMContentLoaded', () => {
         scanState.count += 1;
         
         const dirReader = entry.createReader();
-        const entries = await readAllEntries(dirReader);
+        let entries;
+        try {
+          entries = await readAllEntries(dirReader);
+        } catch (err) {
+          recordSkippedEntry(scanState, entry, err);
+          return;
+        }
         for (const childEntry of entries) {
           await traverseEntry(childEntry, currentPath, results, scanState);
         }
@@ -1573,6 +1638,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dragOverlay.addEventListener('drop', async (e) => {
       e.preventDefault();
       dragOverlay.classList.remove('active');
+      if (!canWriteCurrentFolder()) return;
 
       const destinationFolderId = activeDropTarget ? activeDropTarget.dataset.id : undefined;
       if (activeDropTarget) {
@@ -1621,11 +1687,13 @@ document.addEventListener('DOMContentLoaded', () => {
       uploadProgressText.textContent = 'Scanning dropped items...';
 
       const queue = [];
+      let skippedScanEntries = 0;
       try {
-        const scanState = { count: 0 };
+        const scanState = { count: 0, skipped: 0 };
         for (const entry of droppedEntries) {
           await traverseEntry(entry, '', queue, scanState);
         }
+        skippedScanEntries = scanState.skipped || 0;
 
         if (queue.length === 0 && droppedFiles.length > 0) {
           for (const file of droppedFiles) {
@@ -1639,6 +1707,10 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         await finishFailedUpload(err, `Failed to scan files: ${err.message}`);
         return;
+      }
+
+      if (skippedScanEntries > 0) {
+        updateProgress(0, `${skippedScanEntries} unreadable item${skippedScanEntries === 1 ? '' : 's'} skipped`, { force: true });
       }
 
       if (queue.length === 0) {
@@ -1742,10 +1814,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Sidebar folder upload button
-  const sidebarFolderUploadBtn = document.getElementById('sidebar-folder-upload-btn');
   if (sidebarFolderUploadBtn) {
     sidebarFolderUploadBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (!canWriteCurrentFolder()) return;
       if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
       const folderUploadInput = document.getElementById('folder-upload-input');
       if (folderUploadInput) folderUploadInput.click();
@@ -1757,6 +1829,10 @@ document.addEventListener('DOMContentLoaded', () => {
     folderUploadInput.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files);
       if (files.length === 0) return;
+      if (!canWriteCurrentFolder()) {
+        folderUploadInput.value = '';
+        return;
+      }
 
       if (window.primeNotificationSound) window.primeNotificationSound();
       startUploadSession();

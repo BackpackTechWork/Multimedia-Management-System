@@ -9,6 +9,8 @@ const sessionRepository = require('../repositories/SessionRepository');
 const jobRepository = require('../repositories/JobRepository');
 const storageService = require('../services/StorageService');
 const driveService = require('../services/DriveService');
+const shareRepository = require('../repositories/ShareRepository');
+const userRepository = require('../repositories/UserRepository');
 
 async function fileExists(fullPath) {
   try {
@@ -21,8 +23,62 @@ async function fileExists(fullPath) {
 
 class DriveController {
   constructor() {
-    this.renderDashboard = this.renderDashboard.bind(this);
-    this.renderStorage = this.renderStorage.bind(this);
+    [
+      'renderDashboard',
+      'renderStorage',
+      'createFolder',
+      'renameFolder',
+      'moveFolder',
+      'copyFolder',
+      'renameFile',
+      'moveFile',
+      'copyFile',
+      'checkChunkStatus',
+      'uploadChunk',
+      'completeUpload',
+      'refreshStorageStats',
+      'cancelUpload',
+      'listVersions',
+      'uploadNewVersionComplete',
+      'restoreVersion',
+      'deleteVersion',
+      'downloadFile',
+      'downloadFolder',
+      'toggleStar',
+      'trashItem',
+      'restoreItem',
+      'purgeItem'
+    ].forEach(method => {
+      this[method] = this[method].bind(this);
+    });
+  }
+
+  isSuperAdmin(req) {
+    return req.session.userRole === 'super_admin';
+  }
+
+  canAccessItem(req, item) {
+    return item && (this.isSuperAdmin(req) || item.userId === req.session.userId);
+  }
+
+  async canAccessFolder(req, folder) {
+    if (this.canAccessItem(req, folder)) return true;
+    return await shareRepository.userCanAccessFolder(req.session.userId, folder);
+  }
+
+  async canAccessFile(req, file) {
+    if (this.canAccessItem(req, file)) return true;
+    return await shareRepository.userCanAccessFile(req.session.userId, file);
+  }
+
+  async canEditFolder(req, folder) {
+    if (this.canAccessItem(req, folder)) return true;
+    return await shareRepository.userCanEditFolder(req.session.userId, folder);
+  }
+
+  async canEditFile(req, file) {
+    if (this.canAccessItem(req, file)) return true;
+    return await shareRepository.userCanEditFile(req.session.userId, file);
   }
 
   getStorageCategory(file) {
@@ -83,6 +139,7 @@ class DriveController {
   getDashboardRouteState(req) {
     if (req.path === '/recent') return { tab: 'recent', currentFolderId: null };
     if (req.path === '/starred') return { tab: 'starred', currentFolderId: null };
+    if (req.path === '/shared') return { tab: 'shared', currentFolderId: null };
     if (req.path === '/trash') return { tab: 'trash', currentFolderId: null };
     if (req.params.folderId) {
       return {
@@ -102,6 +159,7 @@ class DriveController {
 
     if (tab === 'recent') target = '/recent';
     else if (tab === 'starred') target = '/starred';
+    else if (tab === 'shared') target = '/shared';
     else if (tab === 'trash') target = '/trash';
     else if (req.query.folderId) target = `/folders/${encodeURIComponent(req.query.folderId)}`;
 
@@ -122,6 +180,7 @@ class DriveController {
 
   async renderDashboard(req, res) {
     const userId = req.session.userId;
+    const includeAll = this.isSuperAdmin(req);
     if (this.redirectLegacyDashboardQuery(req, res)) return;
 
     const { tab, currentFolderId } = this.getDashboardRouteState(req);
@@ -132,12 +191,16 @@ class DriveController {
 
     try {
       let currentFolder = null;
+      let currentFolderCanEdit = ['my-drive', 'recent', 'starred'].includes(tab) && !currentFolderId;
       let breadcrumbs = [];
+      let folderScopeUserId = userId;
       if (currentFolderId && tab === 'my-drive') {
         currentFolder = await folderRepository.findById(currentFolderId);
-        if (!currentFolder || currentFolder.userId !== userId) {
+        if (!(await this.canAccessFolder(req, currentFolder))) {
           return res.redirect('/');
         }
+        currentFolderCanEdit = await this.canEditFolder(req, currentFolder);
+        folderScopeUserId = currentFolder.userId;
 
         const pathIds = currentFolder.path.split('/').filter(id => id !== '');
         if (pathIds.length > 0) {
@@ -149,7 +212,21 @@ class DriveController {
         }
       }
 
-      const statsPromise = db.select().from(userStorageStats).where(eq(userStorageStats.userId, userId)).limit(1);
+      const statsPromise = includeAll
+        ? Promise.all([
+            db.select({
+              totalFiles: sql`COUNT(${files.id})`,
+              totalSize: sql`COALESCE(SUM(${files.size}), 0)`
+            }).from(files),
+            db.select({
+              totalFolders: sql`COUNT(${folders.id})`
+            }).from(folders)
+          ]).then(([fileStats, folderStats]) => [{
+            totalFiles: Number(fileStats[0]?.totalFiles) || 0,
+            totalSize: Number(fileStats[0]?.totalSize) || 0,
+            totalFolders: Number(folderStats[0]?.totalFolders) || 0
+          }])
+        : db.select().from(userStorageStats).where(eq(userStorageStats.userId, userId)).limit(1);
       let storageStats = { totalSize: 0, totalFolders: 0, totalFiles: 0 };
 
       let itemsList = { folders: [], files: [] };
@@ -161,14 +238,15 @@ class DriveController {
           sortBy,
           sortOrder,
           limit: 100,
-          offset: 0
+          offset: 0,
+          includeAll
         });
 
         const foldersPromise = db.select()
           .from(folders)
           .leftJoin(trashItems, and(eq(trashItems.entityId, folders.id), eq(trashItems.entityType, 'folder')))
           .where(and(
-            eq(folders.userId, userId),
+            includeAll ? sql`1 = 1` : eq(folders.userId, userId),
             like(folders.name, `%${searchQuery}%`),
             sql`${trashItems.id} IS NULL`
           ))
@@ -203,34 +281,41 @@ class DriveController {
           .limit(30);
 
         itemsList.files = recents.map(r => r.file);
+      } else if (tab === 'shared') {
+        const [sharedByMe, sharedWithMe] = await Promise.all([
+          shareRepository.findSharedByUser(userId),
+          shareRepository.findSharedWithUser(userId)
+        ]);
+        itemsList.sharedSections = { sharedByMe, sharedWithMe };
       } else if (tab === 'trash') {
         const trashedFoldersPromise = db.select({ folder: folders, trash: trashItems })
           .from(trashItems)
           .innerJoin(folders, and(eq(trashItems.entityId, folders.id), eq(trashItems.entityType, 'folder')))
-          .where(eq(trashItems.userId, userId));
+          .where(includeAll ? sql`1 = 1` : eq(trashItems.userId, userId));
         
         const trashedFilesPromise = db.select({ file: files, trash: trashItems })
           .from(trashItems)
           .innerJoin(files, and(eq(trashItems.entityId, files.id), eq(trashItems.entityType, 'file')))
-          .where(eq(trashItems.userId, userId));
+          .where(includeAll ? sql`1 = 1` : eq(trashItems.userId, userId));
 
         const [trashedFolders, trashedFiles] = await Promise.all([trashedFoldersPromise, trashedFilesPromise]);
         itemsList.folders = trashedFolders.map(r => ({ ...r.folder, trashedAt: r.trash.deletedAt }));
         itemsList.files = trashedFiles.map(r => ({ ...r.file, trashedAt: r.trash.deletedAt }));
       } else {
         const [subfoldersJoin, filesJoin] = await Promise.all([
-          folderRepository.findSubfolders(userId, currentFolderId),
-          fileRepository.findFilesInFolder(userId, currentFolderId)
+          folderRepository.findSubfolders(folderScopeUserId, currentFolderId, includeAll),
+          fileRepository.findFilesInFolder(folderScopeUserId, currentFolderId, includeAll)
         ]);
         itemsList.folders = subfoldersJoin.map(r => r.folders);
         itemsList.files = filesJoin.map(r => r.files);
       }
 
-      const [stats, userStarred, userRootFolders, allUserFolders] = await Promise.all([
+      const [stats, userStarred, userRootFolders, allUserFolders, shareUsers] = await Promise.all([
         statsPromise,
         db.select().from(favorites).where(eq(favorites.userId, userId)),
-        folderRepository.findUserRootFolders(userId),
-        db.select().from(folders).where(eq(folders.userId, userId))
+        folderRepository.findUserRootFolders(userId, includeAll),
+        includeAll ? db.select().from(folders) : db.select().from(folders).where(eq(folders.userId, userId)),
+        userRepository.listShareCandidates(userId)
       ]);
       storageStats = stats[0] || storageStats;
       const starredFolderIds = new Set(userStarred.filter(f => f.folderId).map(f => f.folderId));
@@ -240,9 +325,11 @@ class DriveController {
         tab,
         currentFolderId,
         currentFolder,
+        currentFolderCanEdit,
         breadcrumbs,
         folders: itemsList.folders,
         files: itemsList.files,
+        sharedSections: itemsList.sharedSections || null,
         storageStats,
         starredFolderIds,
         starredFileIds,
@@ -251,7 +338,8 @@ class DriveController {
         sortBy,
         sortOrder,
         allUserFolders,
-        userRootFolders: userRootFolders.map(r => r.folders)
+        userRootFolders: userRootFolders.map(r => r.folders),
+        shareUsers
       });
     } catch (err) {
       console.error(err);
@@ -261,6 +349,7 @@ class DriveController {
 
   async renderStorage(req, res) {
     const userId = req.session.userId;
+    const includeAll = this.isSuperAdmin(req);
     const typeFilter = req.query.type || 'all';
     const modifiedFilter = req.query.modified || 'all';
     const sourceFilter = req.query.source || 'all';
@@ -270,16 +359,30 @@ class DriveController {
         .from(files)
         .leftJoin(folders, eq(files.folderId, folders.id))
         .leftJoin(trashItems, and(eq(trashItems.entityId, files.id), eq(trashItems.entityType, 'file')))
-        .where(and(eq(files.userId, userId), sql`${trashItems.id} IS NULL`))
+        .where(and(includeAll ? sql`1 = 1` : eq(files.userId, userId), sql`${trashItems.id} IS NULL`))
         .orderBy(desc(files.size));
 
-      const statsPromise = db.select().from(userStorageStats).where(eq(userStorageStats.userId, userId)).limit(1);
+      const statsPromise = includeAll
+        ? Promise.all([
+            db.select({
+              totalFiles: sql`COUNT(${files.id})`,
+              totalSize: sql`COALESCE(SUM(${files.size}), 0)`
+            }).from(files),
+            db.select({
+              totalFolders: sql`COUNT(${folders.id})`
+            }).from(folders)
+          ]).then(([fileStats, folderStats]) => [{
+            totalFiles: Number(fileStats[0]?.totalFiles) || 0,
+            totalSize: Number(fileStats[0]?.totalSize) || 0,
+            totalFolders: Number(folderStats[0]?.totalFolders) || 0
+          }])
+        : db.select().from(userStorageStats).where(eq(userStorageStats.userId, userId)).limit(1);
 
       const [activeFileRows, stats, userRootFolders, allUserFolders] = await Promise.all([
         activeFilesPromise,
         statsPromise,
-        folderRepository.findUserRootFolders(userId),
-        db.select().from(folders).where(eq(folders.userId, userId))
+        folderRepository.findUserRootFolders(userId, includeAll),
+        includeAll ? db.select().from(folders) : db.select().from(folders).where(eq(folders.userId, userId))
       ]);
 
       const activeFiles = activeFileRows.map(row => ({
@@ -365,15 +468,17 @@ class DriveController {
       
       if (parsedParentId) {
         const parent = await folderRepository.findById(parsedParentId);
-        if (!parent || parent.userId !== userId) {
+        if (!(await this.canEditFolder(req, parent))) {
           return res.status(404).json({ error: 'Parent folder not found' });
         }
+        req.body.ownerId = parent.userId;
         pathPrefix = parent.path;
       }
 
-      const folder = await folderRepository.createFolder(userId, parsedParentId, name, pathPrefix);
+      const ownerId = req.body.ownerId || userId;
+      const folder = await folderRepository.createFolder(ownerId, parsedParentId, name, pathPrefix);
       if (!deferStats) {
-        await driveService.updateStorageStats(userId);
+        await driveService.updateStorageStats(ownerId);
       }
       res.status(200).json({ success: true, folder });
     } catch (err) {
@@ -390,7 +495,7 @@ class DriveController {
 
     try {
       const folder = await folderRepository.findById(parseInt(id));
-      if (!folder || folder.userId !== userId) {
+      if (!this.canAccessItem(req, folder)) {
         return res.status(404).json({ error: 'Folder not found' });
       }
 
@@ -412,7 +517,7 @@ class DriveController {
         return res.status(400).json({ error: 'Cannot move folder into itself' });
       }
 
-      await driveService.moveFolder(targetId, destId, userId);
+      await driveService.moveFolder(targetId, destId, userId, { isSuperAdmin: this.isSuperAdmin(req) });
       res.status(200).json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -443,7 +548,7 @@ class DriveController {
 
     try {
       const file = await fileRepository.findById(parseInt(id));
-      if (!file || file.userId !== userId) {
+      if (!this.canAccessItem(req, file)) {
         return res.status(404).json({ error: 'File not found' });
       }
 
@@ -460,7 +565,7 @@ class DriveController {
     const { fileId, destinationFolderId } = req.body;
     const userId = req.session.userId;
     try {
-      await driveService.moveFile(parseInt(fileId), destinationFolderId ? parseInt(destinationFolderId) : null, userId);
+      await driveService.moveFile(parseInt(fileId), destinationFolderId ? parseInt(destinationFolderId) : null, userId, { isSuperAdmin: this.isSuperAdmin(req) });
       res.status(200).json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -471,7 +576,7 @@ class DriveController {
     const { fileId, destinationFolderId } = req.body;
     const userId = req.session.userId;
     try {
-      await driveService.copyFile(parseInt(fileId), destinationFolderId ? parseInt(destinationFolderId) : null, userId);
+      await driveService.copyFile(parseInt(fileId), destinationFolderId ? parseInt(destinationFolderId) : null, userId, { isSuperAdmin: this.isSuperAdmin(req) });
       res.status(200).json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -550,12 +655,20 @@ class DriveController {
       }
 
       const destFolderId = folderId ? parseInt(folderId) : null;
+      let ownerId = userId;
+      if (destFolderId) {
+        const destFolder = await folderRepository.findById(destFolderId);
+        if (!(await this.canEditFolder(req, destFolder))) {
+          return res.status(404).json({ error: 'Destination folder not found' });
+        }
+        ownerId = destFolder.userId;
+      }
       
       const parsedFileSize = fileSize === undefined ? null : Number(fileSize);
       result = await storageService.assembleChunks(
         uploadId,
         parseInt(totalChunks),
-        userId,
+        ownerId,
         filename,
         parsedFileSize
       );
@@ -564,7 +677,7 @@ class DriveController {
       const ext = path.extname(filename).substring(1).toLowerCase();
 
       const fileId = await fileRepository.createFile(
-        userId,
+        ownerId,
         destFolderId,
         result.filename,
         filename,
@@ -576,12 +689,12 @@ class DriveController {
       );
       fileCreated = true;
 
-      await storageService.saveUploadReceipt(uploadId, { userId, fileId }).catch(err => {
+      await storageService.saveUploadReceipt(uploadId, { userId, ownerId, fileId }).catch(err => {
         console.error(`Failed to save upload receipt for ${uploadId}:`, err.message);
       });
 
       if (!deferStats) {
-        await driveService.updateStorageStats(userId).catch(err => {
+        await driveService.updateStorageStats(ownerId).catch(err => {
           console.error(`Failed to refresh storage stats after upload ${uploadId}:`, err.message);
         });
       }
@@ -634,7 +747,7 @@ class DriveController {
     const userId = req.session.userId;
     try {
       const file = await fileRepository.findById(parseInt(fileId));
-      if (!file || file.userId !== userId) {
+      if (!(await this.canAccessFile(req, file))) {
         return res.status(404).json({ error: 'File not found' });
       }
 
@@ -652,14 +765,14 @@ class DriveController {
 
     try {
       const file = await fileRepository.findById(parseInt(fileId));
-      if (!file || file.userId !== userId) {
+      if (!(await this.canEditFile(req, file))) {
         return res.status(404).json({ error: 'File not found' });
       }
 
       merge = await storageService.assembleChunks(
         uploadId,
         parseInt(totalChunks),
-        userId,
+        file.userId,
         filename,
         fileSize === undefined ? null : Number(fileSize)
       );
@@ -672,7 +785,7 @@ class DriveController {
         file.path,
         nextVerNum,
         file.size,
-        userId
+        file.userId
       );
 
       const ext = path.extname(filename).substring(1).toLowerCase();
@@ -691,7 +804,7 @@ class DriveController {
         })
         .where(eq(files.id, file.id));
 
-      await driveService.updateStorageStats(userId);
+      await driveService.updateStorageStats(file.userId);
 
       if (mimeType.startsWith('image/')) {
         await jobRepository.createJob('thumbnail', { fileId: file.id });
@@ -716,7 +829,7 @@ class DriveController {
       }
 
       const file = await fileRepository.findById(ver.fileId);
-      if (!file || file.userId !== userId) {
+      if (!this.canAccessItem(req, file)) {
         return res.status(404).json({ error: 'File not found' });
       }
 
@@ -728,7 +841,7 @@ class DriveController {
         file.path,
         nextVerNum,
         file.size,
-        userId
+        file.userId
       );
 
       await db.update(files)
@@ -741,7 +854,7 @@ class DriveController {
 
       await fileRepository.deleteVersion(ver.id);
 
-      await driveService.updateStorageStats(userId);
+      await driveService.updateStorageStats(file.userId);
       res.status(200).json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -758,7 +871,7 @@ class DriveController {
       }
 
       const file = await fileRepository.findById(ver.fileId);
-      if (!file || file.userId !== userId) {
+      if (!this.canAccessItem(req, file)) {
         return res.status(404).json({ error: 'Unauthorized' });
       }
 
@@ -779,7 +892,7 @@ class DriveController {
 
     try {
       const file = await fileRepository.findById(parseInt(id));
-      if (!file || file.userId !== userId) {
+      if (!(await this.canAccessFile(req, file))) {
         return res.status(404).send('File not found');
       }
 
@@ -813,7 +926,7 @@ class DriveController {
     const { id } = req.params;
     const userId = req.session.userId;
     try {
-      await driveService.packageFolderToZip(parseInt(id), userId, res);
+      await driveService.packageFolderToZip(parseInt(id), userId, res, { isSuperAdmin: this.isSuperAdmin(req) });
     } catch (err) {
       res.status(500).send('Folder packaging failed');
     }
@@ -825,6 +938,13 @@ class DriveController {
     try {
       const parsedId = parseInt(entityId);
       const isFolder = entityType === 'folder';
+      const item = isFolder
+        ? await folderRepository.findById(parsedId)
+        : await fileRepository.findById(parsedId);
+
+      if (!this.canAccessItem(req, item)) {
+        return res.status(404).json({ error: 'Item not found' });
+      }
 
       const existing = await db.select().from(favorites).where(
         and(
@@ -853,7 +973,7 @@ class DriveController {
     const { entityType, entityId } = req.body;
     const userId = req.session.userId;
     try {
-      await driveService.moveToTrash(userId, entityType, parseInt(entityId));
+      await driveService.moveToTrash(userId, entityType, parseInt(entityId), { isSuperAdmin: this.isSuperAdmin(req) });
       res.status(200).json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -864,7 +984,7 @@ class DriveController {
     const { entityType, entityId } = req.body;
     const userId = req.session.userId;
     try {
-      await driveService.restoreFromTrash(userId, entityType, parseInt(entityId));
+      await driveService.restoreFromTrash(userId, entityType, parseInt(entityId), { isSuperAdmin: this.isSuperAdmin(req) });
       res.status(200).json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -875,7 +995,7 @@ class DriveController {
     const { entityType, entityId } = req.body;
     const userId = req.session.userId;
     try {
-      await driveService.purgeItemPermanently(userId, entityType, parseInt(entityId));
+      await driveService.purgeItemPermanently(userId, entityType, parseInt(entityId), { isSuperAdmin: this.isSuperAdmin(req) });
       res.status(200).json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });

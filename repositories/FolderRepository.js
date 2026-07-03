@@ -8,7 +8,11 @@ class FolderRepository {
     return results[0] || null;
   }
 
-  async findUserRootFolders(userId) {
+  userScope(userId, includeAll = false) {
+    return includeAll ? sql`1 = 1` : eq(folders.userId, userId);
+  }
+
+  async findUserRootFolders(userId, includeAll = false) {
     return await db.select()
       .from(folders)
       .leftJoin(trashItems, and(
@@ -16,13 +20,13 @@ class FolderRepository {
         eq(trashItems.entityType, 'folder')
       ))
       .where(and(
-        eq(folders.userId, userId),
+        this.userScope(userId, includeAll),
         sql`${folders.parentId} IS NULL`,
         sql`${trashItems.id} IS NULL`
       ));
   }
 
-  async findSubfolders(userId, parentId) {
+  async findSubfolders(userId, parentId, includeAll = false) {
     return await db.select()
       .from(folders)
       .leftJoin(trashItems, and(
@@ -30,7 +34,7 @@ class FolderRepository {
         eq(trashItems.entityType, 'folder')
       ))
       .where(and(
-        eq(folders.userId, userId),
+        this.userScope(userId, includeAll),
         parentId ? eq(folders.parentId, parentId) : sql`${folders.parentId} IS NULL`,
         sql`${trashItems.id} IS NULL`
       ));

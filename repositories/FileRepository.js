@@ -8,7 +8,11 @@ class FileRepository {
     return results[0] || null;
   }
 
-  async findUserRootFiles(userId) {
+  userScope(userId, includeAll = false) {
+    return includeAll ? sql`1 = 1` : eq(files.userId, userId);
+  }
+
+  async findUserRootFiles(userId, includeAll = false) {
     return await db.select()
       .from(files)
       .leftJoin(trashItems, and(
@@ -16,13 +20,13 @@ class FileRepository {
         eq(trashItems.entityType, 'file')
       ))
       .where(and(
-        eq(files.userId, userId),
+        this.userScope(userId, includeAll),
         sql`${files.folderId} IS NULL`,
         sql`${trashItems.id} IS NULL`
       ));
   }
 
-  async findFilesInFolder(userId, folderId) {
+  async findFilesInFolder(userId, folderId, includeAll = false) {
     return await db.select()
       .from(files)
       .leftJoin(trashItems, and(
@@ -30,7 +34,7 @@ class FileRepository {
         eq(trashItems.entityType, 'file')
       ))
       .where(and(
-        eq(files.userId, userId),
+        this.userScope(userId, includeAll),
         folderId ? eq(files.folderId, folderId) : sql`${files.folderId} IS NULL`,
         sql`${trashItems.id} IS NULL`
       ));
@@ -89,9 +93,9 @@ class FileRepository {
     return results[0] || null;
   }
 
-  async searchFiles(userId, { query, type, sortBy, sortOrder, limit, offset }) {
+  async searchFiles(userId, { query, type, sortBy, sortOrder, limit, offset, includeAll = false }) {
     let whereConditions = [
-      eq(files.userId, userId),
+      this.userScope(userId, includeAll),
       sql`NOT EXISTS (
         SELECT 1 FROM trash_items 
         WHERE trash_items.entity_id = files.id 

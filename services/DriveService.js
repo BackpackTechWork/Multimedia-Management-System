@@ -8,6 +8,7 @@ const fileRepository = require('../repositories/FileRepository');
 const folderRepository = require('../repositories/FolderRepository');
 const storageService = require('./StorageService');
 const jobRepository = require('../repositories/JobRepository');
+const shareRepository = require('../repositories/ShareRepository');
 
 class DriveService {
   async updateStorageStats(userId) {
@@ -42,12 +43,17 @@ class DriveService {
       });
   }
 
-  async moveToTrash(userId, entityType, entityId) {
+  async moveToTrash(userId, entityType, entityId, { isSuperAdmin = false } = {}) {
+    const ownerId = await this.resolveEntityOwnerId(entityType, entityId);
+    if (!ownerId || (!isSuperAdmin && ownerId !== userId)) {
+      throw new Error('Item not found');
+    }
+
     const purgeAt = new Date();
     purgeAt.setDate(purgeAt.getDate() + 30);
 
     await db.insert(trashItems).values({
-      userId,
+      userId: ownerId,
       entityType,
       entityId,
       purgeAt
@@ -55,20 +61,30 @@ class DriveService {
 
   }
 
-  async restoreFromTrash(userId, entityType, entityId) {
+  async restoreFromTrash(userId, entityType, entityId, { isSuperAdmin = false } = {}) {
+    const ownerId = await this.resolveEntityOwnerId(entityType, entityId);
+    if (!ownerId || (!isSuperAdmin && ownerId !== userId)) {
+      throw new Error('Item not found');
+    }
+
     await db.delete(trashItems).where(
       and(
-        eq(trashItems.userId, userId),
+        eq(trashItems.userId, ownerId),
         eq(trashItems.entityType, entityType),
         eq(trashItems.entityId, entityId)
       )
     );
   }
 
-  async purgeItemPermanently(userId, entityType, entityId) {
+  async purgeItemPermanently(userId, entityType, entityId, { isSuperAdmin = false } = {}) {
+    const ownerId = await this.resolveEntityOwnerId(entityType, entityId);
+    if (!ownerId || (!isSuperAdmin && ownerId !== userId)) {
+      throw new Error('Item not found');
+    }
+
     if (entityType === 'file') {
       const file = await fileRepository.findById(entityId);
-      if (file && file.userId === userId) {
+      if (file && file.userId === ownerId) {
         await storageService.deleteDiskFile(file.path);
 
         const versions = await fileRepository.getVersions(entityId);
@@ -84,13 +100,13 @@ class DriveService {
       }
     } else if (entityType === 'folder') {
       const folder = await folderRepository.findById(entityId);
-      if (folder && folder.userId === userId) {
+      if (folder && folder.userId === ownerId) {
         const descendants = await folderRepository.findDescendants(folder.path);
         const foldersToPurge = [folder, ...descendants];
         const folderIds = foldersToPurge.map(f => f.id);
 
         const filesToPurge = await db.select().from(files).where(
-          and(eq(files.userId, userId), inArray(files.folderId, folderIds))
+          and(eq(files.userId, ownerId), inArray(files.folderId, folderIds))
         );
 
         for (let file of filesToPurge) {
@@ -111,25 +127,43 @@ class DriveService {
 
     await db.delete(trashItems).where(
       and(
-        eq(trashItems.userId, userId),
+        eq(trashItems.userId, ownerId),
         eq(trashItems.entityType, entityType),
         eq(trashItems.entityId, entityId)
       )
     );
 
-    await this.updateStorageStats(userId);
+    await this.updateStorageStats(ownerId);
   }
 
-  async moveFolder(folderId, newParentId, userId) {
+  async resolveEntityOwnerId(entityType, entityId) {
+    if (entityType === 'file') {
+      const file = await fileRepository.findById(entityId);
+      return file?.userId || null;
+    }
+
+    if (entityType === 'folder') {
+      const folder = await folderRepository.findById(entityId);
+      return folder?.userId || null;
+    }
+
+    return null;
+  }
+
+  canAccess(ownerId, userId, isSuperAdmin) {
+    return isSuperAdmin || ownerId === userId;
+  }
+
+  async moveFolder(folderId, newParentId, userId, { isSuperAdmin = false } = {}) {
     const folder = await folderRepository.findById(folderId);
-    if (!folder || folder.userId !== userId) {
+    if (!folder || !this.canAccess(folder.userId, userId, isSuperAdmin)) {
       throw new Error('Folder not found');
     }
 
     let newPathPrefix = '/';
     if (newParentId) {
       const newParent = await folderRepository.findById(newParentId);
-      if (!newParent || newParent.userId !== userId) {
+      if (!newParent || !this.canAccess(newParent.userId, userId, isSuperAdmin) || newParent.userId !== folder.userId) {
         throw new Error('New parent folder not found');
       }
       if (newParent.path.startsWith(folder.path)) {
@@ -144,28 +178,41 @@ class DriveService {
     await folderRepository.moveFolderSubtree(folderId, newParentId, oldPath, newPath);
   }
 
-  async moveFile(fileId, newFolderId, userId) {
+  async moveFile(fileId, newFolderId, userId, { isSuperAdmin = false } = {}) {
+    const file = await fileRepository.findById(fileId);
+    if (!file || !this.canAccess(file.userId, userId, isSuperAdmin)) {
+      throw new Error('File not found');
+    }
+
     if (newFolderId) {
       const folder = await folderRepository.findById(newFolderId);
-      if (!folder || folder.userId !== userId) {
+      if (!folder || !this.canAccess(folder.userId, userId, isSuperAdmin) || folder.userId !== file.userId) {
         throw new Error('Destination folder not found');
       }
     }
     await db.update(files)
       .set({ folderId: newFolderId })
-      .where(and(eq(files.id, fileId), eq(files.userId, userId)));
+      .where(eq(files.id, fileId));
   }
 
-  async copyFile(fileId, destinationFolderId, userId) {
+  async copyFile(fileId, destinationFolderId, userId, { isSuperAdmin = false } = {}) {
     const file = await fileRepository.findById(fileId);
-    if (!file || file.userId !== userId) {
+    if (!file || !this.canAccess(file.userId, userId, isSuperAdmin)) {
       throw new Error('File not found');
     }
+    const ownerId = file.userId;
 
-    const diskCopy = await storageService.copyDiskFile(file.path, userId);
+    if (destinationFolderId) {
+      const folder = await folderRepository.findById(destinationFolderId);
+      if (!folder || !this.canAccess(folder.userId, userId, isSuperAdmin) || folder.userId !== ownerId) {
+        throw new Error('Destination folder not found');
+      }
+    }
+
+    const diskCopy = await storageService.copyDiskFile(file.path, ownerId);
 
     const newFileId = await fileRepository.createFile(
-      userId,
+      ownerId,
       destinationFolderId,
       diskCopy.filename,
       `Copy of ${file.originalName}`,
@@ -177,7 +224,7 @@ class DriveService {
       file.visibility
     );
 
-    await this.updateStorageStats(userId);
+    await this.updateStorageStats(ownerId);
     
     if (file.mimeType.startsWith('image/')) {
       await jobRepository.createJob('thumbnail', { fileId: newFileId });
@@ -186,9 +233,9 @@ class DriveService {
     return newFileId;
   }
 
-  async packageFolderToZip(folderId, userId, res) {
+  async packageFolderToZip(folderId, userId, res, { isSuperAdmin = false } = {}) {
     const folder = await folderRepository.findById(folderId);
-    if (!folder || folder.userId !== userId) {
+    if (!folder || (!this.canAccess(folder.userId, userId, isSuperAdmin) && !(await shareRepository.userCanAccessFolder(userId, folder)))) {
       res.status(404).send('Folder not found');
       return;
     }
@@ -206,7 +253,7 @@ class DriveService {
     const folderIds = allFolders.map(f => f.id);
     const folderFiles = await db.select().from(files).where(
       and(
-        eq(files.userId, userId),
+        eq(files.userId, folder.userId),
         inArray(files.folderId, folderIds),
         sql`NOT EXISTS (
           SELECT 1 FROM trash_items 

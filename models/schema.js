@@ -6,6 +6,7 @@ const users = mysqlTable('users', {
   name: varchar('name', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull(),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+  role: varchar('role', { length: 50 }).default('user').notNull(),
   createdAt: datetime('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
   emailIdx: uniqueIndex('email_idx').on(table.email),
@@ -102,16 +103,31 @@ const recentActivity = mysqlTable('recent_activity', {
 const shares = mysqlTable('shares', {
   id: int('id').primaryKey().autoincrement(),
   token: varchar('token', { length: 255 }).notNull(),
+  createdById: int('created_by_id'),
   fileId: int('file_id'),
   folderId: int('folder_id'),
   passwordHash: varchar('password_hash', { length: 255 }), // Nullable optional password
   expiresAt: datetime('expires_at'), // Nullable expiration date
   allowDownload: boolean('allow_download').default(true).notNull(),
+  linkAccess: varchar('link_access', { length: 20 }).default('anyone').notNull(), // 'restricted', 'anyone'
+  linkRole: varchar('link_role', { length: 20 }).default('viewer').notNull(), // 'viewer', 'editor'
   createdAt: datetime('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
   tokenIdx: uniqueIndex('share_token_idx').on(table.token),
+  createdByIdx: index('share_created_by_idx').on(table.createdById),
   fileIdIdx: index('share_file_id_idx').on(table.fileId),
   folderIdIdx: index('share_folder_id_idx').on(table.folderId),
+}));
+
+const shareRecipients = mysqlTable('share_recipients', {
+  id: int('id').primaryKey().autoincrement(),
+  shareId: int('share_id').notNull(),
+  userId: int('user_id').notNull(),
+  createdAt: datetime('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => ({
+  shareIdIdx: index('share_recipients_share_id_idx').on(table.shareId),
+  userIdIdx: index('share_recipients_user_id_idx').on(table.userId),
+  shareUserIdx: uniqueIndex('share_recipients_share_user_idx').on(table.shareId, table.userId),
 }));
 
 const sessions = mysqlTable('sessions', {
@@ -208,8 +224,14 @@ const recentActivityRelations = relations(recentActivity, ({ one }) => ({
 }));
 
 const sharesRelations = relations(shares, ({ one }) => ({
+  creator: one(users, { fields: [shares.createdById], references: [users.id] }),
   file: one(files, { fields: [shares.fileId], references: [files.id] }),
   folder: one(folders, { fields: [shares.folderId], references: [folders.id] }),
+}));
+
+const shareRecipientsRelations = relations(shareRecipients, ({ one }) => ({
+  share: one(shares, { fields: [shareRecipients.shareId], references: [shares.id] }),
+  user: one(users, { fields: [shareRecipients.userId], references: [users.id] }),
 }));
 
 const sessionsRelations = relations(sessions, ({ one }) => ({
@@ -233,6 +255,7 @@ module.exports = {
   favorites,
   recentActivity,
   shares,
+  shareRecipients,
   sessions,
   activityLogs,
   userStorageStats,
@@ -245,6 +268,7 @@ module.exports = {
   favoritesRelations,
   recentActivityRelations,
   sharesRelations,
+  shareRecipientsRelations,
   sessionsRelations,
   activityLogsRelations,
   userStorageStatsRelations

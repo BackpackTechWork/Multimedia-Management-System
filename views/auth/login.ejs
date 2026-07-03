@@ -13,12 +13,12 @@
 
     <div id="alert-container">
       <% if (locals.error) { %>
-        <div class="bg-red-50 border-l-4 border-brand-orange text-red-700 px-4 py-3 rounded-lg relative mb-6 text-sm" role="alert">
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg relative mb-6 text-sm" role="alert">
           <span><%= error %></span>
         </div>
       <% } %>
       <% if (locals.success) { %>
-        <div class="bg-green-50 border-l-4 border-brand-teal text-green-700 px-4 py-3 rounded-lg relative mb-6 text-sm" role="alert">
+        <div class="bg-green-50 border border-brand-teal text-green-700 px-4 py-3 rounded-lg relative mb-6 text-sm" role="alert">
           <span><%= success %></span>
         </div>
       <% } %>
@@ -26,6 +26,9 @@
 
     <form action="/auth/login" method="POST" class="flex flex-col gap-5 text-sm">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <% if (locals.returnTo) { %>
+        <input type="hidden" name="returnTo" value="<%= returnTo %>">
+      <% } %>
       
       <div>
         <label for="email" class="block font-semibold text-gray-700 mb-1">Email Address</label>
@@ -35,20 +38,28 @@
           name="email" 
           required 
           placeholder="name@domain.com"
+          autocomplete="email"
           class="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-brand-teal text-sm transition"
         >
       </div>
 
       <div>
         <label for="password" class="block font-semibold text-gray-700 mb-1">Password</label>
-        <input 
-          type="password" 
-          id="password" 
-          name="password" 
-          required 
-          placeholder="••••••••"
-          class="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-brand-teal text-sm transition"
-        >
+        <div class="relative">
+          <input 
+            type="password" 
+            id="password" 
+            name="password" 
+            required 
+            placeholder="Password"
+            autocomplete="current-password"
+            style="padding-right: 2.75rem;"
+            class="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-brand-teal text-sm transition"
+          >
+          <button type="button" class="password-toggle absolute right-2 top-2.5 p-1 text-gray-500 hover:text-brand-teal" data-target="password" aria-label="Show password" aria-pressed="false">
+            <i class="bi bi-eye"></i>
+          </button>
+        </div>
       </div>
 
       <div class="flex items-center justify-between mt-1">

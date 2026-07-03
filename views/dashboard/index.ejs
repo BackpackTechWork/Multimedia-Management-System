@@ -5,16 +5,17 @@
 <script>
   window.driveContext = {
     currentFolderId: '<%= currentFolderId || "" %>',
-    tab: '<%= tab %>'
+    tab: '<%= tab %>',
+    currentFolderCanEdit: <%= locals.currentFolderCanEdit ? 'true' : 'false' %>
   };
 </script>
 
-<div class="flex-1 flex overflow-hidden">
+<div class="flex-1 flex min-h-0 overflow-hidden">
   <!-- Sidebar Navigation -->
   <%- include('../partials/sidebar') %>
 
   <!-- Main Drive Panel -->
-  <main class="flex-1 flex flex-col min-w-0 bg-[#F8F9FA] overflow-hidden">
+  <main class="flex-1 flex flex-col min-h-0 min-w-0 bg-[#F8F9FA] overflow-hidden">
     
     <!-- Action Toolbar & Breadcrumbs -->
     <div class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0 select-none">
@@ -66,7 +67,7 @@
     </div>
 
     <!-- Scrollable content area -->
-    <div id="items-grid-container" class="flex-1 overflow-y-auto p-6 relative">
+    <div id="items-grid-container" class="flex-1 min-h-0 overflow-y-auto p-6 relative">
       
       <!-- Trash selection actions -->
       <% if (tab === 'trash') { %>
@@ -86,6 +87,140 @@
         </div>
       <% } %>
 
+      <% if (tab === 'shared') { %>
+        <% const sharedByMe = locals.sharedSections?.sharedByMe || { folders: [], files: [] }; %>
+        <% const sharedWithMe = locals.sharedSections?.sharedWithMe || { folders: [], files: [] }; %>
+        <% const hasSharedItems = sharedByMe.folders.length || sharedByMe.files.length || sharedWithMe.folders.length || sharedWithMe.files.length; %>
+
+        <% if (!hasSharedItems) { %>
+          <div class="flex flex-col items-center justify-center py-24 text-center select-none">
+            <div class="bg-gray-100 text-gray-300 w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-inner">
+              <i class="bi bi-people text-5xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-700 mb-1">No shared items yet</h3>
+            <p class="text-sm text-gray-400 max-w-sm">Items you share with people and items shared with you will appear here.</p>
+          </div>
+        <% } %>
+
+        <% [
+          { title: 'Shared with me', items: sharedWithMe, empty: 'No one has shared files or folders with you yet.' },
+          { title: 'Shared by me', items: sharedByMe, empty: 'Share a file or folder to see it here.' }
+        ].forEach(section => { %>
+          <section class="mb-10">
+            <div class="flex items-center justify-between gap-3 mb-3">
+              <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider select-none"><%= section.title %></h4>
+              <% if (section.items.folders.length || section.items.files.length) { %>
+                <span class="text-xs text-gray-400"><%= section.items.folders.length + section.items.files.length %> item<%= section.items.folders.length + section.items.files.length === 1 ? '' : 's' %></span>
+              <% } %>
+            </div>
+
+            <% if (section.items.folders.length === 0 && section.items.files.length === 0) { %>
+              <div class="bg-white border border-gray-200 rounded-lg px-4 py-5 text-sm text-gray-500"><%= section.empty %></div>
+            <% } %>
+
+            <% if (section.items.folders.length > 0) { %>
+              <div class="responsive-grid drive-items-group mb-5">
+                <% section.items.folders.forEach(folder => { %>
+                  <div 
+                    class="grid-item file-card folder-card flex items-center gap-3 p-3.5 cursor-pointer relative"
+                    data-id="<%= folder.id %>"
+                    data-type="folder"
+                    data-name="<%= folder.name %>"
+                    data-shared-scope="<%= folder.shareMeta.scope %>"
+                    data-shared-role="<%= folder.shareMeta.linkRole || 'viewer' %>"
+                    data-updated="<%= new Date(folder.shareMeta.sharedAt || folder.createdAt).toLocaleDateString() %>"
+                  >
+                    <a
+                      href="/folders/<%= folder.id %>"
+                      class="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/95 text-gray-600 shadow-sm border border-gray-200 hover:text-brand-teal hover:border-brand-teal transition"
+                      title="Open folder"
+                      aria-label="Open <%= folder.name %>"
+                      onclick="event.stopPropagation();"
+                    >
+                      <i class="bi bi-folder2-open"></i>
+                    </a>
+                    <div class="item-preview folder-preview">
+                      <i class="bi bi-folder-fill text-2xl text-yellow-500 shrink-0"></i>
+                    </div>
+                    <div class="item-details">
+                      <span class="item-name font-semibold text-sm text-gray-700 truncate select-none"><%= folder.name %></span>
+                      <span class="item-secondary"><%= folder.shareMeta.scope === 'with-me' ? `${folder.shareMeta.linkRole === 'editor' ? 'Editor' : 'Viewer'} from ${folder.shareMeta.ownerName || folder.shareMeta.ownerEmail || 'Owner'}` : (folder.shareMeta.recipientEmails || 'Public link') %></span>
+                    </div>
+                    <span class="item-modified"><%= new Date(folder.shareMeta.sharedAt || folder.createdAt).toLocaleDateString() %></span>
+                    <span class="item-size">Folder</span>
+                  </div>
+                <% }) %>
+              </div>
+            <% } %>
+
+            <% if (section.items.files.length > 0) { %>
+              <div class="responsive-grid drive-items-group">
+                <% section.items.files.forEach(file => { %>
+                  <%
+                    const sharedFileMime = file.mimeType || '';
+                    const sharedFileExt = (file.extension || '').toLowerCase();
+                    let sharedPreviewRoute = 'code';
+                    if (sharedFileMime.startsWith('image/')) sharedPreviewRoute = 'image';
+                    else if (sharedFileMime === 'application/pdf') sharedPreviewRoute = 'pdf';
+                    else if (sharedFileMime.startsWith('video/')) sharedPreviewRoute = 'video';
+                    else if (sharedFileMime.startsWith('audio/')) sharedPreviewRoute = 'audio';
+                    else if (sharedFileExt === 'md') sharedPreviewRoute = 'markdown';
+                    else if (['xls', 'xlsx', 'csv', 'ods'].includes(sharedFileExt)) sharedPreviewRoute = 'excel';
+                    else if (['ppt', 'pptx'].includes(sharedFileExt) || sharedFileMime === 'application/vnd.ms-powerpoint' || sharedFileMime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') sharedPreviewRoute = 'presentation';
+                    else if (sharedFileExt === 'zip' || sharedFileMime === 'application/zip' || sharedFileMime === 'application/x-zip-compressed') sharedPreviewRoute = 'zip';
+                  %>
+                  <div 
+                    class="grid-item file-card drive-file-card flex flex-col justify-between p-3.5 cursor-pointer relative h-48"
+                    data-id="<%= file.id %>"
+                    data-type="file"
+                    data-name="<%= file.originalName %>"
+                    data-size="<%= file.size %>"
+                    data-mime="<%= file.mimeType %>"
+                    data-ext="<%= file.extension %>"
+                    data-shared-scope="<%= file.shareMeta.scope %>"
+                    data-shared-role="<%= file.shareMeta.linkRole || 'viewer' %>"
+                    data-updated="<%= new Date(file.shareMeta.sharedAt || file.createdAt).toLocaleDateString() %>"
+                  >
+                    <a
+                      href="/preview/<%= sharedPreviewRoute %>/<%= file.id %>"
+                      target="_blank"
+                      class="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/95 text-gray-600 shadow-sm border border-gray-200 hover:text-brand-teal hover:border-brand-teal transition"
+                      title="Preview file"
+                      aria-label="Preview <%= file.originalName %>"
+                      onclick="event.stopPropagation();"
+                    >
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    <div class="item-preview file-preview flex-1 flex items-center justify-center p-2 mb-3 bg-gray-50 rounded-lg overflow-hidden select-none">
+                      <% if ((file.mimeType || '').startsWith('image/')) { %>
+                        <img src="/preview/stream/<%= file.id %>?thumbnail=200" alt="<%= file.originalName %>" class="w-full h-full object-cover rounded" loading="lazy">
+                      <% } else { %>
+                        <% 
+                          let iconClass = 'bi-file-earmark-fill text-gray-400';
+                          if (file.extension === 'pdf') iconClass = 'bi-file-pdf-fill text-red-500';
+                          else if (['doc', 'docx'].includes(file.extension)) iconClass = 'bi-file-word-fill text-blue-500';
+                          else if (['xls', 'xlsx', 'csv'].includes(file.extension)) iconClass = 'bi-file-excel-fill text-green-600';
+                          else if (['js', 'ts', 'html', 'css', 'json', 'sql'].includes(file.extension)) iconClass = 'bi-file-code-fill text-gray-600';
+                          else if (file.extension === 'md') iconClass = 'bi-markdown-fill text-indigo-500';
+                          else if ((file.mimeType || '').startsWith('audio/')) iconClass = 'bi-file-music-fill text-pink-500';
+                          else if ((file.mimeType || '').startsWith('video/')) iconClass = 'bi-file-play-fill text-red-600';
+                        %>
+                        <i class="bi <%= iconClass %> text-5xl"></i>
+                      <% } %>
+                    </div>
+                    <div class="item-details flex flex-col min-w-0 select-none">
+                      <span class="item-name font-bold text-sm text-gray-700 truncate leading-tight mb-0.5"><%= file.originalName %></span>
+                      <span class="item-secondary text-[10px] text-gray-400 font-semibold uppercase tracking-wider"><%= file.shareMeta.scope === 'with-me' ? `${file.shareMeta.linkRole === 'editor' ? 'Editor' : 'Viewer'} from ${file.shareMeta.ownerName || file.shareMeta.ownerEmail || 'Owner'}` : (file.shareMeta.recipientEmails || 'Public link') %></span>
+                    </div>
+                    <span class="item-modified"><%= new Date(file.shareMeta.sharedAt || file.createdAt).toLocaleDateString() %></span>
+                    <span class="item-size"><%= formatBytes(file.size) %></span>
+                  </div>
+                <% }) %>
+              </div>
+            <% } %>
+          </section>
+        <% }) %>
+      <% } else { %>
       <!-- Empty state illustration -->
       <% if (folders.length === 0 && files.length === 0) { %>
         <div class="flex flex-col items-center justify-center py-24 text-center select-none">
@@ -114,6 +249,15 @@
               data-name="<%= folder.name %>"
               data-updated="<%= new Date(folder.createdAt).toLocaleDateString() %>"
             >
+              <a
+                href="/folders/<%= folder.id %>"
+                class="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/95 text-gray-600 shadow-sm border border-gray-200 hover:text-brand-teal hover:border-brand-teal transition"
+                title="Open folder"
+                aria-label="Open <%= folder.name %>"
+                onclick="event.stopPropagation();"
+              >
+                <i class="bi bi-folder2-open"></i>
+              </a>
               <div class="item-preview folder-preview">
                 <i class="bi bi-folder-fill text-2xl text-yellow-500 shrink-0"></i>
               </div>
@@ -125,7 +269,7 @@
               <span class="item-size">—</span>
               
               <!-- Star Indicator -->
-              <i class="starred-icon bi <%= starredFolderIds.has(folder.id) ? 'bi-star-fill text-yellow-500' : 'bi-star text-gray-300' %> absolute right-2 top-2 text-xs"></i>
+              <i class="starred-icon bi <%= starredFolderIds.has(folder.id) ? 'bi-star-fill text-yellow-500' : 'bi-star text-gray-300' %> absolute left-3 top-3 text-xs"></i>
             </div>
           <% }) %>
         </div>
@@ -141,6 +285,19 @@
         </div>
         <div class="responsive-grid drive-items-group">
           <% files.forEach(file => { %>
+            <%
+              const fileMime = file.mimeType || '';
+              const fileExt = (file.extension || '').toLowerCase();
+              let previewRoute = 'code';
+              if (fileMime.startsWith('image/')) previewRoute = 'image';
+              else if (fileMime === 'application/pdf') previewRoute = 'pdf';
+              else if (fileMime.startsWith('video/')) previewRoute = 'video';
+              else if (fileMime.startsWith('audio/')) previewRoute = 'audio';
+              else if (fileExt === 'md') previewRoute = 'markdown';
+              else if (['xls', 'xlsx', 'csv', 'ods'].includes(fileExt)) previewRoute = 'excel';
+              else if (['ppt', 'pptx'].includes(fileExt) || fileMime === 'application/vnd.ms-powerpoint' || fileMime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') previewRoute = 'presentation';
+              else if (fileExt === 'zip' || fileMime === 'application/zip' || fileMime === 'application/x-zip-compressed') previewRoute = 'zip';
+            %>
             <div 
               class="grid-item file-card drive-file-card flex flex-col justify-between p-3.5 cursor-pointer relative h-48"
               data-id="<%= file.id %>"
@@ -151,8 +308,18 @@
               data-ext="<%= file.extension %>"
               data-updated="<%= new Date(file.createdAt).toLocaleDateString() %>"
             >
+              <a
+                href="/preview/<%= previewRoute %>/<%= file.id %>"
+                target="_blank"
+                class="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/95 text-gray-600 shadow-sm border border-gray-200 hover:text-brand-teal hover:border-brand-teal transition"
+                title="Preview file"
+                aria-label="Preview <%= file.originalName %>"
+                onclick="event.stopPropagation();"
+              >
+                <i class="bi bi-eye"></i>
+              </a>
               <!-- Star Indicator -->
-              <i class="starred-icon bi <%= starredFileIds.has(file.id) ? 'bi-star-fill text-yellow-500' : 'bi-star text-gray-300' %> absolute right-3 top-3 text-sm z-10"></i>
+              <i class="starred-icon bi <%= starredFileIds.has(file.id) ? 'bi-star-fill text-yellow-500' : 'bi-star text-gray-300' %> absolute left-3 top-3 text-sm z-10"></i>
 
               <!-- Card body: Thumbnail / Core Icon -->
               <div class="item-preview file-preview flex-1 flex items-center justify-center p-2 mb-3 bg-gray-50 rounded-lg overflow-hidden select-none">
@@ -183,6 +350,7 @@
             </div>
           <% }) %>
         </div>
+      <% } %>
       <% } %>
 
     </div>

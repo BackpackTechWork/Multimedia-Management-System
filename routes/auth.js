@@ -11,9 +11,6 @@ router.use((req, res, next) => {
   next();
 });
 
-router.get('/register', guestGuard, authController.renderRegister);
-router.post('/register', guestGuard, authLimiter, authController.handleRegister);
-
 router.get('/login', guestGuard, authController.renderLogin);
 router.post('/login', guestGuard, authLimiter, authController.handleLogin);
 

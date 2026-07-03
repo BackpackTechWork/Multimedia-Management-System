@@ -55,49 +55,131 @@
 </div>
 
 <!-- 4. Share Links Configuration Modal -->
-<div id="share-modal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center hidden z-50">
-  <div class="bg-white rounded-xl shadow-lg w-full max-w-lg p-6 mx-4">
-    <h3 class="text-lg font-bold text-gray-800 mb-2 flex items-center gap-2">
-      <i class="bi bi-share text-brand-teal"></i> Share Settings
-    </h3>
-    <p class="text-xs text-gray-400 mb-4">Generate share link with download control, optional expiry, and passwords.</p>
-    
-    <div class="flex flex-col gap-4 text-sm mb-6">
-      <!-- Password -->
-      <div>
-        <label class="block font-semibold text-gray-700 mb-1">Password Protection (Optional)</label>
-        <input type="password" id="share-password" placeholder="Leave empty for no password" class="w-full border border-gray-300 rounded-lg p-2 outline-none focus:border-brand-teal text-sm">
-      </div>
-      <!-- Expiration -->
-      <div>
-        <label class="block font-semibold text-gray-700 mb-1">Expiration Date (Optional)</label>
-        <input type="datetime-local" id="share-expiry" class="w-full border border-gray-300 rounded-lg p-2 outline-none focus:border-brand-teal text-sm text-gray-600">
-      </div>
-      <!-- Allow downloads toggle -->
-      <label class="flex items-center gap-2 font-semibold text-gray-700 cursor-pointer">
-        <input type="checkbox" id="share-allow-download" checked class="rounded text-brand-teal focus:ring-brand-teal">
-        <span>Allow Downloads</span>
-      </label>
-      
-      <!-- Generated Link Box -->
-      <div id="share-link-container" class="hidden bg-gray-50 border border-gray-200 rounded-lg p-3 mt-2">
-        <label class="block text-xs font-semibold text-gray-400 mb-1">Generated Link</label>
-        <div class="flex gap-2">
-          <input type="text" id="share-link-input" readonly class="bg-white border border-gray-300 rounded-lg p-2 w-full text-xs font-mono outline-none text-gray-600">
-          <button id="copy-share-link-btn" class="bg-brand-teal text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-brand-teal-dark">Copy</button>
+<div id="share-modal" class="fixed inset-0 bg-slate-950 bg-opacity-40 flex items-start sm:items-center justify-center hidden z-50 p-4 overflow-y-auto">
+  <div class="share-dialog">
+    <div class="share-dialog__header">
+      <div class="flex items-center gap-3 min-w-0">
+        <span class="share-dialog__icon">
+          <i class="bi bi-share"></i>
+        </span>
+        <div class="min-w-0">
+          <h3 class="text-lg font-bold text-gray-800">Share item</h3>
+          <p class="text-sm text-gray-500 mt-0.5">Choose who can open this item and what the link allows.</p>
         </div>
       </div>
+      <button id="share-close-btn" class="share-dialog__close" title="Close share settings" aria-label="Close share settings">
+        <i class="bi bi-x-lg"></i>
+      </button>
     </div>
-    
-    <div class="flex justify-between gap-3">
-      <button id="revoke-share-btn" class="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-50 hidden">Disable Link</button>
-      <div class="flex gap-3 ml-auto">
-        <button id="share-close-btn" class="px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-500 hover:bg-gray-50">Close</button>
-        <button id="generate-share-btn" class="px-4 py-2 bg-brand-teal text-white rounded-lg text-sm font-semibold hover:bg-brand-teal-dark">Generate Link</button>
-      </div>
+
+    <div class="share-dialog__body text-sm">
+      <section class="share-dialog__section">
+        <div class="share-dialog__section-title">
+          <div>
+            <label for="share-user-search" class="block font-bold text-gray-800">People with access</label>
+            <p class="text-xs text-gray-500 mt-0.5">Add existing Harbor Drive accounts.</p>
+          </div>
+        </div>
+        <div id="share-people-picker" class="share-people-picker relative">
+          <div id="share-selected-users" class="share-selected-users"></div>
+          <input type="text" id="share-user-search" autocomplete="off" placeholder="Search people by name or email" class="share-user-search">
+          <div id="share-user-dropdown" class="share-user-dropdown hidden"></div>
+        </div>
+        <input type="hidden" id="share-recipients">
+      </section>
+
+      <section class="share-dialog__section share-dialog__section--tinted">
+        <div class="flex items-start gap-3">
+          <span class="share-dialog__mini-icon">
+            <i class="bi bi-link-45deg"></i>
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="font-bold text-gray-800">General access</p>
+            <p id="share-link-access-help" class="text-xs text-gray-500 mt-0.5 mb-3">Only selected people can open the link.</p>
+            <div class="share-dialog__option-grid">
+              <label class="share-dialog__field">
+                <span>Link access</span>
+                <select id="share-link-access">
+                  <option value="restricted" selected>Restricted</option>
+                  <option value="anyone">Anyone with the link</option>
+                </select>
+              </label>
+              <label class="share-dialog__field">
+                <span>Role</span>
+                <select id="share-link-role">
+                  <option value="viewer" selected>Viewer</option>
+                  <option value="editor">Editor</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="share-dialog__section">
+        <div class="share-dialog__section-title">
+          <div>
+            <p class="font-bold text-gray-800">Options</p>
+            <p class="text-xs text-gray-500 mt-0.5">Password and expiry are optional.</p>
+          </div>
+        </div>
+        <div class="share-dialog__option-grid">
+          <label class="share-dialog__field">
+            <span>Password protection</span>
+            <input type="password" id="share-password" placeholder="Leave empty for no password">
+          </label>
+          <label class="share-dialog__field">
+            <span>Expiration date</span>
+            <input type="datetime-local" id="share-expiry">
+          </label>
+        </div>
+        <label id="share-password-remove-row" class="share-dialog__password-remove hidden">
+          <input type="checkbox" id="share-remove-password">
+          <span class="share-dialog__toggle-box"><i class="bi bi-check-lg"></i></span>
+          <span>
+            <strong>Remove existing password</strong>
+            <small>The shared link will open without the current password.</small>
+          </span>
+        </label>
+        <label class="share-dialog__toggle">
+          <input type="checkbox" id="share-allow-download" checked>
+          <span class="share-dialog__toggle-box"><i class="bi bi-check-lg"></i></span>
+          <span>
+            <strong>Allow downloads</strong>
+            <small>Viewers can download files from this link.</small>
+          </span>
+        </label>
+      </section>
+
+      <section id="share-link-container" class="share-dialog__link hidden">
+        <div class="flex items-center justify-between gap-3 mb-2">
+          <label for="share-link-input" class="text-xs font-bold uppercase tracking-wide text-gray-500">Share link</label>
+          <span class="text-xs font-semibold text-brand-teal">One active link per item</span>
+        </div>
+        <div class="flex gap-2">
+          <input type="text" id="share-link-input" readonly class="share-dialog__link-input">
+          <button id="copy-share-link-btn" class="share-dialog__copy-btn">
+            <i class="bi bi-copy"></i>
+            <span>Copy</span>
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div class="share-dialog__footer">
+      <button id="revoke-share-btn" class="share-dialog__danger hidden">
+        <i class="bi bi-link-45deg"></i>
+        <span>Disable link</span>
+      </button>
+      <button id="generate-share-btn" class="share-dialog__primary">
+        <i class="bi bi-check2"></i>
+        <span>Save share</span>
+      </button>
     </div>
   </div>
 </div>
+
+<script type="application/json" id="share-users-data"><%- JSON.stringify(locals.shareUsers || []).replace(/</g, '\\u003c') %></script>
 
 <!-- 5. Version History Modal -->
 <div id="versions-modal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center hidden z-50">
@@ -344,6 +426,179 @@
     const generateShareBtn = document.getElementById('generate-share-btn');
     const revokeShareBtn = document.getElementById('revoke-share-btn');
     const copyLinkBtn = document.getElementById('copy-share-link-btn');
+    const shareUsersDataEl = document.getElementById('share-users-data');
+    const shareUserSearch = document.getElementById('share-user-search');
+    const shareUserDropdown = document.getElementById('share-user-dropdown');
+    const shareSelectedUsers = document.getElementById('share-selected-users');
+    const shareRecipientsInput = document.getElementById('share-recipients');
+    const shareLinkAccess = document.getElementById('share-link-access');
+    const shareLinkRole = document.getElementById('share-link-role');
+    const shareLinkAccessHelp = document.getElementById('share-link-access-help');
+    const sharePasswordInput = document.getElementById('share-password');
+    const shareRemovePasswordInput = document.getElementById('share-remove-password');
+    const sharePasswordRemoveRow = document.getElementById('share-password-remove-row');
+    let shareUsers = [];
+    let selectedShareUsers = [];
+
+    try {
+      shareUsers = JSON.parse(shareUsersDataEl?.textContent || '[]');
+    } catch {
+      shareUsers = [];
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function getUserInitials(user) {
+      const name = (user.name || user.email || '').trim();
+      if (!name) return 'U';
+      return name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+    }
+
+    function syncSelectedShareUsers() {
+      if (!shareSelectedUsers || !shareRecipientsInput) return;
+
+      shareSelectedUsers.innerHTML = selectedShareUsers.map(user => {
+        const label = escapeHtml(user.name || user.email);
+        return `
+        <span class="share-user-chip">
+          <span class="truncate max-w-[12rem]">${label}</span>
+          <button type="button" data-remove-share-user="${user.id}" aria-label="Remove ${label}">
+            <i class="bi bi-x text-sm"></i>
+          </button>
+        </span>
+      `;
+      }).join('');
+      shareRecipientsInput.value = selectedShareUsers.map(user => user.id).join(',');
+    }
+
+    function renderShareUserDropdown(query = '') {
+      if (!shareUserDropdown) return;
+
+      const normalizedQuery = query.trim().toLowerCase();
+      const selectedIds = new Set(selectedShareUsers.map(user => Number(user.id)));
+      const matches = shareUsers
+        .filter(user => !selectedIds.has(Number(user.id)))
+        .filter(user => {
+          if (!normalizedQuery) return true;
+          return `${user.name || ''} ${user.email || ''}`.toLowerCase().includes(normalizedQuery);
+        })
+        .slice(0, 8);
+
+      if (matches.length === 0) {
+        shareUserDropdown.innerHTML = '<div class="px-3 py-2 text-xs text-gray-400">No matching people</div>';
+        shareUserDropdown.classList.remove('hidden');
+        return;
+      }
+
+      shareUserDropdown.innerHTML = matches.map(user => `
+        <button type="button" class="share-user-option" data-share-user-id="${user.id}">
+          <span class="share-user-option__avatar">${escapeHtml(getUserInitials(user))}</span>
+          <span class="share-user-option__meta">
+            <span class="block text-sm font-semibold text-gray-700 truncate">${escapeHtml(user.name || user.email)}</span>
+            <span class="block text-xs text-gray-400 truncate">${escapeHtml(user.email)}</span>
+          </span>
+        </button>
+      `).join('');
+      shareUserDropdown.classList.remove('hidden');
+    }
+
+    function resetSharePeoplePicker() {
+      selectedShareUsers = [];
+      if (shareUserSearch) shareUserSearch.value = '';
+      if (shareUserDropdown) shareUserDropdown.classList.add('hidden');
+      syncSelectedShareUsers();
+    }
+
+    function toDateTimeLocalValue(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      const offsetMs = date.getTimezoneOffset() * 60000;
+      return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+    }
+
+    function setSelectedShareUsers(users) {
+      const knownUsersById = new Map(shareUsers.map(user => [Number(user.id), user]));
+      selectedShareUsers = (users || []).map(user => {
+        const known = knownUsersById.get(Number(user.id));
+        return known || user;
+      });
+      syncSelectedShareUsers();
+    }
+
+    function updateShareLinkAccessHelp() {
+      if (!shareLinkAccessHelp || !shareLinkAccess || !shareLinkRole) return;
+      const role = shareLinkRole.value === 'editor' ? 'edit' : 'view';
+      shareLinkAccessHelp.textContent = shareLinkAccess.value === 'anyone'
+        ? `Anyone with this link can ${role}.`
+        : `Only selected people can ${role}.`;
+    }
+
+    if (shareUserSearch) {
+      shareUserSearch.addEventListener('focus', () => renderShareUserDropdown(shareUserSearch.value));
+      shareUserSearch.addEventListener('input', () => renderShareUserDropdown(shareUserSearch.value));
+    }
+
+    if (shareUserDropdown) {
+      shareUserDropdown.addEventListener('click', (e) => {
+        const option = e.target.closest('[data-share-user-id]');
+        if (!option) return;
+
+        const user = shareUsers.find(candidate => Number(candidate.id) === Number(option.dataset.shareUserId));
+        if (user && !selectedShareUsers.some(candidate => Number(candidate.id) === Number(user.id))) {
+          selectedShareUsers.push(user);
+          syncSelectedShareUsers();
+        }
+        if (shareUserSearch) {
+          shareUserSearch.value = '';
+          shareUserSearch.focus();
+        }
+        renderShareUserDropdown('');
+      });
+    }
+
+    if (shareSelectedUsers) {
+      shareSelectedUsers.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('[data-remove-share-user]');
+        if (!removeBtn) return;
+        selectedShareUsers = selectedShareUsers.filter(user => Number(user.id) !== Number(removeBtn.dataset.removeShareUser));
+        syncSelectedShareUsers();
+        renderShareUserDropdown(shareUserSearch?.value || '');
+      });
+    }
+
+    [shareLinkAccess, shareLinkRole].forEach(control => {
+      if (control) control.addEventListener('change', updateShareLinkAccessHelp);
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!shareUserDropdown || shareUserDropdown.classList.contains('hidden')) return;
+      if (e.target.closest('#share-people-picker')) return;
+      shareUserDropdown.classList.add('hidden');
+    }, true);
+
+    updateShareLinkAccessHelp();
+
+    if (sharePasswordInput && shareRemovePasswordInput) {
+      sharePasswordInput.addEventListener('input', () => {
+        if (sharePasswordInput.value.trim() !== '') {
+          shareRemovePasswordInput.checked = false;
+        }
+      });
+
+      shareRemovePasswordInput.addEventListener('change', () => {
+        if (shareRemovePasswordInput.checked) {
+          sharePasswordInput.value = '';
+        }
+      });
+    }
 
     if (generateShareBtn) {
       generateShareBtn.addEventListener('click', async (e) => {
@@ -354,9 +609,13 @@
           return;
         }
 
-        const password = document.getElementById('share-password').value;
+        const password = sharePasswordInput?.value || '';
+        const removePassword = shareRemovePasswordInput?.checked || false;
+        const recipientUserIds = selectedShareUsers.map(user => user.id);
         const expiry = document.getElementById('share-expiry').value;
         const allowDownload = document.getElementById('share-allow-download').checked;
+        const linkAccess = shareLinkAccess?.value || 'restricted';
+        const linkRole = shareLinkRole?.value || 'viewer';
         const id = selected.dataset.id;
         const type = selected.dataset.type;
 
@@ -364,12 +623,16 @@
           fileId: type === 'file' ? id : null,
           folderId: type === 'folder' ? id : null,
           password,
+          removePassword,
+          recipientUserIds,
           expiresAt: expiry || null,
-          allowDownload
+          allowDownload,
+          linkAccess,
+          linkRole
         };
 
         generateShareBtn.disabled = true;
-        generateShareBtn.textContent = 'Generating...';
+        generateShareBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i><span>Saving...</span>';
 
         try {
           const res = await fetch('/share/api/create', {
@@ -397,7 +660,7 @@
           alert(err.message || 'Unable to generate share link');
         } finally {
           generateShareBtn.disabled = false;
-          generateShareBtn.textContent = 'Generate Link';
+          generateShareBtn.innerHTML = '<i class="bi bi-check2"></i><span>Save share</span>';
         }
       });
     }
@@ -418,8 +681,14 @@
         .then(res => {
           if (res.ok) {
             document.getElementById('share-link-container').classList.add('hidden');
-            document.getElementById('share-password').value = '';
+            resetSharePeoplePicker();
+            if (sharePasswordInput) sharePasswordInput.value = '';
+            if (shareRemovePasswordInput) shareRemovePasswordInput.checked = false;
+            if (sharePasswordRemoveRow) sharePasswordRemoveRow.classList.add('hidden');
             document.getElementById('share-expiry').value = '';
+            if (shareLinkAccess) shareLinkAccess.value = 'restricted';
+            if (shareLinkRole) shareLinkRole.value = 'viewer';
+            updateShareLinkAccessHelp();
             revokeShareBtn.classList.add('hidden');
             alert('Sharing link disabled successfully.');
           }
@@ -434,6 +703,48 @@
         document.execCommand('copy');
         alert('Sharing link copied to clipboard!');
       });
+    }
+
+    async function loadExistingShareSettings(selected) {
+      const type = selected.dataset.type;
+      const id = selected.dataset.id;
+      const params = new URLSearchParams();
+      if (type === 'file') params.set('fileId', id);
+      else params.set('folderId', id);
+
+      const res = await fetch(`/share/api/settings?${params.toString()}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Unable to load share settings');
+      }
+
+      if (!data.exists) return;
+
+      setSelectedShareUsers(data.recipients || []);
+      if (shareLinkAccess) shareLinkAccess.value = data.linkAccess === 'anyone' ? 'anyone' : 'restricted';
+      if (shareLinkRole) shareLinkRole.value = data.linkRole === 'editor' ? 'editor' : 'viewer';
+      const allowDownloadInput = document.getElementById('share-allow-download');
+      if (allowDownloadInput) allowDownloadInput.checked = data.allowDownload !== false;
+      const expiryInput = document.getElementById('share-expiry');
+      if (expiryInput) expiryInput.value = toDateTimeLocalValue(data.expiresAt);
+      const passwordInput = document.getElementById('share-password');
+      if (passwordInput) {
+        passwordInput.value = '';
+        passwordInput.placeholder = data.hasPassword ? 'Password is already set. Type a new one to change it.' : 'Leave empty for no password';
+      }
+      if (shareRemovePasswordInput) shareRemovePasswordInput.checked = false;
+      if (sharePasswordRemoveRow) {
+        sharePasswordRemoveRow.classList.toggle('hidden', !data.hasPassword);
+      }
+
+      const shareLink = `${window.location.origin}/share/${data.token}`;
+      document.getElementById('share-link-input').value = shareLink;
+      document.getElementById('share-link-container').classList.remove('hidden');
+      if (revokeShareBtn) {
+        revokeShareBtn.classList.remove('hidden');
+        revokeShareBtn.dataset.token = data.token;
+      }
+      updateShareLinkAccessHelp();
     }
 
     // --- VERSION HISTORY VIEW ENGINE ---
@@ -705,9 +1016,25 @@
           return;
         }
         document.getElementById('share-link-container').classList.add('hidden');
-        document.getElementById('share-password').value = '';
+        resetSharePeoplePicker();
+        if (sharePasswordInput) {
+          sharePasswordInput.value = '';
+          sharePasswordInput.placeholder = 'Leave empty for no password';
+        }
+        if (shareRemovePasswordInput) shareRemovePasswordInput.checked = false;
+        if (sharePasswordRemoveRow) sharePasswordRemoveRow.classList.add('hidden');
         document.getElementById('share-expiry').value = '';
+        if (shareLinkAccess) shareLinkAccess.value = 'restricted';
+        if (shareLinkRole) shareLinkRole.value = 'viewer';
+        updateShareLinkAccessHelp();
+        const allowDownloadInput = document.getElementById('share-allow-download');
+        if (allowDownloadInput) allowDownloadInput.checked = true;
+        if (revokeShareBtn) {
+          revokeShareBtn.classList.add('hidden');
+          delete revokeShareBtn.dataset.token;
+        }
         document.getElementById('share-modal').classList.remove('hidden');
+        loadExistingShareSettings(selected[0]).catch(err => alert(err.message || 'Unable to load share settings'));
       });
     }
 

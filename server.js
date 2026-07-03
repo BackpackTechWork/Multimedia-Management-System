@@ -10,6 +10,7 @@ const { pool } = require('./config/db');
 const DrizzleSessionStore = require('./config/sessionStore');
 const { helmetConfig, globalLimiter } = require('./middleware/security');
 const queueService = require('./services/QueueService');
+const adminSeedService = require('./services/AdminSeedService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -62,10 +63,12 @@ const authRouter = require('./routes/auth');
 const driveRouter = require('./routes/drive');
 const shareRouter = require('./routes/share');
 const previewRouter = require('./routes/preview');
+const adminRouter = require('./routes/admin');
 
 app.use('/auth', authRouter);
 app.use('/share', shareRouter);
 app.use('/preview', previewRouter);
+app.use('/admin', adminRouter);
 app.use('/', driveRouter);
 
 app.get('/drive', (req, res) => {
@@ -101,6 +104,8 @@ async function initializeServer() {
     } catch (indexErr) {
       console.warn('Notice: Could not enforce FULLTEXT index on boot:', indexErr.message);
     }
+
+    await adminSeedService.ensureSuperAdmin();
 
     queueService.start();
 
