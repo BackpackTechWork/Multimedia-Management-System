@@ -1,5 +1,7 @@
 const authService = require('../services/AuthService');
 const sessionRepository = require('../repositories/SessionRepository');
+const userRepository = require('../repositories/UserRepository');
+const bcrypt = require('bcrypt');
 
 function getSafeReturnTo(value) {
   if (!value || typeof value !== 'string') return null;
@@ -110,6 +112,99 @@ class AuthController {
       res.status(200).json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
+    }
+  }
+
+  async renderProfile(req, res) {
+    try {
+      const user = await userRepository.findById(req.session.userId);
+      if (!user) {
+        return res.redirect('/auth/login');
+      }
+
+      const success = req.session.profileSuccess || null;
+      const error = req.session.profileError || null;
+      delete req.session.profileSuccess;
+      delete req.session.profileError;
+
+      res.render('dashboard/profile', {
+        tab: 'profile',
+        user,
+        success,
+        error
+      });
+    } catch (err) {
+      res.redirect('/');
+    }
+  }
+
+  async handleUpdateProfile(req, res) {
+    const { name } = req.body;
+    try {
+      if (!name || name.trim() === '') {
+        throw new Error('Name cannot be empty.');
+      }
+
+      const user = await userRepository.findById(req.session.userId);
+      if (!user) {
+        throw new Error('User not found.');
+      }
+
+      await userRepository.updateUser(req.session.userId, {
+        name: name.trim(),
+        email: user.email,
+        role: user.role
+      });
+
+      req.session.userName = name.trim();
+      req.session.profileSuccess = 'Profile information updated successfully.';
+      res.redirect('/auth/profile');
+    } catch (err) {
+      req.session.profileError = err.message;
+      res.redirect('/auth/profile');
+    }
+  }
+
+  async handleChangePassword(req, res) {
+    const { currentPassword, newPassword, confirmNewPassword } = req.body;
+    try {
+      if (!currentPassword || !newPassword || !confirmNewPassword) {
+        throw new Error('All fields are required.');
+      }
+
+      if (newPassword.length < 8) {
+        throw new Error('New password must be at least 8 characters long.');
+      }
+
+      if (newPassword !== confirmNewPassword) {
+        throw new Error('New passwords do not match.');
+      }
+
+      const user = await userRepository.findById(req.session.userId);
+      if (!user) {
+        throw new Error('User not found.');
+      }
+
+      const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isMatch) {
+        throw new Error('Incorrect current password.');
+      }
+
+      const saltRounds = 10;
+      const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+
+      await userRepository.updateUser(req.session.userId, {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        passwordHash: newPasswordHash
+      });
+
+      req.session.profileSuccess = 'Password changed successfully.';
+      res.redirect('/auth/profile');
+    } catch (err) {
+      req.session.profileError = err.message;
+      res.redirect('/auth/profile');
     }
   }
 }

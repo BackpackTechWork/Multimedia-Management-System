@@ -1,0 +1,219 @@
+<%- include('../partials/header') %>
+
+<% locals.showSidebarToggle = true; %>
+<%- include('../partials/navbar') %>
+
+<script>
+  window.driveContext = {
+    tab: 'profile',
+    currentFolderId: ''
+  };
+</script>
+
+<div class="flex-1 flex overflow-hidden">
+  <!-- Sidebar Navigation -->
+  <%- include('../partials/sidebar') %>
+
+  <!-- Main Drive Panel -->
+  <main class="flex-1 flex flex-col min-w-0 bg-[#F8F9FA] overflow-y-auto p-6 md:p-8">
+    <div class="w-full">
+      
+      <!-- Page Title -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 select-none">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            <i class="bi bi-person-circle text-brand-teal"></i> My Profile
+          </h2>
+          <p class="text-xs text-gray-400 mt-1">Manage your account details and password settings.</p>
+        </div>
+      </div>
+
+      <!-- Success and Error Messages -->
+      <div id="alert-container">
+        <% if (locals.error) { %>
+          <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg relative mb-6 text-sm flex items-center gap-2" role="alert">
+            <i class="bi bi-exclamation-triangle-fill text-lg shrink-0"></i>
+            <span><%= error %></span>
+          </div>
+        <% } %>
+        <% if (locals.success) { %>
+          <div class="bg-green-50 border border-brand-teal text-green-700 px-4 py-3 rounded-lg relative mb-6 text-sm flex items-center gap-2" role="alert">
+            <i class="bi bi-check-circle-fill text-lg shrink-0 text-brand-teal"></i>
+            <span><%= success %></span>
+          </div>
+        <% } %>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left Column: User Card -->
+        <div class="md:col-span-4 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col items-center text-center select-none">
+          <div class="bg-brand-teal/10 text-brand-teal w-20 h-20 rounded-full flex items-center justify-center font-bold text-3xl mb-4 shadow-sm border border-brand-teal/20">
+            <%= (locals.userName || 'U').charAt(0).toUpperCase() %>
+          </div>
+          <h3 class="font-bold text-gray-800 text-lg break-all"><%= locals.userName %></h3>
+          <span class="text-xs text-gray-400 mt-0.5 break-all"><%= locals.userEmail %></span>
+          
+          <div class="mt-4 pt-4 border-t border-gray-100 w-full flex flex-col gap-2 text-xs text-left">
+            <div class="flex items-center justify-between text-gray-500">
+              <span>Account Role:</span>
+              <span class="font-semibold capitalize text-brand-teal bg-teal-50 px-2 py-0.5 rounded"><%= locals.userRole || 'User' %></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Settings Forms -->
+        <div class="md:col-span-8 flex flex-col gap-6">
+          
+          <!-- General Profile Settings -->
+          <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2 select-none">
+              <i class="bi bi-card-text text-brand-teal"></i>
+              <span class="font-bold text-sm text-gray-700">Account Information</span>
+            </div>
+            
+            <form action="/auth/profile/update" method="POST" class="p-6 flex flex-col gap-4 text-sm">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              
+              <div>
+                <label for="name" class="block font-semibold text-gray-700 mb-1">Full Name</label>
+                <input 
+                  type="text" 
+                  id="name" 
+                  name="name" 
+                  value="<%= locals.userName %>"
+                  required 
+                  placeholder="Your Full Name"
+                  class="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-brand-teal text-sm transition"
+                >
+              </div>
+
+              <div>
+                <label for="email" class="block font-semibold text-gray-500 mb-1">Email Address</label>
+                <input 
+                  type="email" 
+                  id="email" 
+                  value="<%= locals.userEmail %>"
+                  disabled
+                  class="w-full border border-gray-200 rounded-lg p-2.5 bg-gray-50 text-gray-400 text-sm cursor-not-allowed outline-none"
+                >
+                <p class="text-[10px] text-gray-400 mt-1">To change your email address, please contact your administrator.</p>
+              </div>
+
+              <div class="flex justify-end pt-2">
+                <button 
+                  type="submit" 
+                  class="bg-brand-teal hover:bg-brand-teal-dark text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md active:scale-[0.98] transition"
+                >
+                  Save Profile
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Change Password -->
+          <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2 select-none">
+              <i class="bi bi-shield-lock text-brand-teal"></i>
+              <span class="font-bold text-sm text-gray-700">Change Password</span>
+            </div>
+
+            <form action="/auth/profile/change-password" method="POST" class="p-6 flex flex-col gap-4 text-sm">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+              <div>
+                <label for="currentPassword" class="block font-semibold text-gray-700 mb-1">Current Password</label>
+                <div class="relative">
+                  <input 
+                    type="password" 
+                    id="currentPassword" 
+                    name="currentPassword" 
+                    required 
+                    placeholder="Enter current password"
+                    style="padding-right: 2.75rem;"
+                    class="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-brand-teal text-sm transition"
+                  >
+                  <button type="button" class="password-toggle-btn absolute right-2 top-2.5 p-1 text-gray-400 hover:text-brand-teal transition" data-target="currentPassword" aria-label="Toggle Password Visibility">
+                    <i class="bi bi-eye"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label for="newPassword" class="block font-semibold text-gray-700 mb-1">New Password</label>
+                <div class="relative">
+                  <input 
+                    type="password" 
+                    id="newPassword" 
+                    name="newPassword" 
+                    required 
+                    placeholder="Minimum 8 characters"
+                    style="padding-right: 2.75rem;"
+                    class="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-brand-teal text-sm transition"
+                  >
+                  <button type="button" class="password-toggle-btn absolute right-2 top-2.5 p-1 text-gray-400 hover:text-brand-teal transition" data-target="newPassword" aria-label="Toggle Password Visibility">
+                    <i class="bi bi-eye"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label for="confirmNewPassword" class="block font-semibold text-gray-700 mb-1">Confirm New Password</label>
+                <div class="relative">
+                  <input 
+                    type="password" 
+                    id="confirmNewPassword" 
+                    name="confirmNewPassword" 
+                    required 
+                    placeholder="Re-enter new password"
+                    style="padding-right: 2.75rem;"
+                    class="w-full border border-gray-300 rounded-lg p-2.5 outline-none focus:border-brand-teal text-sm transition"
+                  >
+                  <button type="button" class="password-toggle-btn absolute right-2 top-2.5 p-1 text-gray-400 hover:text-brand-teal transition" data-target="confirmNewPassword" aria-label="Toggle Password Visibility">
+                    <i class="bi bi-eye"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex justify-end pt-2">
+                <button 
+                  type="submit" 
+                  class="bg-brand-teal hover:bg-brand-teal-dark text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-md active:scale-[0.98] transition"
+                >
+                  Change Password
+                </button>
+              </div>
+            </form>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Password toggle javascript -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.password-toggle-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        const targetId = button.getAttribute('data-target');
+        const inputField = document.getElementById(targetId);
+        const icon = button.querySelector('i');
+        
+        if (inputField.type === 'password') {
+          inputField.type = 'text';
+          icon.classList.remove('bi-eye');
+          icon.classList.add('bi-eye-slash');
+        } else {
+          inputField.type = 'password';
+          icon.classList.remove('bi-eye-slash');
+          icon.classList.add('bi-eye');
+        }
+      });
+    });
+  });
+</script>
+
+<%- include('../partials/footer') %>

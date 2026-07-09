@@ -20,4 +20,8 @@ router.get('/devices', authGuard, authController.renderDevices);
 router.post('/devices/revoke', authGuard, authController.handleRevokeDevice);
 router.post('/devices/revoke-others', authGuard, authController.handleRevokeOtherDevices);
 
+router.get('/profile', authGuard, authController.renderProfile);
+router.post('/profile/update', authGuard, authController.handleUpdateProfile);
+router.post('/profile/change-password', authGuard, authController.handleChangePassword);
+
 module.exports = router;
