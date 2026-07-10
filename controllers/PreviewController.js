@@ -16,6 +16,7 @@ class PreviewController {
     this.previewImage = this.previewImage.bind(this);
     this.previewPdf = this.previewPdf.bind(this);
     this.previewExcel = this.previewExcel.bind(this);
+    this.previewWord = this.previewWord.bind(this);
     this.previewPresentation = this.previewPresentation.bind(this);
     this.previewMarkdown = this.previewMarkdown.bind(this);
     this.previewCode = this.previewCode.bind(this);
@@ -181,6 +182,12 @@ class PreviewController {
     const file = await this.checkAccess(req, parseInt(req.params.id));
     if (!file) return res.status(403).send('Access Denied');
     return this.renderPreview(req, res, 'excel', file);
+  }
+
+  async previewWord(req, res) {
+    const file = await this.checkAccess(req, parseInt(req.params.id));
+    if (!file) return res.status(403).send('Access Denied');
+    return this.renderPreview(req, res, 'word', file);
   }
 
   async previewPresentation(req, res) {

@@ -104,6 +104,7 @@ class DriveController {
     if (mimeType.startsWith('video/')) return 'video';
     if (mimeType.startsWith('audio/')) return 'audio';
     if (extension === 'md') return 'markdown';
+    if (['doc', 'docx'].includes(extension) || mimeType === 'application/msword' || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'word';
     if (['xls', 'xlsx', 'csv', 'ods'].includes(extension)) return 'excel';
     if (extension === 'zip' || mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed') return 'zip';
     return 'code';

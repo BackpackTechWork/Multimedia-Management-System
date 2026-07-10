@@ -165,6 +165,7 @@
                     else if (sharedFileMime.startsWith('video/')) sharedPreviewRoute = 'video';
                     else if (sharedFileMime.startsWith('audio/')) sharedPreviewRoute = 'audio';
                     else if (sharedFileExt === 'md') sharedPreviewRoute = 'markdown';
+                    else if (['doc', 'docx'].includes(sharedFileExt) || sharedFileMime === 'application/msword' || sharedFileMime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') sharedPreviewRoute = 'word';
                     else if (['xls', 'xlsx', 'csv', 'ods'].includes(sharedFileExt)) sharedPreviewRoute = 'excel';
                     else if (['ppt', 'pptx'].includes(sharedFileExt) || sharedFileMime === 'application/vnd.ms-powerpoint' || sharedFileMime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') sharedPreviewRoute = 'presentation';
                     else if (sharedFileExt === 'zip' || sharedFileMime === 'application/zip' || sharedFileMime === 'application/x-zip-compressed') sharedPreviewRoute = 'zip';
@@ -294,6 +295,7 @@
               else if (fileMime.startsWith('video/')) previewRoute = 'video';
               else if (fileMime.startsWith('audio/')) previewRoute = 'audio';
               else if (fileExt === 'md') previewRoute = 'markdown';
+              else if (['doc', 'docx'].includes(fileExt) || fileMime === 'application/msword' || fileMime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') previewRoute = 'word';
               else if (['xls', 'xlsx', 'csv', 'ods'].includes(fileExt)) previewRoute = 'excel';
               else if (['ppt', 'pptx'].includes(fileExt) || fileMime === 'application/vnd.ms-powerpoint' || fileMime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') previewRoute = 'presentation';
               else if (fileExt === 'zip' || fileMime === 'application/zip' || fileMime === 'application/x-zip-compressed') previewRoute = 'zip';

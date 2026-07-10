@@ -365,6 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
       else if (mime.startsWith('video/')) route = 'video';
       else if (mime.startsWith('audio/')) route = 'audio';
       else if (item.dataset.ext === 'md') route = 'markdown';
+      else if (['doc', 'docx'].includes(item.dataset.ext) || mime === 'application/msword' || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') route = 'word';
       else if (['xls', 'xlsx', 'csv', 'ods'].includes(item.dataset.ext)) route = 'excel';
       else if (['ppt', 'pptx'].includes(item.dataset.ext) || mime === 'application/vnd.ms-powerpoint' || mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') route = 'presentation';
       else if (item.dataset.ext === 'zip' || mime === 'application/zip' || mime === 'application/x-zip-compressed') route = 'zip';

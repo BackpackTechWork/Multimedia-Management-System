@@ -131,6 +131,24 @@ async function main() {
     console.error('pptx-preview not found in node_modules');
   }
 
+  // 9. JSZip (required by docx-preview)
+  const jszipSrc = path.join(__dirname, '../node_modules/jszip');
+  const jszipDest = path.join(__dirname, '../public/vendor/jszip');
+  if (fs.existsSync(jszipSrc)) {
+    await copyFile(path.join(jszipSrc, 'dist/jszip.min.js'), path.join(jszipDest, 'jszip.min.js'));
+  } else {
+    console.error('jszip not found in node_modules');
+  }
+
+  // 10. docx-preview
+  const docxSrc = path.join(__dirname, '../node_modules/docx-preview');
+  const docxDest = path.join(__dirname, '../public/vendor/docx-preview');
+  if (fs.existsSync(docxSrc)) {
+    await copyFile(path.join(docxSrc, 'dist/docx-preview.min.js'), path.join(docxDest, 'docx-preview.min.js'));
+  } else {
+    console.error('docx-preview not found in node_modules');
+  }
+
   console.log('Vendor setup complete!');
 }
 

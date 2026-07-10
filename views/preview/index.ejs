@@ -5,6 +5,7 @@
   if (type === 'image') headerIcon = 'bi-file-image-fill text-blue-500';
   else if (type === 'pdf') headerIcon = 'bi-file-pdf-fill text-red-500';
   else if (type === 'excel') headerIcon = 'bi-file-earmark-spreadsheet-fill text-green-600';
+  else if (type === 'word') headerIcon = 'bi-file-earmark-word-fill text-blue-600';
   else if (type === 'presentation') headerIcon = 'bi-file-earmark-slides-fill text-orange-600';
   else if (type === 'markdown') headerIcon = 'bi-markdown-fill text-indigo-500';
   else if (type === 'code') headerIcon = 'bi-file-code-fill text-gray-500';
@@ -72,6 +73,63 @@
       <h3 class="text-sm font-semibold text-gray-500 mb-4 flex items-center gap-1.5"><i class="bi bi-file-spreadsheet text-green-600"></i> Sheet Viewer</h3>
       <div id="excel-container" class="flex-1 overflow-auto text-gray-700"></div>
     </div>
+
+  <!-- 3.1. WORD PREVIEW (.docx and .doc) -->
+  <% } else if (type === 'word') { %>
+    <% const ext = (file.extension || '').toLowerCase(); %>
+    <% if (ext === 'docx') { %>
+      <script src="/vendor/jszip/jszip.min.js"></script>
+      <script src="/vendor/docx-preview/docx-preview.min.js"></script>
+      
+      <div class="w-full max-w-4xl bg-white border border-gray-200 rounded-xl shadow-md p-4 sm:p-8 overflow-auto max-h-[75vh] flex flex-col">
+        <h3 class="w-full text-left text-sm font-semibold text-gray-500 mb-4 flex items-center gap-1.5 select-none"><i class="bi bi-file-earmark-word text-blue-600"></i> Document Viewer</h3>
+        <div id="word-container" class="mx-auto text-left w-full"></div>
+      </div>
+
+      <script>
+        (function() {
+          const streamUrl = "<%= streamUrl %>";
+          const container = document.getElementById('word-container');
+          
+          container.innerHTML = '<div class="text-center py-12"><i class="bi bi-hourglass-split text-4xl text-blue-600 animate-spin mb-4 block"></i><p class="text-sm text-gray-500 font-medium">Loading document...</p></div>';
+          
+          fetch(streamUrl)
+            .then(res => {
+              if (!res.ok) throw new Error('Failed to download document');
+              return res.blob();
+            })
+            .then(blob => {
+              container.innerHTML = '';
+              docx.renderAsync(blob, container)
+                .then(() => console.log("docx-preview rendered successfully"))
+                .catch(err => {
+                  console.error(err);
+                  container.innerHTML = '<div class="text-center py-12"><i class="bi bi-exclamation-triangle-fill text-4xl text-red-500 mb-4 block"></i><p class="text-sm text-gray-500">Error rendering Word document: ' + err.message + '</p></div>';
+                });
+            })
+            .catch(err => {
+              console.error(err);
+              container.innerHTML = '<div class="text-center py-12"><i class="bi bi-exclamation-triangle-fill text-4xl text-red-500 mb-4 block"></i><p class="text-sm text-gray-500">Failed to load Word document: ' + err.message + '</p></div>';
+            });
+        })();
+      </script>
+    <% } else { %>
+      <div class="bg-white border border-gray-200 p-8 rounded-2xl shadow-md w-full max-w-md flex flex-col items-center">
+        <div class="bg-blue-50 text-blue-600 w-20 h-20 rounded-full flex items-center justify-center shadow-sm mb-6 border border-blue-100">
+          <i class="bi bi-file-earmark-word-fill text-4xl"></i>
+        </div>
+        <h3 class="font-bold text-base text-gray-800 truncate w-full text-center mb-2"><%= file.originalName %></h3>
+        <p class="text-xs text-gray-500 text-center mb-6 leading-relaxed">
+          Legacy Word documents (.doc) cannot be previewed directly in the browser. Please download the file to view it.
+        </p>
+        <a 
+          href="/api/files/download/<%= file.id %>" 
+          class="w-full bg-brand-teal text-white py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-brand-teal-dark shadow-sm transition flex items-center justify-center gap-1.5"
+        >
+          <i class="bi bi-download"></i> Download File
+        </a>
+      </div>
+    <% } %>
 
   <!-- 3.5. PRESENTATION PREVIEW -->
   <% } else if (type === 'presentation') { %>
@@ -148,6 +206,8 @@
       <audio src="<%= streamUrl %>" controls class="w-full bg-gray-50 rounded" autoplay></audio>
     </div>
   <% } else if (type === 'zip') { %>
+    <script src="/vendor/jszip/jszip.min.js"></script>
+    <script src="/vendor/docx-preview/docx-preview.min.js"></script>
     <div class="w-full bg-white border border-gray-200 rounded-xl shadow-md flex flex-col overflow-hidden max-h-[75vh]">
       <!-- Explorer Header -->
       <div class="px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/50 select-none">
@@ -233,6 +293,11 @@
             <pre class="bg-white p-4 rounded-lg text-gray-800 text-xs font-mono overflow-auto max-h-[58vh] text-left border border-gray-200 shadow-inner"><code id="zip-modal-code"></code></pre>
           </div>
           
+          <!-- Word Container -->
+          <div id="zip-modal-word-container" class="hidden w-full max-h-[60vh] overflow-auto bg-white p-4 sm:p-8 rounded-lg border border-gray-200 shadow-sm text-left">
+            <div id="zip-modal-word" class="mx-auto text-left w-full"></div>
+          </div>
+          
           <!-- Unsupported Container -->
           <div id="zip-modal-unsupported-container" class="hidden text-center py-12">
             <i class="bi bi-file-earmark-lock text-5xl text-gray-400 mb-4 block"></i>
@@ -316,7 +381,8 @@
           const ext = name.split('.').pop().toLowerCase();
           if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico'].includes(ext)) return 'bi-file-image-fill text-blue-400';
           if (ext === 'pdf') return 'bi-file-pdf-fill text-red-400';
-          if (['doc', 'docx', 'rtf', 'txt', 'pages'].includes(ext)) return 'bi-file-earmark-text-fill text-blue-300';
+          if (['doc', 'docx'].includes(ext)) return 'bi-file-word-fill text-blue-500';
+          if (['rtf', 'txt', 'pages'].includes(ext)) return 'bi-file-earmark-text-fill text-blue-300';
           if (['xls', 'xlsx', 'csv', 'ods', 'numbers'].includes(ext)) return 'bi-file-earmark-spreadsheet-fill text-green-500';
           if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'bi-file-zip-fill text-purple-400';
           if (['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(ext)) return 'bi-file-music-fill text-pink-400';
@@ -327,7 +393,7 @@
 
         function isPreviewable(name) {
           const ext = name.split('.').pop().toLowerCase();
-          return ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'pdf', 'txt', 'md', 'js', 'ts', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'ini', 'conf', 'sql', 'py', 'sh', 'bat', 'cpp', 'h', 'c', 'cs', 'java', 'go', 'rs'].includes(ext);
+          return ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'pdf', 'txt', 'md', 'js', 'ts', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'ini', 'conf', 'sql', 'py', 'sh', 'bat', 'cpp', 'h', 'c', 'cs', 'java', 'go', 'rs', 'docx'].includes(ext);
         }
 
         function renderBreadcrumbs() {
@@ -526,6 +592,7 @@
           document.getElementById('zip-modal-img-container').classList.add('hidden');
           document.getElementById('zip-modal-iframe-container').classList.add('hidden');
           document.getElementById('zip-modal-text-container').classList.add('hidden');
+          document.getElementById('zip-modal-word-container').classList.add('hidden');
           document.getElementById('zip-modal-unsupported-container').classList.add('hidden');
           
           modalTitle.textContent = filePath.split('/').pop();
@@ -543,6 +610,26 @@
             iframe.src = '';
             iframe.src = `/vendor/embedpdf/viewer.html?file=${encodeURIComponent(streamUrl)}`;
             document.getElementById('zip-modal-iframe-container').classList.remove('hidden');
+          } else if (ext === 'docx') {
+            const wordContainer = document.getElementById('zip-modal-word');
+            wordContainer.innerHTML = '<div class="text-center py-12"><i class="bi bi-hourglass-split text-4xl text-blue-600 animate-spin mb-4 block"></i><p class="text-sm text-gray-500 font-medium">Loading document...</p></div>';
+            document.getElementById('zip-modal-word-container').classList.remove('hidden');
+            
+            fetch(streamUrl)
+              .then(res => {
+                if (!res.ok) throw new Error('Failed to load document');
+                return res.blob();
+              })
+              .then(blob => {
+                wordContainer.innerHTML = '';
+                docx.renderAsync(blob, wordContainer)
+                  .catch(err => {
+                    wordContainer.innerHTML = 'Error rendering document: ' + err.message;
+                  });
+              })
+              .catch(err => {
+                wordContainer.innerHTML = 'Error: ' + err.message;
+              });
           } else if (['txt', 'md', 'js', 'ts', 'html', 'css', 'json', 'xml', 'yaml', 'yml', 'ini', 'conf', 'sql', 'py', 'sh', 'bat', 'cpp', 'h', 'c', 'cs', 'java', 'go', 'rs'].includes(ext)) {
             const codeBlock = document.getElementById('zip-modal-code');
             codeBlock.textContent = 'Loading file contents...';
