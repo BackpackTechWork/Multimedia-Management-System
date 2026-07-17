@@ -26,23 +26,102 @@
         class="bg-transparent border-none outline-none w-full text-sm text-gray-700 placeholder-gray-400"
       >
       
-      <select name="type" class="bg-transparent border-none outline-none text-xs text-gray-500 font-semibold cursor-pointer pr-2 border-r border-gray-300">
-        <option value="all" <%= locals.fileType === 'all' ? 'selected' : '' %>>All Types</option>
-        <option value="image" <%= locals.fileType === 'image' ? 'selected' : '' %>>Images</option>
-        <option value="pdf" <%= locals.fileType === 'pdf' ? 'selected' : '' %>>PDFs</option>
-        <option value="document" <%= locals.fileType === 'document' ? 'selected' : '' %>>Documents</option>
-        <option value="excel" <%= locals.fileType === 'excel' ? 'selected' : '' %>>Excel</option>
-        <option value="markdown" <%= locals.fileType === 'markdown' ? 'selected' : '' %>>Markdown</option>
-        <option value="code" <%= locals.fileType === 'code' ? 'selected' : '' %>>Code</option>
-        <option value="audio" <%= locals.fileType === 'audio' ? 'selected' : '' %>>Audio</option>
-        <option value="video" <%= locals.fileType === 'video' ? 'selected' : '' %>>Video</option>
-      </select>
+      <!-- Hidden inputs for type and sortBy -->
+      <input type="hidden" name="type" id="search-type-input" value="<%= locals.fileType || 'all' %>">
+      <input type="hidden" name="sortBy" id="search-sortBy-input" value="<%= locals.sortBy || 'date' %>">
 
-      <select name="sortBy" class="bg-transparent border-none outline-none text-xs text-gray-500 font-semibold cursor-pointer pr-2">
-        <option value="date" <%= locals.sortBy === 'date' ? 'selected' : '' %>>Sort by Date</option>
-        <option value="name" <%= locals.sortBy === 'name' ? 'selected' : '' %>>Sort by Name</option>
-        <option value="size" <%= locals.sortBy === 'size' ? 'selected' : '' %>>Sort by Size</option>
-      </select>
+      <!-- Custom Dropdown for Type -->
+      <div class="relative shrink-0" id="search-type-dropdown">
+        <button type="button" class="dropdown-trigger flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-500 hover:text-brand-teal font-semibold rounded-lg hover:bg-gray-200/50 transition cursor-pointer select-none">
+          <i class="bi <%= {
+            all: 'bi-grid-fill',
+            image: 'bi-image',
+            pdf: 'bi-file-pdf',
+            document: 'bi-file-word',
+            excel: 'bi-file-spreadsheet',
+            markdown: 'bi-markdown',
+            code: 'bi-code-slash',
+            audio: 'bi-music-note-beamed',
+            video: 'bi-film'
+          }[locals.fileType] || 'bi-grid-fill' %> text-gray-400 text-sm"></i>
+          <span class="selected-text">
+            <%= {
+              all: 'All Types',
+              image: 'Images',
+              pdf: 'PDFs',
+              document: 'Documents',
+              excel: 'Excel',
+              markdown: 'Markdown',
+              code: 'Code',
+              audio: 'Audio',
+              video: 'Video'
+            }[locals.fileType] || 'All Types' %>
+          </span>
+          <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
+        </button>
+        <div class="dropdown-menu absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50 animate-in fade-in-50 slide-in-from-top-1 duration-100">
+          <% [
+            { val: 'all', label: 'All Types', icon: 'bi-grid-fill' },
+            { val: 'image', label: 'Images', icon: 'bi-image' },
+            { val: 'pdf', label: 'PDFs', icon: 'bi-file-pdf' },
+            { val: 'document', label: 'Documents', icon: 'bi-file-word' },
+            { val: 'excel', label: 'Excel', icon: 'bi-file-spreadsheet' },
+            { val: 'markdown', label: 'Markdown', icon: 'bi-markdown' },
+            { val: 'code', label: 'Code', icon: 'bi-code-slash' },
+            { val: 'audio', label: 'Audio', icon: 'bi-music-note-beamed' },
+            { val: 'video', label: 'Video', icon: 'bi-film' }
+          ].forEach(item => { %>
+            <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= (locals.fileType || 'all') === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
+              <span class="flex items-center gap-2">
+                <i class="bi <%= item.icon %> <%= (locals.fileType || 'all') === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
+                <%= item.label %>
+              </span>
+              <% if ((locals.fileType || 'all') === item.val) { %>
+                <i class="bi bi-check-lg text-brand-teal text-sm"></i>
+              <% } %>
+            </button>
+          <% }) %>
+        </div>
+      </div>
+
+      <!-- Vertical Divider -->
+      <div class="w-px h-5 bg-gray-300 mx-1 shrink-0"></div>
+
+      <!-- Custom Dropdown for SortBy -->
+      <div class="relative shrink-0" id="search-sortBy-dropdown">
+        <button type="button" class="dropdown-trigger flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-500 hover:text-brand-teal font-semibold rounded-lg hover:bg-gray-200/50 transition cursor-pointer select-none">
+          <i class="bi <%= {
+            date: 'bi-calendar-event',
+            name: 'bi-sort-alpha-down',
+            size: 'bi-database'
+          }[locals.sortBy] || 'bi-calendar-event' %> text-gray-400 text-sm"></i>
+          <span class="selected-text">
+            <%= {
+              date: 'Sort by Date',
+              name: 'Sort by Name',
+              size: 'Sort by Size'
+            }[locals.sortBy] || 'Sort by Date' %>
+          </span>
+          <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
+        </button>
+        <div class="dropdown-menu absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50 animate-in fade-in-50 slide-in-from-top-1 duration-100">
+          <% [
+            { val: 'date', label: 'Sort by Date', icon: 'bi-calendar-event' },
+            { val: 'name', label: 'Sort by Name', icon: 'bi-sort-alpha-down' },
+            { val: 'size', label: 'Sort by Size', icon: 'bi-database' }
+          ].forEach(item => { %>
+            <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= (locals.sortBy || 'date') === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
+              <span class="flex items-center gap-2">
+                <i class="bi <%= item.icon %> <%= (locals.sortBy || 'date') === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
+                <%= item.label %>
+              </span>
+              <% if ((locals.sortBy || 'date') === item.val) { %>
+                <i class="bi bi-check-lg text-brand-teal text-sm"></i>
+              <% } %>
+            </button>
+          <% }) %>
+        </div>
+      </div>
 
       <button type="submit" class="hidden"></button>
     </form>

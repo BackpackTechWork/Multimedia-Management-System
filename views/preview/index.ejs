@@ -64,10 +64,10 @@
 
   <!-- 3. EXCEL PREVIEW -->
   <% } else if (type === 'excel') { %>
-    <!-- SheetJS (xlsx) fallbacks script loaded locally from NPM or cdn if necessary, 
-         since we can package it during vendor setup. We will include SheetJS locally! -->
+    <link rel="stylesheet" href="/vendor/excel-viewer/excel/xspreadsheet.css">
+    <script src="/vendor/excel-viewer/excel/xspreadsheet.js"></script>
+    <script src="/vendor/excel-viewer/excel/xlsx.full.min.js"></script>
     <script src="/vendor/excel-viewer/excel-viewer.js"></script>
-    <!-- Fallback if XLSX is also copied in vendor -->
     
     <div class="w-full max-w-6xl bg-white border border-gray-200 rounded-xl shadow-md p-4 sm:p-6 overflow-hidden flex flex-col">
       <h3 class="text-sm font-semibold text-gray-500 mb-4 flex items-center gap-1.5"><i class="bi bi-file-spreadsheet text-green-600"></i> Sheet Viewer</h3>

@@ -47,7 +47,8 @@ class DriveController {
       'toggleStar',
       'trashItem',
       'restoreItem',
-      'purgeItem'
+      'purgeItem',
+      'bulkTrashAction'
     ].forEach(method => {
       this[method] = this[method].bind(this);
     });
@@ -1001,6 +1002,61 @@ class DriveController {
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
+  }
+
+  async bulkTrashAction(req, res) {
+    const { action, items } = req.body;
+    const userId = req.session.userId;
+    const isSuperAdmin = this.isSuperAdmin(req);
+
+    const actionHandlers = {
+      move: (item) => driveService.moveToTrash(userId, item.entityType, item.entityId, { isSuperAdmin }),
+      restore: (item) => driveService.restoreFromTrash(userId, item.entityType, item.entityId, { isSuperAdmin }),
+      purge: (item) => driveService.purgeItemPermanently(userId, item.entityType, item.entityId, { isSuperAdmin })
+    };
+
+    if (!actionHandlers[action]) {
+      return res.status(400).json({ error: 'Invalid trash action' });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'No items selected' });
+    }
+
+    const normalizedItems = items.map(item => ({
+      entityType: item.entityType,
+      entityId: parseInt(item.entityId, 10)
+    }));
+
+    const invalidItem = normalizedItems.find(item => (
+      !['file', 'folder'].includes(item.entityType) || Number.isNaN(item.entityId)
+    ));
+    if (invalidItem) {
+      return res.status(400).json({ error: 'Invalid selected item' });
+    }
+
+    const errors = [];
+    let processed = 0;
+
+    for (const item of normalizedItems) {
+      try {
+        await actionHandlers[action](item);
+        processed += 1;
+      } catch (err) {
+        errors.push({
+          entityType: item.entityType,
+          entityId: item.entityId,
+          error: err.message || 'Action failed'
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: errors.length === 0,
+      processed,
+      failed: errors.length,
+      errors
+    });
   }
 }
 

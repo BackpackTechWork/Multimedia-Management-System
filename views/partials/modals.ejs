@@ -31,14 +31,14 @@
     <div class="border border-gray-200 rounded-lg p-3 max-h-60 overflow-y-auto mb-4 text-sm">
       <!-- Folder select tree -->
       <div class="flex flex-col gap-1">
-        <label class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer">
+        <label class="move-copy-destination-option flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer" data-destination-id="" data-folder-path="/">
           <input type="radio" name="dest-folder" value="" checked class="text-brand-teal focus:ring-brand-teal">
           <i class="bi bi-hdd-fill text-gray-400"></i>
           <span>My Drive (Root)</span>
         </label>
         <% if (locals.allUserFolders && allUserFolders.length > 0) { %>
           <% allUserFolders.forEach(folder => { %>
-            <label class="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer" style="margin-left: <%= (folder.path.split('/').length - 3) * 16 %>px">
+            <label class="move-copy-destination-option flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer" data-destination-id="<%= folder.id %>" data-folder-path="<%= folder.path %>" data-owner-id="<%= folder.userId %>" style="margin-left: <%= (folder.path.split('/').length - 3) * 16 %>px">
               <input type="radio" name="dest-folder" value="<%= folder.id %>" class="text-brand-teal focus:ring-brand-teal">
               <i class="bi bi-folder-fill text-yellow-500"></i>
               <span class="truncate"><%= folder.name %></span>
@@ -335,7 +335,7 @@
     // --- RENAME MODAL SUBMIT WORK ---
     const renameSubmitBtn = document.getElementById('rename-submit-btn');
     if (renameSubmitBtn) {
-      renameSubmitBtn.addEventListener('click', () => {
+      renameSubmitBtn.addEventListener('click', async () => {
         const selected = window.selectedItems ? window.selectedItems()[0] : null;
         if (!selected) return;
 
@@ -345,33 +345,102 @@
         const type = selected.dataset.type;
 
         if (!newName || newName.trim() === '') {
-          alert('Name is required');
+          window.showDriveToast?.('Name is required', 'warning');
           return;
         }
 
-        fetch(`/api/${type}s/rename`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-csrf-token': csrfToken
-          },
-          body: JSON.stringify({ id, name: newName })
-        })
-        .then(res => {
-          if (res.ok) window.location.reload();
-          else alert('Rename action failed');
-        });
+        try {
+          const res = await fetch(`/api/${type}s/rename`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-csrf-token': csrfToken
+            },
+            body: JSON.stringify({ id, name: newName })
+          });
+
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Rename action failed');
+          }
+
+          window.queueDriveToast?.('Renamed successfully', 'success');
+          window.location.reload();
+        } catch (err) {
+          window.showDriveToast?.(err.message || 'Rename action failed', 'error');
+        }
       });
     }
 
     // --- MOVE/COPY SELECTION SUBMIT WORK ---
     const moveCopySubmitBtn = document.getElementById('move-copy-submit-btn');
+    function configureMoveCopyDestinations(selected) {
+      const options = Array.from(document.querySelectorAll('.move-copy-destination-option'));
+      const currentLocationIds = new Set(
+        selected.map(el => el.dataset.parentId ?? '').map(value => value || '')
+      );
+      const selectedFolderIds = new Set(
+        selected
+          .filter(el => el.dataset.type === 'folder')
+          .map(el => el.dataset.id)
+      );
+      const selectedFolderPaths = selected
+        .filter(el => el.dataset.type === 'folder' && el.dataset.path)
+        .map(el => el.dataset.path);
+      const selectedOwnerIds = new Set(
+        selected
+          .map(el => el.dataset.ownerId || '')
+          .filter(Boolean)
+      );
+
+      let firstAvailableRadio = null;
+
+      options.forEach(option => {
+        const radio = option.querySelector('input[name="dest-folder"]');
+        if (!radio) return;
+
+        const destinationId = option.dataset.destinationId || '';
+        const destinationPath = option.dataset.folderPath || '';
+        const destinationOwnerId = option.dataset.ownerId || '';
+        const isCurrentLocation = currentLocationIds.has(destinationId);
+        const isSelectedFolder = selectedFolderIds.has(destinationId);
+        const isSelectedSubfolder = selectedFolderPaths.some(path => (
+          destinationPath && path && destinationPath.startsWith(path) && destinationPath !== path
+        ));
+        const isCrossOwner = Boolean(destinationOwnerId) && (
+          selectedOwnerIds.size !== 1 || !selectedOwnerIds.has(destinationOwnerId)
+        );
+        const isDisabled = isCurrentLocation || isSelectedFolder || isSelectedSubfolder || isCrossOwner;
+
+        radio.disabled = isDisabled;
+        if (isDisabled && radio.checked) radio.checked = false;
+        option.classList.toggle('opacity-50', isDisabled);
+        option.classList.toggle('cursor-not-allowed', isDisabled);
+        option.classList.toggle('hover:bg-gray-50', !isDisabled);
+        option.title = isCurrentLocation
+          ? 'Already in this location'
+          : isSelectedFolder || isSelectedSubfolder
+            ? 'Cannot choose the selected folder or its subfolders'
+            : isCrossOwner
+              ? 'Choose a folder owned by the same user as the selected item'
+              : '';
+
+        if (!isDisabled && !firstAvailableRadio) firstAvailableRadio = radio;
+      });
+
+      if (!document.querySelector('input[name="dest-folder"]:checked') && firstAvailableRadio) {
+        firstAvailableRadio.checked = true;
+      }
+
+      return Boolean(firstAvailableRadio);
+    }
+
     if (moveCopySubmitBtn) {
       moveCopySubmitBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const selected = window.selectedItems ? window.selectedItems() : [];
         if (selected.length === 0) {
-          alert('Select at least one item first.');
+          window.showDriveToast?.('Select at least one item first.', 'warning');
           return;
         }
 
@@ -379,6 +448,10 @@
         const route = isCopy ? 'copy' : 'move';
         const selectedRadio = document.querySelector('input[name="dest-folder"]:checked');
         const destId = selectedRadio ? selectedRadio.value : '';
+        if (!selectedRadio || selectedRadio.disabled) {
+          window.showDriveToast?.('Choose a different destination folder.', 'warning');
+          return;
+        }
 
         moveCopySubmitBtn.disabled = true;
         const originalText = moveCopySubmitBtn.textContent;
@@ -413,9 +486,10 @@
             }
           }));
 
+          window.queueDriveToast?.(`${selected.length} item(s) ${isCopy ? 'copied' : 'moved'}`, 'success');
           window.location.reload();
         } catch (err) {
-          alert(err.message || `${originalText} failed`);
+          window.showDriveToast?.(err.message || `${originalText} failed`, 'error');
           moveCopySubmitBtn.disabled = false;
           moveCopySubmitBtn.textContent = originalText;
         }
@@ -976,12 +1050,16 @@
         e.stopPropagation();
         const selected = window.selectedItems ? window.selectedItems() : [];
         if (selected.length === 0) {
-          alert('Select at least one item first.');
+          window.showDriveToast?.('Select at least one item first.', 'warning');
           return;
         }
         document.getElementById('move-copy-title').textContent = 'Move Selection';
         moveCopySubmitBtn.textContent = 'Move';
         moveCopySubmitBtn.dataset.isCopy = 'false';
+        if (!configureMoveCopyDestinations(selected)) {
+          window.showDriveToast?.('No available destination folder for this selection.', 'warning');
+          return;
+        }
         document.getElementById('move-copy-modal').classList.remove('hidden');
       });
     }
@@ -992,12 +1070,16 @@
         e.stopPropagation();
         const selected = window.selectedItems ? window.selectedItems() : [];
         if (selected.length === 0) {
-          alert('Select at least one item first.');
+          window.showDriveToast?.('Select at least one item first.', 'warning');
           return;
         }
         document.getElementById('move-copy-title').textContent = 'Copy Selection';
         moveCopySubmitBtn.textContent = 'Copy';
         moveCopySubmitBtn.dataset.isCopy = 'true';
+        if (!configureMoveCopyDestinations(selected)) {
+          window.showDriveToast?.('No available destination folder for this selection.', 'warning');
+          return;
+        }
         document.getElementById('move-copy-modal').classList.remove('hidden');
       });
     }

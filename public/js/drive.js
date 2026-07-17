@@ -181,6 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!canWriteCurrentFolder()) return;
       newDropdownMenu.classList.toggle('hidden');
       if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
+      document.querySelector('#search-type-dropdown .dropdown-menu')?.classList.add('hidden');
+      document.querySelector('#search-sortBy-dropdown .dropdown-menu')?.classList.add('hidden');
     });
   }
 
@@ -189,8 +191,88 @@ document.addEventListener('DOMContentLoaded', () => {
       e.stopPropagation();
       profileDropdownMenu.classList.toggle('hidden');
       if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
+      document.querySelector('#search-type-dropdown .dropdown-menu')?.classList.add('hidden');
+      document.querySelector('#search-sortBy-dropdown .dropdown-menu')?.classList.add('hidden');
     });
   }
+
+  // --- CUSTOM SEARCH DROPDOWNS ---
+  const searchTypeDropdown = document.getElementById('search-type-dropdown');
+  const searchSortDropdown = document.getElementById('search-sortBy-dropdown');
+
+  if (searchTypeDropdown) {
+    const trigger = searchTypeDropdown.querySelector('.dropdown-trigger');
+    const menu = searchTypeDropdown.querySelector('.dropdown-menu');
+    const input = document.getElementById('search-type-input');
+    const form = searchTypeDropdown.closest('form');
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.toggle('hidden');
+      if (searchSortDropdown) {
+        searchSortDropdown.querySelector('.dropdown-menu').classList.add('hidden');
+      }
+      if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
+      if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
+    });
+
+    searchTypeDropdown.querySelectorAll('.dropdown-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const value = item.getAttribute('data-value');
+        if (input && form) {
+          input.value = value;
+          form.submit();
+        }
+        menu.classList.add('hidden');
+      });
+    });
+  }
+
+  if (searchSortDropdown) {
+    const trigger = searchSortDropdown.querySelector('.dropdown-trigger');
+    const menu = searchSortDropdown.querySelector('.dropdown-menu');
+    const input = document.getElementById('search-sortBy-input');
+    const form = searchSortDropdown.closest('form');
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.toggle('hidden');
+      if (searchTypeDropdown) {
+        searchTypeDropdown.querySelector('.dropdown-menu').classList.add('hidden');
+      }
+      if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
+      if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
+    });
+
+    searchSortDropdown.querySelectorAll('.dropdown-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const value = item.getAttribute('data-value');
+        if (input && form) {
+          input.value = value;
+          form.submit();
+        }
+        menu.classList.add('hidden');
+      });
+    });
+  }
+
+  // Close dropdowns when clicking outside (using capture phase to bypass stopPropagation)
+  document.addEventListener('click', (e) => {
+    if (searchTypeDropdown && !searchTypeDropdown.contains(e.target)) {
+      searchTypeDropdown.querySelector('.dropdown-menu')?.classList.add('hidden');
+    }
+    if (searchSortDropdown && !searchSortDropdown.contains(e.target)) {
+      searchSortDropdown.querySelector('.dropdown-menu')?.classList.add('hidden');
+    }
+    if (newDropdownMenu && newDropdownBtn && !newDropdownBtn.contains(e.target) && !newDropdownMenu.contains(e.target)) {
+      newDropdownMenu.classList.add('hidden');
+    }
+    if (profileDropdownMenu && profileDropdownBtn && !profileDropdownBtn.contains(e.target) && !profileDropdownMenu.contains(e.target)) {
+      profileDropdownMenu.classList.add('hidden');
+    }
+  }, true);
 
   // Sidebar upload button
   if (sidebarUploadBtn) {
@@ -231,6 +313,162 @@ document.addEventListener('DOMContentLoaded', () => {
   let justDragged = false;
   let internalItemDrag = false;
   const DRIVE_ITEMS_MIME = 'application/x-harbor-drive-items';
+  const DRIVE_TOAST_STORAGE_KEY = 'harbor-drive-toast';
+
+  function showDriveToast(message, type = 'info', duration = 5200) {
+    if (!message) return;
+    const toastDuration = Number.isFinite(duration) ? Math.max(duration, 1800) : 5200;
+
+    let container = document.getElementById('drive-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'drive-toast-container';
+      container.className = 'fixed bottom-4 right-4 left-4 md:left-auto z-[10000] flex flex-col gap-2 pointer-events-none';
+      container.style.maxWidth = '26rem';
+      document.body.appendChild(container);
+    }
+
+    const tones = {
+      success: {
+        icon: 'bi-check-circle-fill',
+        iconClass: 'text-brand-teal bg-teal-50 border-brand-teal/20',
+        progressClass: 'bg-brand-teal'
+      },
+      error: {
+        icon: 'bi-exclamation-circle-fill',
+        iconClass: 'text-red-600 bg-red-50 border-red-200',
+        progressClass: 'bg-red-500'
+      },
+      warning: {
+        icon: 'bi-exclamation-triangle-fill',
+        iconClass: 'text-amber-700 bg-amber-50 border-amber-200',
+        progressClass: 'bg-amber-500'
+      },
+      info: {
+        icon: 'bi-info-circle-fill',
+        iconClass: 'text-brand-teal bg-teal-50 border-brand-teal/20',
+        progressClass: 'bg-brand-teal'
+      }
+    };
+    const tone = tones[type] || tones.info;
+
+    const toast = document.createElement('div');
+    toast.className = 'pointer-events-auto bg-white border border-gray-200 shadow-xl rounded-xl overflow-hidden select-none transition duration-200 translate-y-2 opacity-0';
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+
+    const content = document.createElement('div');
+    content.className = 'flex items-center gap-3 px-4 py-3';
+
+    const iconWrap = document.createElement('div');
+    iconWrap.className = `w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${tone.iconClass}`;
+    iconWrap.innerHTML = `<i class="bi ${tone.icon} text-base"></i>`;
+
+    const text = document.createElement('div');
+    text.className = 'min-w-0 flex-1 text-sm font-semibold text-gray-800 leading-tight';
+    text.textContent = message;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'p-1.5 -mr-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-md transition';
+    closeBtn.setAttribute('aria-label', 'Dismiss notification');
+    closeBtn.innerHTML = '<i class="bi bi-x-lg text-xs"></i>';
+
+    const progressTrack = document.createElement('div');
+    progressTrack.className = 'h-1 bg-gray-100 overflow-hidden';
+
+    const progressBar = document.createElement('div');
+    progressBar.className = `${tone.progressClass} h-1`;
+    progressBar.style.width = '100%';
+    progressBar.style.transition = `width ${toastDuration}ms linear`;
+    progressTrack.appendChild(progressBar);
+
+    content.append(iconWrap, text, closeBtn);
+    toast.append(content, progressTrack);
+    container.appendChild(toast);
+
+    let removeTimeoutId = null;
+    const dismiss = () => {
+      window.clearTimeout(removeTimeoutId);
+      toast.classList.add('translate-y-2', 'opacity-0');
+      setTimeout(() => toast.remove(), 220);
+    };
+
+    closeBtn.addEventListener('click', dismiss);
+
+    requestAnimationFrame(() => {
+      toast.classList.remove('translate-y-2', 'opacity-0');
+      requestAnimationFrame(() => {
+        progressBar.style.width = '0%';
+      });
+    });
+
+    removeTimeoutId = setTimeout(dismiss, toastDuration);
+  }
+
+  function queueDriveToast(message, type = 'info', duration = 5200) {
+    sessionStorage.setItem(DRIVE_TOAST_STORAGE_KEY, JSON.stringify({ message, type, duration }));
+  }
+
+  function showQueuedDriveToast() {
+    const rawToast = sessionStorage.getItem(DRIVE_TOAST_STORAGE_KEY);
+    if (!rawToast) return;
+
+    sessionStorage.removeItem(DRIVE_TOAST_STORAGE_KEY);
+    try {
+      const toast = JSON.parse(rawToast);
+      showDriveToast(toast.message, toast.type, toast.duration);
+    } catch {
+      showDriveToast(rawToast);
+    }
+  }
+
+  window.showDriveToast = showDriveToast;
+  window.queueDriveToast = queueDriveToast;
+  showQueuedDriveToast();
+
+  const instantTooltip = document.createElement('div');
+  instantTooltip.id = 'instant-action-tooltip';
+  instantTooltip.className = 'fixed z-[10001] hidden pointer-events-none bg-gray-900 text-white text-[11px] font-semibold px-2 py-1 rounded-md shadow-lg whitespace-nowrap opacity-0 transition-opacity duration-75';
+  document.body.appendChild(instantTooltip);
+
+  function positionInstantTooltip(target) {
+    const label = target.dataset.tooltip;
+    if (!label) return;
+
+    instantTooltip.textContent = label;
+    instantTooltip.classList.remove('hidden');
+    instantTooltip.style.left = '0px';
+    instantTooltip.style.top = '0px';
+
+    const targetRect = target.getBoundingClientRect();
+    const tooltipRect = instantTooltip.getBoundingClientRect();
+    const padding = 8;
+    const left = Math.min(
+      Math.max(targetRect.left + (targetRect.width / 2) - (tooltipRect.width / 2), padding),
+      window.innerWidth - tooltipRect.width - padding
+    );
+    const preferredTop = targetRect.bottom + padding;
+    const top = preferredTop + tooltipRect.height <= window.innerHeight - padding
+      ? preferredTop
+      : Math.max(targetRect.top - tooltipRect.height - padding, padding);
+
+    instantTooltip.style.left = `${left}px`;
+    instantTooltip.style.top = `${top}px`;
+    instantTooltip.classList.remove('opacity-0');
+  }
+
+  function hideInstantTooltip() {
+    instantTooltip.classList.add('opacity-0');
+    instantTooltip.classList.add('hidden');
+  }
+
+  document.querySelectorAll('.drive-action-bar [data-tooltip]').forEach(button => {
+    button.addEventListener('mouseenter', () => positionInstantTooltip(button));
+    button.addEventListener('focus', () => positionInstantTooltip(button));
+    button.addEventListener('mouseleave', hideInstantTooltip);
+    button.addEventListener('blur', hideInstantTooltip);
+    button.addEventListener('click', hideInstantTooltip);
+  });
 
   // Custom Context Menu Overlay
   const contextMenu = document.createElement('div');
@@ -250,9 +488,17 @@ document.addEventListener('DOMContentLoaded', () => {
       <i class="bi bi-pencil text-gray-500 text-sm"></i>
       <span>Rename</span>
     </button>
+    <button id="context-copy-clipboard" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-copy text-gray-500 text-sm"></i>
+      <span>Copy</span>
+    </button>
+    <button id="context-cut-clipboard" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-scissors text-gray-500 text-sm"></i>
+      <span>Cut</span>
+    </button>
     <button id="context-copy" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
       <i class="bi bi-file-earmark-medical text-gray-500 text-sm"></i>
-      <span>Make a copy</span>
+      <span>Copy to...</span>
     </button>
     <div class="h-px bg-gray-200 my-1"></div>
     <button id="context-share" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
@@ -293,12 +539,40 @@ document.addEventListener('DOMContentLoaded', () => {
       <i class="bi bi-folder-symlink text-brand-teal text-sm"></i>
       <span>Folder upload</span>
     </button>
+    <div class="h-px bg-gray-200 my-1"></div>
+    <button id="empty-context-paste" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
+      <i class="bi bi-clipboard-check text-gray-500 text-sm"></i>
+      <span>Paste</span>
+    </button>
   `;
   document.body.appendChild(emptySpaceContextMenu);
 
+  function positionContextMenu(menu, clientX, clientY) {
+    const viewportPadding = 10;
+    const maxHeight = Math.max(window.innerHeight - (viewportPadding * 2), 120);
+
+    menu.style.maxHeight = `${maxHeight}px`;
+    menu.style.overflowY = 'auto';
+    menu.style.left = '0px';
+    menu.style.top = '0px';
+    menu.style.visibility = 'hidden';
+    menu.classList.remove('hidden');
+
+    const rect = menu.getBoundingClientRect();
+    const maxLeft = window.innerWidth - rect.width - viewportPadding;
+    const maxTop = window.innerHeight - rect.height - viewportPadding;
+    const left = Math.min(Math.max(clientX, viewportPadding), Math.max(maxLeft, viewportPadding));
+    const top = Math.min(Math.max(clientY, viewportPadding), Math.max(maxTop, viewportPadding));
+
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+    menu.style.visibility = '';
+  }
+
   const toolbarDeleteBtn = document.getElementById('detail-delete-btn');
   if (toolbarDeleteBtn && isTrashTab) {
-    toolbarDeleteBtn.title = 'Delete permanently';
+    toolbarDeleteBtn.dataset.tooltip = 'Delete permanently';
+    toolbarDeleteBtn.setAttribute('aria-label', 'Delete permanently');
     toolbarDeleteBtn.classList.add('text-red-600');
   }
 
@@ -333,6 +607,27 @@ document.addEventListener('DOMContentLoaded', () => {
     element.classList.remove('selected');
     selectedItems = selectedItems.filter(el => el !== element);
     updateDetailsPane();
+  }
+
+  function selectAllItems() {
+    selectedItems = Array.from(items);
+    selectedItems.forEach(item => item.classList.add('selected'));
+    updateDetailsPane();
+  }
+
+  function setSelectedItems(elements) {
+    items.forEach(item => item.classList.remove('selected'));
+    selectedItems = Array.from(elements || []).filter(Boolean);
+    selectedItems.forEach(item => item.classList.add('selected'));
+    updateDetailsPane();
+  }
+
+  function getClipboardItemsFromSelection() {
+    return selectedItems.map(el => ({
+      id: el.dataset.id,
+      type: el.dataset.type,
+      name: el.dataset.name || el.dataset.type
+    }));
   }
 
   function updateTrashSelectionActions() {
@@ -423,22 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
         selectItem(item, false);
       }
 
-      // Position and show custom context menu
-      const menuWidth = 224;
-      const menuHeight = 280;
-      let posX = e.clientX;
-      let posY = e.clientY;
-
-      if (posX + menuWidth > window.innerWidth) {
-        posX = window.innerWidth - menuWidth - 10;
-      }
-      if (posY + menuHeight > window.innerHeight) {
-        posY = window.innerHeight - menuHeight - 10;
-      }
-
-      contextMenu.style.left = posX + 'px';
-      contextMenu.style.top = posY + 'px';
-      contextMenu.classList.remove('hidden');
+      positionContextMenu(contextMenu, e.clientX, e.clientY);
     });
 
     if (!isTrashTab) {
@@ -552,9 +832,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
           await moveDriveItemsToFolder(draggedItems, folder);
+          queueDriveToast(`${draggedItems.length} item(s) moved`, 'success');
           window.location.reload();
         } catch (err) {
-          alert(err.message || 'Unable to move the selected items.');
+          showDriveToast(err.message || 'Unable to move the selected items.', 'error');
         }
       });
     });
@@ -581,6 +862,18 @@ document.addEventListener('DOMContentLoaded', () => {
     e.stopPropagation();
     const btn = document.getElementById('detail-rename-btn');
     if (btn) btn.click();
+    contextMenu.classList.add('hidden');
+  });
+
+  document.getElementById('context-copy-clipboard').addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.driveClipboard?.copySelection();
+    contextMenu.classList.add('hidden');
+  });
+
+  document.getElementById('context-cut-clipboard').addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.driveClipboard?.cutSelection();
     contextMenu.classList.add('hidden');
   });
 
@@ -645,9 +938,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btn) btn.click();
   });
 
-  async function applyTrashAction(action, selected, { confirmMessage, emptyMessage, failureMessage }) {
+  document.getElementById('empty-context-paste').addEventListener('click', (e) => {
+    e.stopPropagation();
+    emptySpaceContextMenu.classList.add('hidden');
+    window.driveClipboard?.paste();
+  });
+
+  async function applyTrashAction(action, selected, { confirmMessage, emptyMessage, successMessage, failureMessage }) {
     if (!selected || selected.length === 0) {
-      if (emptyMessage) alert(emptyMessage);
+      if (emptyMessage) showDriveToast(emptyMessage, 'warning', 7000);
       return false;
     }
 
@@ -655,26 +954,32 @@ document.addEventListener('DOMContentLoaded', () => {
       return false;
     }
 
-    const endpoint = `/api/trash/${action}`;
-    const results = await Promise.all(selected.map(async (el) => {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-csrf-token': csrfToken
-        },
-        body: JSON.stringify({ entityId: el.dataset.id, entityType: el.dataset.type })
-      });
+    const res = await fetch('/api/trash/bulk', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': csrfToken
+      },
+      body: JSON.stringify({
+        action,
+        items: selected.map(el => ({
+          entityId: el.dataset.id,
+          entityType: el.dataset.type
+        }))
+      })
+    });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || failureMessage || 'Trash action failed');
-      }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || failureMessage || 'Trash action failed');
+    }
 
-      return el;
-    }));
-
-    results.forEach(el => el.remove());
+    selected.slice(0, data.processed || selected.length).forEach(el => el.remove());
+    if (data.failed > 0) {
+      queueDriveToast(`${data.processed || 0} item(s) completed, ${data.failed} failed`, 'warning', 8000);
+    } else if (successMessage) {
+      queueDriveToast(successMessage, 'success', 7000);
+    }
     window.location.reload();
     return true;
   }
@@ -684,10 +989,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return applyTrashAction('move', selected, {
       confirmMessage: `Move ${selected.length} selected item(s) to trash?`,
       emptyMessage: 'Select at least one item first.',
+      successMessage: `${selected.length} item(s) moved to trash`,
       failureMessage: 'Move to trash failed'
     }).catch(err => {
       console.error(err);
-      alert(err.message || 'Move to trash failed');
+      showDriveToast(err.message || 'Move to trash failed', 'error', 7000);
     });
   };
 
@@ -695,10 +1001,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const selected = selectedOverride || (window.selectedItems ? window.selectedItems() : []);
     return applyTrashAction('restore', selected, {
       emptyMessage: 'Select at least one item to restore.',
+      successMessage: `${selected.length} item(s) restored`,
       failureMessage: 'Restore failed'
     }).catch(err => {
       console.error(err);
-      alert(err.message || 'Restore failed');
+      showDriveToast(err.message || 'Restore failed', 'error', 7000);
     });
   };
 
@@ -707,10 +1014,11 @@ document.addEventListener('DOMContentLoaded', () => {
     return applyTrashAction('purge', selected, {
       confirmMessage: 'Permanently delete selected item(s) from disk? This action CANNOT be undone.',
       emptyMessage: 'Select at least one item to delete permanently.',
+      successMessage: `${selected.length} item(s) permanently deleted`,
       failureMessage: 'Permanent delete failed'
     }).catch(err => {
       console.error(err);
-      alert(err.message || 'Permanent delete failed');
+      showDriveToast(err.message || 'Permanent delete failed', 'error', 7000);
     });
   };
 
@@ -739,6 +1047,8 @@ document.addEventListener('DOMContentLoaded', () => {
     clearSelection();
     if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
     if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
+    document.querySelector('#search-type-dropdown .dropdown-menu')?.classList.add('hidden');
+    document.querySelector('#search-sortBy-dropdown .dropdown-menu')?.classList.add('hidden');
     contextMenu.classList.add('hidden');
     emptySpaceContextMenu.classList.add('hidden');
   });
@@ -767,22 +1077,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Clear selection
       clearSelection();
 
-      // Position and show empty space context menu
-      const menuWidth = 224;
-      const menuHeight = 150;
-      let posX = e.clientX;
-      let posY = e.clientY;
-
-      if (posX + menuWidth > window.innerWidth) {
-        posX = window.innerWidth - menuWidth - 10;
-      }
-      if (posY + menuHeight > window.innerHeight) {
-        posY = window.innerHeight - menuHeight - 10;
-      }
-
-      emptySpaceContextMenu.style.left = posX + 'px';
-      emptySpaceContextMenu.style.top = posY + 'px';
-      emptySpaceContextMenu.classList.remove('hidden');
+      positionContextMenu(emptySpaceContextMenu, e.clientX, e.clientY);
 
       // Hide the item context menu
       contextMenu.classList.add('hidden');
@@ -867,7 +1162,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (deleteBtn) {
-      deleteBtn.title = isTrashTab ? 'Delete permanently' : 'Move to Trash';
+      const deleteLabel = isTrashTab ? 'Delete permanently' : 'Move to Trash';
+      deleteBtn.dataset.tooltip = deleteLabel;
+      deleteBtn.setAttribute('aria-label', deleteLabel);
     }
   }
 
@@ -2111,5 +2408,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Expose triggers globally
   window.clearSelection = clearSelection;
   window.selectedItems = () => selectedItems;
+  window.selectAllDriveItems = selectAllItems;
+  window.setSelectedDriveItems = setSelectedItems;
+  window.getDriveSelectionPayload = getClipboardItemsFromSelection;
   window.formatBytes = formatBytes;
 });

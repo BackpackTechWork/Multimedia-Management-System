@@ -53,6 +53,7 @@ router.post('/api/versions/delete', driveController.deleteVersion);
 router.post('/api/trash/move', driveController.trashItem);
 router.post('/api/trash/restore', driveController.restoreItem);
 router.post('/api/trash/purge', driveController.purgeItem);
+router.post('/api/trash/bulk', driveController.bulkTrashAction);
 
 router.post('/api/favorites/toggle', driveController.toggleStar);
 

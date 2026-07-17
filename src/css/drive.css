@@ -240,12 +240,6 @@ body > .flex-1.flex.overflow-hidden {
   font-size: 0.8rem;
 }
 
-.drive-layout-list .starred-icon {
-  top: 50%;
-  right: 1rem;
-  transform: translateY(-50%);
-}
-
 .selection-box {
   position: fixed;
   border: 1px solid var(--teal);
