@@ -10,8 +10,12 @@ const folderRepository = require('../repositories/FolderRepository');
 const jobRepository = require('../repositories/JobRepository');
 const storageService = require('../services/StorageService');
 
-const DEFAULT_STABLE_WAIT_MS = 1000;
+const DEFAULT_STABLE_WAIT_MS = 100;
 const DEFAULT_SCAN_DEBOUNCE_MS = 750;
+const DEFAULT_FILE_READ_RETRIES = 0;
+const DEFAULT_FILE_READ_RETRY_MS = 2000;
+const DEFAULT_CONCURRENCY = 8;
+const USAGE = 'Usage: node scripts/import-user-files.js [all|userId|user_3] [--watch] [--stable-ms 100] [--concurrency 8] [--verbose]';
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -24,6 +28,10 @@ function parseArgs(argv) {
     watch: false,
     stableWaitMs: DEFAULT_STABLE_WAIT_MS,
     debounceMs: DEFAULT_SCAN_DEBOUNCE_MS,
+    fileReadRetries: DEFAULT_FILE_READ_RETRIES,
+    fileReadRetryMs: DEFAULT_FILE_READ_RETRY_MS,
+    concurrency: DEFAULT_CONCURRENCY,
+    verbose: false,
     visibility: 'private'
   };
 
@@ -37,6 +45,14 @@ function parseArgs(argv) {
       options.stableWaitMs = Number(argv[++i]);
     } else if (arg === '--debounce-ms') {
       options.debounceMs = Number(argv[++i]);
+    } else if (arg === '--file-read-retries') {
+      options.fileReadRetries = Number(argv[++i]);
+    } else if (arg === '--file-read-retry-ms') {
+      options.fileReadRetryMs = Number(argv[++i]);
+    } else if (arg === '--concurrency') {
+      options.concurrency = Number(argv[++i]);
+    } else if (arg === '--verbose') {
+      options.verbose = true;
     } else if (arg === '--visibility') {
       options.visibility = argv[++i];
     } else if (arg.toLowerCase() === 'all') {
@@ -48,11 +64,11 @@ function parseArgs(argv) {
   }
 
   if (options.allUsers && options.userId) {
-    throw new Error('Usage: node scripts/import-user-files.js [all|userId|user_3] [--watch] [--stable-ms 1000]');
+    throw new Error(USAGE);
   }
 
   if (!options.allUsers && (!Number.isInteger(options.userId) || options.userId <= 0)) {
-    throw new Error('Usage: node scripts/import-user-files.js [all|userId|user_3] [--watch] [--stable-ms 1000]');
+    throw new Error(USAGE);
   }
 
   if (!Number.isFinite(options.stableWaitMs) || options.stableWaitMs < 100) {
@@ -61,6 +77,18 @@ function parseArgs(argv) {
 
   if (!Number.isFinite(options.debounceMs) || options.debounceMs < 100) {
     throw new Error('--debounce-ms must be at least 100');
+  }
+
+  if (!Number.isInteger(options.fileReadRetries) || options.fileReadRetries < 0) {
+    throw new Error('--file-read-retries must be 0 or greater');
+  }
+
+  if (!Number.isFinite(options.fileReadRetryMs) || options.fileReadRetryMs < 100) {
+    throw new Error('--file-read-retry-ms must be at least 100');
+  }
+
+  if (!Number.isInteger(options.concurrency) || options.concurrency < 1) {
+    throw new Error('--concurrency must be at least 1');
   }
 
   if (!['private', 'public'].includes(options.visibility)) {
@@ -94,6 +122,22 @@ async function getDirectoryEntries(dir) {
   };
 }
 
+async function runLimited(items, limit, worker) {
+  const results = [];
+  let nextIndex = 0;
+
+  async function runWorker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await worker(items[index], index);
+    }
+  }
+
+  const workerCount = Math.min(limit, items.length);
+  await Promise.all(Array.from({ length: workerCount }, runWorker));
+  return results;
+}
+
 async function getStableStats(filePath, stableWaitMs) {
   const first = await fs.promises.stat(filePath);
   if (!first.isFile()) return null;
@@ -108,6 +152,31 @@ async function getStableStats(filePath, stableWaitMs) {
   }
 
   return second;
+}
+
+function isRetryableFileReadError(err) {
+  return ['UNKNOWN', 'EBUSY', 'EPERM', 'EACCES', 'ENOENT'].includes(err?.code);
+}
+
+async function retryFileRead(filePath, options, operation) {
+  let lastError;
+  for (let attempt = 0; attempt <= options.fileReadRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (!isRetryableFileReadError(err) || attempt === options.fileReadRetries) {
+        throw err;
+      }
+
+      if (options.verbose) {
+        console.log(`File is not readable yet, retrying (${attempt + 1}/${options.fileReadRetries}): ${toStoragePath(filePath)}`);
+      }
+      await sleep(options.fileReadRetryMs);
+    }
+  }
+
+  throw lastError;
 }
 
 async function hashFile(filePath) {
@@ -157,7 +226,9 @@ async function ensureFolder(userId, parentId, folderPath, pathPrefix, options) {
     pathPrefix,
     options.visibility
   );
-  console.log(`Created folder #${folder.id}: ${toStoragePath(folderPath)}`);
+  if (options.verbose) {
+    console.log(`Created folder #${folder.id}: ${toStoragePath(folderPath)}`);
+  }
   return { folder, created: true };
 }
 
@@ -167,7 +238,20 @@ async function importFile(userId, filePath, folderId, options) {
     return { status: 'skipped', reason: 'already_imported', path: storagePath };
   }
 
-  const stats = await getStableStats(filePath, options.stableWaitMs);
+  let stats;
+  try {
+    stats = await retryFileRead(
+      filePath,
+      options,
+      () => getStableStats(filePath, options.stableWaitMs)
+    );
+  } catch (err) {
+    if (isRetryableFileReadError(err)) {
+      return { status: 'skipped', reason: 'not_readable', path: storagePath, error: err.message };
+    }
+    throw err;
+  }
+
   if (!stats) {
     return { status: 'skipped', reason: 'still_changing', path: storagePath };
   }
@@ -179,7 +263,15 @@ async function importFile(userId, filePath, folderId, options) {
   const originalName = path.basename(filePath);
   const extension = path.extname(originalName).substring(1).toLowerCase();
   const mimeType = mime.lookup(originalName) || 'application/octet-stream';
-  const checksum = await hashFile(filePath);
+  let checksum;
+  try {
+    checksum = await retryFileRead(filePath, options, () => hashFile(filePath));
+  } catch (err) {
+    if (isRetryableFileReadError(err)) {
+      return { status: 'skipped', reason: 'not_readable', path: storagePath, error: err.message };
+    }
+    throw err;
+  }
 
   const [result] = await db.insert(files).values({
     userId,
@@ -235,22 +327,39 @@ async function scanDirectory(userId, dir, folderId, pathPrefix, options) {
     }
   }
 
-  for (const filePath of entries.files) {
+  const fileResults = await runLimited(entries.files, options.concurrency, async (filePath) => {
     try {
       const result = await importFile(userId, filePath, folderId, options);
       if (result.status === 'imported') {
-        imported += 1;
-        console.log(`Imported #${result.fileId}: ${result.path}`);
-      } else {
-        skipped += 1;
-        if (result.reason === 'still_changing') {
-          changing += 1;
-          console.log(`Waiting for copy to finish: ${result.path}`);
+        if (options.verbose) {
+          console.log(`Imported #${result.fileId}: ${result.path}`);
         }
       }
+      return result;
     } catch (err) {
+      return {
+        status: 'failed',
+        path: toStoragePath(filePath),
+        error: err.message
+      };
+    }
+  });
+
+  for (const result of fileResults) {
+    if (result.status === 'imported') {
+      imported += 1;
+    } else {
       skipped += 1;
-      console.error(`Failed to import ${filePath}: ${err.message}`);
+      if (result.reason === 'still_changing') {
+        changing += 1;
+        if (options.verbose) {
+          console.log(`Waiting for copy to finish: ${result.path}`);
+        }
+      } else if (result.status === 'failed') {
+        console.error(`Failed to import ${result.path}: ${result.error}`);
+      } else if (result.reason === 'not_readable' && options.verbose) {
+        console.log(`Skipped unreadable file: ${result.path} (${result.error})`);
+      }
     }
   }
 
