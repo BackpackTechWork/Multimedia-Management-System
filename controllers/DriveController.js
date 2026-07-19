@@ -11,6 +11,7 @@ const storageService = require('../services/StorageService');
 const driveService = require('../services/DriveService');
 const shareRepository = require('../repositories/ShareRepository');
 const userRepository = require('../repositories/UserRepository');
+const fileChecksumService = require('../services/FileChecksumService');
 
 async function fileExists(fullPath) {
   try {
@@ -917,7 +918,9 @@ class DriveController {
       res.setHeader('Content-Type', file.mimeType);
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
       
-      const readStream = fs.createReadStream(fullPath);
+      const readStream = versionId
+        ? fs.createReadStream(fullPath)
+        : fileChecksumService.createHashingReadStream(file, fullPath, fs);
       readStream.pipe(res);
     } catch (err) {
       res.status(500).send('Download failed');

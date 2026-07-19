@@ -8,6 +8,7 @@ const fileRepository = require('../repositories/FileRepository');
 const folderRepository = require('../repositories/FolderRepository');
 const shareRepository = require('../repositories/ShareRepository');
 const storageService = require('../services/StorageService');
+const fileChecksumService = require('../services/FileChecksumService');
 
 class PreviewController {
   constructor() {
@@ -202,7 +203,9 @@ class PreviewController {
 
     try {
       const fullPath = path.join(storageService.storageRoot, file.path);
-      const content = await fs.promises.readFile(fullPath, 'utf-8');
+      const buffer = await fs.promises.readFile(fullPath);
+      await fileChecksumService.updateChecksumFromBuffer(file, buffer);
+      const content = buffer.toString('utf-8');
       return this.renderPreview(req, res, 'markdown', file, content);
     } catch (err) {
       res.status(500).send('Error reading file content');
@@ -215,7 +218,9 @@ class PreviewController {
 
     try {
       const fullPath = path.join(storageService.storageRoot, file.path);
-      const content = await fs.promises.readFile(fullPath, 'utf-8');
+      const buffer = await fs.promises.readFile(fullPath);
+      await fileChecksumService.updateChecksumFromBuffer(file, buffer);
+      const content = buffer.toString('utf-8');
       return this.renderPreview(req, res, 'code', file, content);
     } catch (err) {
       res.status(500).send('Error reading file content');
@@ -282,7 +287,10 @@ class PreviewController {
       res.writeHead(206, headers);
       fileStream.pipe(res);
     } else {
-      fs.createReadStream(fullPath).pipe(res);
+      const fileStream = req.query.thumbnail
+        ? fs.createReadStream(fullPath)
+        : fileChecksumService.createHashingReadStream(file, fullPath, fs);
+      fileStream.pipe(res);
     }
   }
 

@@ -1,14 +1,13 @@
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const mime = require('mime-types');
 const { eq, and, sql } = require('drizzle-orm');
 const { db, pool } = require('../config/db');
 const { users, folders, files } = require('../models/schema');
 const driveService = require('../services/DriveService');
 const folderRepository = require('../repositories/FolderRepository');
-const jobRepository = require('../repositories/JobRepository');
 const storageService = require('../services/StorageService');
+const fileChecksumService = require('../services/FileChecksumService');
 
 const DEFAULT_STABLE_WAIT_MS = 100;
 const DEFAULT_SCAN_DEBOUNCE_MS = 750;
@@ -183,15 +182,6 @@ async function retryFileRead(filePath, options, operation) {
   throw lastError;
 }
 
-async function hashFile(filePath) {
-  const hasher = crypto.createHash('sha256');
-  const stream = fs.createReadStream(filePath);
-  for await (const chunk of stream) {
-    hasher.update(chunk);
-  }
-  return hasher.digest('hex');
-}
-
 function toStoragePath(filePath) {
   return path.relative(storageService.storageRoot, filePath).replace(/\\/g, '/');
 }
@@ -267,15 +257,7 @@ async function importFile(userId, filePath, folderId, options) {
   const originalName = path.basename(filePath);
   const extension = path.extname(originalName).substring(1).toLowerCase();
   const mimeType = mime.lookup(originalName) || 'application/octet-stream';
-  let checksum;
-  try {
-    checksum = await retryFileRead(filePath, options, () => hashFile(filePath));
-  } catch (err) {
-    if (isRetryableFileReadError(err)) {
-      return { status: 'skipped', reason: 'not_readable', path: storagePath, error: err.message };
-    }
-    throw err;
-  }
+  const checksum = fileChecksumService.createPendingChecksum(storagePath, stats);
 
   const [result] = await db.insert(files).values({
     userId,
@@ -291,12 +273,6 @@ async function importFile(userId, filePath, folderId, options) {
   });
 
   const fileId = result.insertId;
-  if (mimeType.startsWith('image/')) {
-    await jobRepository.createJob('thumbnail', { fileId }).catch(err => {
-      console.error(`Failed to queue thumbnail for ${storagePath}: ${err.message}`);
-    });
-  }
-
   return { status: 'imported', fileId, path: storagePath };
 }
 
