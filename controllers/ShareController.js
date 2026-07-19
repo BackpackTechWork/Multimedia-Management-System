@@ -13,7 +13,16 @@ const driveService = require('../services/DriveService');
 const jobRepository = require('../repositories/JobRepository');
 const fileChecksumService = require('../services/FileChecksumService');
 
-function handleFileStreamError(res, err) {
+async function handleFileStreamError(res, err, stream = null) {
+  if (['UNKNOWN', 'ENOENT', 'EBUSY', 'EPERM', 'EACCES'].includes(err?.code) && stream?.retryAfterHydration) {
+    const retryStream = await stream.retryAfterHydration();
+    if (retryStream) {
+      retryStream.on('error', retryErr => handleFileStreamError(res, retryErr, retryStream));
+      retryStream.pipe(res);
+      return;
+    }
+  }
+
   if (res.headersSent) {
     res.destroy(err);
     return;
@@ -574,8 +583,8 @@ class ShareController {
       res.setHeader('Content-Type', file.mimeType);
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.originalName)}"`);
 
-      const readStream = fileChecksumService.createHashingReadStream(file, fullPath, fs);
-      readStream.on('error', err => handleFileStreamError(res, err));
+      const readStream = fileChecksumService.createReadStreamWithHydration(file, fullPath, fs);
+      readStream.on('error', err => handleFileStreamError(res, err, readStream));
       readStream.pipe(res);
     } catch (err) {
       res.status(500).send('Download failed');

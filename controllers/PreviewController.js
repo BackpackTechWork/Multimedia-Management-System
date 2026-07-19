@@ -10,7 +10,16 @@ const shareRepository = require('../repositories/ShareRepository');
 const storageService = require('../services/StorageService');
 const fileChecksumService = require('../services/FileChecksumService');
 
-function handleFileStreamError(res, err) {
+async function handleFileStreamError(res, err, stream = null) {
+  if (['UNKNOWN', 'ENOENT', 'EBUSY', 'EPERM', 'EACCES'].includes(err?.code) && stream?.retryAfterHydration) {
+    const retryStream = await stream.retryAfterHydration();
+    if (retryStream) {
+      retryStream.on('error', retryErr => handleFileStreamError(res, retryErr, retryStream));
+      retryStream.pipe(res);
+      return;
+    }
+  }
+
   if (res.headersSent) {
     res.destroy(err);
     return;
@@ -301,8 +310,8 @@ class PreviewController {
       const end = parts[1] ? parseInt(parts[1], 10) : file.size - 1;
       const chunksize = (end - start) + 1;
       
-      const fileStream = fs.createReadStream(fullPath, { start, end });
-      fileStream.on('error', err => handleFileStreamError(res, err));
+      const fileStream = fileChecksumService.createReadStreamWithHydration(file, fullPath, fs, { start, end });
+      fileStream.on('error', err => handleFileStreamError(res, err, fileStream));
       const headers = {
         'Content-Range': `bytes ${start}-${end}/${file.size}`,
         'Accept-Ranges': 'bytes',
@@ -317,8 +326,8 @@ class PreviewController {
     } else {
       const fileStream = req.query.thumbnail
         ? fs.createReadStream(fullPath)
-        : fileChecksumService.createHashingReadStream(file, fullPath, fs);
-      fileStream.on('error', err => handleFileStreamError(res, err));
+        : fileChecksumService.createReadStreamWithHydration(file, fullPath, fs);
+      fileStream.on('error', err => handleFileStreamError(res, err, fileStream));
       fileStream.pipe(res);
     }
   }

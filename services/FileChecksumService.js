@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { spawn } = require('child_process');
 const { Transform } = require('stream');
 const { db } = require('../config/db');
 const { files } = require('../models/schema');
@@ -42,6 +43,43 @@ class FileChecksumService {
     const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
     await this.finalizeChecksum(file, checksum);
     return checksum;
+  }
+
+  hydrateWindowsFile(fullPath) {
+    if (process.platform !== 'win32') {
+      return Promise.resolve(false);
+    }
+
+    return new Promise((resolve) => {
+      const child = spawn('powershell.exe', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '$p = $args[0]; $s = [IO.File]::OpenRead($p); $s.Dispose()',
+        fullPath
+      ], {
+        windowsHide: true,
+        stdio: 'ignore'
+      });
+
+      child.on('error', () => resolve(false));
+      child.on('exit', code => resolve(code === 0));
+    });
+  }
+
+  createReadStreamWithHydration(file, fullPath, fs, streamOptions = null) {
+    const stream = this.createHashingReadStream(file, fullPath, fs, streamOptions);
+    let retried = false;
+
+    stream.retryAfterHydration = async () => {
+      if (retried) return null;
+      retried = true;
+      const hydrated = await this.hydrateWindowsFile(fullPath);
+      if (!hydrated) return null;
+      return this.createHashingReadStream(file, fullPath, fs, streamOptions);
+    };
+
+    return stream;
   }
 
   createHashingReadStream(file, fullPath, fs, streamOptions = null) {
