@@ -51,6 +51,7 @@ class FileChecksumService {
     }
 
     return new Promise((resolve) => {
+      let stderr = '';
       const child = spawn('powershell.exe', [
         '-NoProfile',
         '-NonInteractive',
@@ -59,11 +60,23 @@ class FileChecksumService {
         fullPath
       ], {
         windowsHide: true,
-        stdio: 'ignore'
+        stdio: ['ignore', 'ignore', 'pipe']
       });
 
-      child.on('error', () => resolve(false));
-      child.on('exit', code => resolve(code === 0));
+      child.stderr.on('data', chunk => {
+        stderr += chunk.toString();
+      });
+
+      child.on('error', err => {
+        console.error(`Failed to start hydration helper for ${fullPath}: ${err.message}`);
+        resolve(false);
+      });
+      child.on('exit', code => {
+        if (code !== 0) {
+          console.error(`Hydration helper failed for ${fullPath} with exit code ${code}: ${stderr.trim()}`);
+        }
+        resolve(code === 0);
+      });
     });
   }
 

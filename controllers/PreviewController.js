@@ -11,9 +11,14 @@ const storageService = require('../services/StorageService');
 const fileChecksumService = require('../services/FileChecksumService');
 
 async function handleFileStreamError(res, err, stream = null) {
+  if (stream?.file) {
+    console.error(`Preview stream failed for file ${stream.file.id} (${stream.file.path}): ${err.code || 'ERROR'} ${err.message}`);
+  }
+
   if (['UNKNOWN', 'ENOENT', 'EBUSY', 'EPERM', 'EACCES'].includes(err?.code) && stream?.retryAfterHydration) {
     const retryStream = await stream.retryAfterHydration();
     if (retryStream) {
+      retryStream.file = stream.file;
       retryStream.on('error', retryErr => handleFileStreamError(res, retryErr, retryStream));
       retryStream.pipe(res);
       return;
@@ -311,6 +316,7 @@ class PreviewController {
       const chunksize = (end - start) + 1;
       
       const fileStream = fileChecksumService.createReadStreamWithHydration(file, fullPath, fs, { start, end });
+      fileStream.file = file;
       fileStream.on('error', err => handleFileStreamError(res, err, fileStream));
       const headers = {
         'Content-Range': `bytes ${start}-${end}/${file.size}`,
@@ -327,6 +333,7 @@ class PreviewController {
       const fileStream = req.query.thumbnail
         ? fs.createReadStream(fullPath)
         : fileChecksumService.createReadStreamWithHydration(file, fullPath, fs);
+      fileStream.file = file;
       fileStream.on('error', err => handleFileStreamError(res, err, fileStream));
       fileStream.pipe(res);
     }
