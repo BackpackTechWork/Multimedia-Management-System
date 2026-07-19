@@ -2,10 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const mime = require('mime-types');
-const { eq, and } = require('drizzle-orm');
+const { eq, and, sql } = require('drizzle-orm');
 const { db, pool } = require('../config/db');
-const { users, files } = require('../models/schema');
+const { users, folders, files } = require('../models/schema');
 const driveService = require('../services/DriveService');
+const folderRepository = require('../repositories/FolderRepository');
 const jobRepository = require('../repositories/JobRepository');
 const storageService = require('../services/StorageService');
 
@@ -19,7 +20,7 @@ function sleep(ms) {
 function parseArgs(argv) {
   const options = {
     userId: null,
-    allUsers: false,
+    allUsers: argv.length === 0,
     watch: false,
     stableWaitMs: DEFAULT_STABLE_WAIT_MS,
     debounceMs: DEFAULT_SCAN_DEBOUNCE_MS,
@@ -47,11 +48,11 @@ function parseArgs(argv) {
   }
 
   if (options.allUsers && options.userId) {
-    throw new Error('Usage: node scripts/import-user-files.js <all|userId|user_3> [--watch] [--stable-ms 1000]');
+    throw new Error('Usage: node scripts/import-user-files.js [all|userId|user_3] [--watch] [--stable-ms 1000]');
   }
 
   if (!options.allUsers && (!Number.isInteger(options.userId) || options.userId <= 0)) {
-    throw new Error('Usage: node scripts/import-user-files.js <all|userId|user_3> [--watch] [--stable-ms 1000]');
+    throw new Error('Usage: node scripts/import-user-files.js [all|userId|user_3] [--watch] [--stable-ms 1000]');
   }
 
   if (!Number.isFinite(options.stableWaitMs) || options.stableWaitMs < 100) {
@@ -81,11 +82,16 @@ async function getAllUserIds() {
   return rows.map(row => row.id);
 }
 
-async function getDirectFiles(userDir) {
-  const entries = await fs.promises.readdir(userDir, { withFileTypes: true });
-  return entries
-    .filter(entry => entry.isFile())
-    .map(entry => path.join(userDir, entry.name));
+async function getDirectoryEntries(dir) {
+  const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+  return {
+    directories: entries
+      .filter(entry => entry.isDirectory())
+      .map(entry => path.join(dir, entry.name)),
+    files: entries
+      .filter(entry => entry.isFile())
+      .map(entry => path.join(dir, entry.name))
+  };
 }
 
 async function getStableStats(filePath, stableWaitMs) {
@@ -125,7 +131,37 @@ async function fileRecordExists(userId, storagePath) {
   return Boolean(rows[0]);
 }
 
-async function importFile(userId, filePath, options) {
+async function findFolderByName(userId, parentId, name) {
+  const rows = await db.select()
+    .from(folders)
+    .where(and(
+      eq(folders.userId, userId),
+      parentId ? eq(folders.parentId, parentId) : sql`${folders.parentId} IS NULL`,
+      eq(folders.name, name)
+    ))
+    .limit(1);
+  return rows[0] || null;
+}
+
+async function ensureFolder(userId, parentId, folderPath, pathPrefix, options) {
+  const name = path.basename(folderPath);
+  const existing = await findFolderByName(userId, parentId, name);
+  if (existing) {
+    return { folder: existing, created: false };
+  }
+
+  const folder = await folderRepository.createFolder(
+    userId,
+    parentId,
+    name,
+    pathPrefix,
+    options.visibility
+  );
+  console.log(`Created folder #${folder.id}: ${toStoragePath(folderPath)}`);
+  return { folder, created: true };
+}
+
+async function importFile(userId, filePath, folderId, options) {
   const storagePath = toStoragePath(filePath);
   if (await fileRecordExists(userId, storagePath)) {
     return { status: 'skipped', reason: 'already_imported', path: storagePath };
@@ -147,7 +183,7 @@ async function importFile(userId, filePath, options) {
 
   const [result] = await db.insert(files).values({
     userId,
-    folderId: null,
+    folderId,
     filename: originalName,
     originalName,
     extension,
@@ -168,16 +204,40 @@ async function importFile(userId, filePath, options) {
   return { status: 'imported', fileId, path: storagePath };
 }
 
-async function scanUserDir(userId, userDir, options) {
-  console.log(`Scanning user ${userId}: ${userDir}`);
-  const diskFiles = await getDirectFiles(userDir);
+async function scanDirectory(userId, dir, folderId, pathPrefix, options) {
+  const entries = await getDirectoryEntries(dir);
   let imported = 0;
   let skipped = 0;
   let changing = 0;
+  let foldersCreated = 0;
 
-  for (const filePath of diskFiles) {
+  for (const directoryPath of entries.directories) {
     try {
-      const result = await importFile(userId, filePath, options);
+      const result = await ensureFolder(userId, folderId, directoryPath, pathPrefix, options);
+      if (result.created) {
+        foldersCreated += 1;
+      }
+
+      const childResult = await scanDirectory(
+        userId,
+        directoryPath,
+        result.folder.id,
+        result.folder.path,
+        options
+      );
+      imported += childResult.imported;
+      skipped += childResult.skipped;
+      changing += childResult.changing;
+      foldersCreated += childResult.foldersCreated;
+    } catch (err) {
+      skipped += 1;
+      console.error(`Failed to import folder ${directoryPath}: ${err.message}`);
+    }
+  }
+
+  for (const filePath of entries.files) {
+    try {
+      const result = await importFile(userId, filePath, folderId, options);
       if (result.status === 'imported') {
         imported += 1;
         console.log(`Imported #${result.fileId}: ${result.path}`);
@@ -189,16 +249,24 @@ async function scanUserDir(userId, userDir, options) {
         }
       }
     } catch (err) {
+      skipped += 1;
       console.error(`Failed to import ${filePath}: ${err.message}`);
     }
   }
 
-  if (imported > 0) {
+  return { imported, skipped, changing, foldersCreated };
+}
+
+async function scanUserDir(userId, userDir, options) {
+  console.log(`Scanning user ${userId}: ${userDir}`);
+  const result = await scanDirectory(userId, userDir, null, '/', options);
+
+  if (result.imported > 0 || result.foldersCreated > 0) {
     await driveService.updateStorageStats(userId);
   }
 
-  console.log(`User ${userId} scan complete. Imported ${imported}, skipped ${skipped}.`);
-  return { imported, skipped, changing };
+  console.log(`User ${userId} scan complete. Created ${result.foldersCreated} folders, imported ${result.imported} files, skipped ${result.skipped}.`);
+  return result;
 }
 
 async function main() {
@@ -267,7 +335,10 @@ async function main() {
     }, options.debounceMs);
   };
 
-  const watchers = userDirs.map(({ userDir }) => fs.watch(userDir, { persistent: true }, scheduleScan));
+  const watchers = userDirs.map(({ userDir }) => fs.watch(userDir, {
+    persistent: true,
+    recursive: true
+  }, scheduleScan));
 
   process.on('SIGINT', async () => {
     clearTimeout(timer);
