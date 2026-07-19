@@ -13,6 +13,20 @@ const shareRepository = require('../repositories/ShareRepository');
 const userRepository = require('../repositories/UserRepository');
 const fileChecksumService = require('../services/FileChecksumService');
 
+function handleFileStreamError(res, err) {
+  if (res.headersSent) {
+    res.destroy(err);
+    return;
+  }
+
+  if (['UNKNOWN', 'ENOENT', 'EBUSY', 'EPERM', 'EACCES'].includes(err?.code)) {
+    return res.status(503).send('File is not available locally yet. Please try again after Synology Drive finishes syncing it.');
+  }
+
+  console.error(err);
+  return res.status(500).send('Download failed');
+}
+
 async function fileExists(fullPath) {
   try {
     await fs.promises.access(fullPath, fs.constants.F_OK);
@@ -921,6 +935,7 @@ class DriveController {
       const readStream = versionId
         ? fs.createReadStream(fullPath)
         : fileChecksumService.createHashingReadStream(file, fullPath, fs);
+      readStream.on('error', err => handleFileStreamError(res, err));
       readStream.pipe(res);
     } catch (err) {
       res.status(500).send('Download failed');

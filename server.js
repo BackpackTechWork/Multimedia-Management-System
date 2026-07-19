@@ -16,6 +16,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || 'localhost';
 
+const trustProxy = process.env.TRUST_PROXY || 'loopback';
+app.set('trust proxy', trustProxy);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 

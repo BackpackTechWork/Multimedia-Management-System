@@ -10,6 +10,20 @@ const shareRepository = require('../repositories/ShareRepository');
 const storageService = require('../services/StorageService');
 const fileChecksumService = require('../services/FileChecksumService');
 
+function handleFileStreamError(res, err) {
+  if (res.headersSent) {
+    res.destroy(err);
+    return;
+  }
+
+  if (['UNKNOWN', 'ENOENT', 'EBUSY', 'EPERM', 'EACCES'].includes(err?.code)) {
+    return res.status(503).send('File is not available locally yet. Please try again after Synology Drive finishes syncing it.');
+  }
+
+  console.error(err);
+  return res.status(500).send('Error reading file');
+}
+
 class PreviewController {
   constructor() {
     this.checkAccess = this.checkAccess.bind(this);
@@ -208,7 +222,7 @@ class PreviewController {
       const content = buffer.toString('utf-8');
       return this.renderPreview(req, res, 'markdown', file, content);
     } catch (err) {
-      res.status(500).send('Error reading file content');
+      handleFileStreamError(res, err);
     }
   }
 
@@ -223,7 +237,7 @@ class PreviewController {
       const content = buffer.toString('utf-8');
       return this.renderPreview(req, res, 'code', file, content);
     } catch (err) {
-      res.status(500).send('Error reading file content');
+      handleFileStreamError(res, err);
     }
   }
 
@@ -275,6 +289,7 @@ class PreviewController {
       const chunksize = (end - start) + 1;
       
       const fileStream = fs.createReadStream(fullPath, { start, end });
+      fileStream.on('error', err => handleFileStreamError(res, err));
       const headers = {
         'Content-Range': `bytes ${start}-${end}/${file.size}`,
         'Accept-Ranges': 'bytes',
@@ -290,6 +305,7 @@ class PreviewController {
       const fileStream = req.query.thumbnail
         ? fs.createReadStream(fullPath)
         : fileChecksumService.createHashingReadStream(file, fullPath, fs);
+      fileStream.on('error', err => handleFileStreamError(res, err));
       fileStream.pipe(res);
     }
   }

@@ -58,6 +58,10 @@ class FileChecksumService {
       }
     });
 
+    source.on('error', err => {
+      hashingStream.destroy(err);
+    });
+
     hashingStream.on('finish', () => {
       const checksum = hasher.digest('hex');
       this.finalizeChecksum(file, checksum).catch(err => {
