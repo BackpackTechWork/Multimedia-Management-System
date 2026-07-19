@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@fontsource/inter": "^5.0.17",
+    "archiver": "^8.0.0",
     "bcrypt": "^5.1.1",
     "bootstrap-icons": "^1.11.3",
     "compression": "^1.7.4",
