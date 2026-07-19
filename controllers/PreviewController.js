@@ -24,6 +24,17 @@ function handleFileStreamError(res, err) {
   return res.status(500).send('Error reading file');
 }
 
+function serveThumbnailPlaceholder(res) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+<rect width="200" height="200" fill="#f3f4f6"/>
+<path d="M44 139l33-39 25 29 15-18 39 28H44z" fill="#d1d5db"/>
+<circle cx="73" cy="69" r="16" fill="#d1d5db"/>
+</svg>`;
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Cache-Control', 'private, max-age=60');
+  return res.status(200).send(svg);
+}
+
 class PreviewController {
   constructor() {
     this.checkAccess = this.checkAccess.bind(this);
@@ -263,6 +274,8 @@ class PreviewController {
       const thumbPath = storageService.getThumbnailPath(file.filename, size);
       if (await this.fileExists(thumbPath)) {
         filePath = path.relative(storageService.storageRoot, thumbPath).replace(/\\/g, '/');
+      } else {
+        return serveThumbnailPlaceholder(res);
       }
     }
 
