@@ -24,7 +24,7 @@ function sleep(ms) {
 function parseArgs(argv) {
   const options = {
     userId: null,
-    allUsers: argv.length === 0,
+    allUsers: false,
     watch: false,
     stableWaitMs: DEFAULT_STABLE_WAIT_MS,
     debounceMs: DEFAULT_SCAN_DEBOUNCE_MS,
@@ -61,6 +61,10 @@ function parseArgs(argv) {
       const match = arg.match(/^user_(\d+)$/i);
       options.userId = Number(match ? match[1] : arg);
     }
+  }
+
+  if (!options.allUsers && !options.userId) {
+    options.allUsers = true;
   }
 
   if (options.allUsers && options.userId) {
