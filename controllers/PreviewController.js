@@ -11,10 +11,6 @@ const storageService = require('../services/StorageService');
 const fileChecksumService = require('../services/FileChecksumService');
 
 async function handleFileStreamError(res, err, stream = null) {
-  if (stream?.file) {
-    console.error(`Preview stream failed for file ${stream.file.id} (${stream.file.path}): ${err.code || 'ERROR'} ${err.message}`);
-  }
-
   if (['UNKNOWN', 'ENOENT', 'EBUSY', 'EPERM', 'EACCES'].includes(err?.code) && stream?.retryAfterHydration) {
     const retryStream = await stream.retryAfterHydration();
     if (retryStream) {
@@ -60,6 +56,8 @@ class PreviewController {
     this.previewPresentation = this.previewPresentation.bind(this);
     this.previewMarkdown = this.previewMarkdown.bind(this);
     this.previewCode = this.previewCode.bind(this);
+    this.previewDesign = this.previewDesign.bind(this);
+    this.previewUnsupported = this.previewUnsupported.bind(this);
     this.previewVideo = this.previewVideo.bind(this);
     this.previewAudio = this.previewAudio.bind(this);
     this.previewZip = this.previewZip.bind(this);
@@ -264,6 +262,18 @@ class PreviewController {
     } catch (err) {
       handleFileStreamError(res, err);
     }
+  }
+
+  async previewDesign(req, res) {
+    const file = await this.checkAccess(req, parseInt(req.params.id));
+    if (!file) return res.status(403).send('Access Denied');
+    return this.renderPreview(req, res, 'design', file);
+  }
+
+  async previewUnsupported(req, res) {
+    const file = await this.checkAccess(req, parseInt(req.params.id));
+    if (!file) return res.status(403).send('Access Denied');
+    return this.renderPreview(req, res, 'unsupported', file);
   }
 
   async previewVideo(req, res) {

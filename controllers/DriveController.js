@@ -123,16 +123,21 @@ class DriveController {
   getPreviewRoute(file) {
     const mimeType = file.mimeType || '';
     const extension = (file.extension || '').toLowerCase();
+    const codeExtensions = ['js', 'ts', 'html', 'css', 'json', 'xml', 'sql', 'php', 'py', 'go', 'rs', 'cpp', 'c', 'cs', 'java', 'sh', 'bat', 'yaml', 'yml', 'ini', 'conf'];
+    const designExtensions = ['ai', 'eps', 'psd', 'psb', 'indd', 'xd', 'sketch'];
 
     if (mimeType.startsWith('image/')) return 'image';
-    if (mimeType === 'application/pdf') return 'pdf';
+    if (mimeType === 'application/pdf' || extension === 'pdf') return 'pdf';
     if (mimeType.startsWith('video/')) return 'video';
     if (mimeType.startsWith('audio/')) return 'audio';
     if (extension === 'md') return 'markdown';
+    if (designExtensions.includes(extension)) return 'design';
     if (['doc', 'docx'].includes(extension) || mimeType === 'application/msword' || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'word';
     if (['xls', 'xlsx', 'csv', 'ods'].includes(extension)) return 'excel';
+    if (['ppt', 'pptx'].includes(extension) || mimeType === 'application/vnd.ms-powerpoint' || mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') return 'presentation';
     if (extension === 'zip' || mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed') return 'zip';
-    return 'code';
+    if (codeExtensions.includes(extension) || mimeType.startsWith('text/')) return 'code';
+    return 'unsupported';
   }
 
   matchesStorageType(file, type) {

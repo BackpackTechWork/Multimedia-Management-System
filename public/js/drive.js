@@ -654,16 +654,19 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       // Preview file
       const mime = item.dataset.mime || '';
+      const ext = (item.dataset.ext || '').toLowerCase();
       let route = 'code';
       if (mime.startsWith('image/')) route = 'image';
-      else if (mime === 'application/pdf') route = 'pdf';
+      else if (mime === 'application/pdf' || ext === 'pdf') route = 'pdf';
       else if (mime.startsWith('video/')) route = 'video';
       else if (mime.startsWith('audio/')) route = 'audio';
-      else if (item.dataset.ext === 'md') route = 'markdown';
-      else if (['doc', 'docx'].includes(item.dataset.ext) || mime === 'application/msword' || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') route = 'word';
-      else if (['xls', 'xlsx', 'csv', 'ods'].includes(item.dataset.ext)) route = 'excel';
-      else if (['ppt', 'pptx'].includes(item.dataset.ext) || mime === 'application/vnd.ms-powerpoint' || mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') route = 'presentation';
-      else if (item.dataset.ext === 'zip' || mime === 'application/zip' || mime === 'application/x-zip-compressed') route = 'zip';
+      else if (ext === 'md') route = 'markdown';
+      else if (['ai', 'eps', 'psd', 'psb', 'indd', 'xd', 'sketch'].includes(ext)) route = 'design';
+      else if (['doc', 'docx'].includes(ext) || mime === 'application/msword' || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') route = 'word';
+      else if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) route = 'excel';
+      else if (['ppt', 'pptx'].includes(ext) || mime === 'application/vnd.ms-powerpoint' || mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') route = 'presentation';
+      else if (ext === 'zip' || mime === 'application/zip' || mime === 'application/x-zip-compressed') route = 'zip';
+      else if (!['js', 'ts', 'html', 'css', 'json', 'xml', 'sql', 'php', 'py', 'go', 'rs', 'cpp', 'c', 'cs', 'java', 'sh', 'bat', 'yaml', 'yml', 'ini', 'conf'].includes(ext) && !mime.startsWith('text/')) route = 'unsupported';
       
       window.open(`/preview/${route}/${id}`, '_blank');
     }
@@ -1140,6 +1143,10 @@ document.addEventListener('DOMContentLoaded', () => {
         iconClass = 'bi-file-play-fill';
       } else if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
         iconClass = 'bi-file-zip-fill';
+      } else if (['ai', 'eps'].includes(ext)) {
+        iconClass = 'bi-vector-pen';
+      } else if (['psd', 'psb'].includes(ext)) {
+        iconClass = 'bi-layers-fill';
       }
       // Remove all existing bi-* icon classes and set the new one
       detailIcon.className = detailIcon.className.replace(/bi-[\w-]+/g, '').trim();

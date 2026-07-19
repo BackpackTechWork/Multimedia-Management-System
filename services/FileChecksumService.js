@@ -56,10 +56,13 @@ class FileChecksumService {
         '-NoProfile',
         '-NonInteractive',
         '-Command',
-        '$p = $args[0]; $s = [IO.File]::OpenRead($p); $s.Dispose()',
-        fullPath
+        '$p = $env:MMS_HYDRATE_PATH; $s = [IO.File]::OpenRead($p); $s.Dispose()'
       ], {
         windowsHide: true,
+        env: {
+          ...process.env,
+          MMS_HYDRATE_PATH: fullPath
+        },
         stdio: ['ignore', 'ignore', 'pipe']
       });
 

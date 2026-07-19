@@ -12,9 +12,12 @@
   else if (type === 'video') headerIcon = 'bi-file-play-fill text-red-600';
   else if (type === 'audio') headerIcon = 'bi-file-music-fill text-pink-500';
   else if (type === 'zip') headerIcon = 'bi-file-zip-fill text-yellow-600';
+  else if (type === 'design') headerIcon = 'bi-vector-pen text-purple-600';
+  else if (type === 'unsupported') headerIcon = 'bi-file-earmark-arrow-down text-gray-500';
 
   const streamUrl = `/preview/stream/${file.id}${previewAccessQuery || ''}`;
   const encodedStreamUrl = encodeURIComponent(streamUrl);
+  const previewExt = (file.extension || '').toLowerCase();
 %>
 
 <!-- Preview Header -->
@@ -204,6 +207,68 @@
       <h3 class="font-bold text-base text-gray-800 truncate w-full text-center mb-1"><%= file.originalName %></h3>
       <span class="text-xs text-gray-400 uppercase font-semibold mb-6">Mime: <%= file.mimeType %></span>
       <audio src="<%= streamUrl %>" controls class="w-full bg-gray-50 rounded" autoplay></audio>
+    </div>
+
+  <!-- 8. ADOBE DESIGN FILES -->
+  <% } else if (type === 'design') { %>
+    <div class="bg-white border border-gray-200 p-8 rounded-2xl shadow-md w-full max-w-lg flex flex-col items-center">
+      <div class="bg-purple-50 text-purple-600 w-20 h-20 rounded-full flex items-center justify-center shadow-sm mb-6 border border-purple-100">
+        <i class="bi <%= ['psd', 'psb'].includes(previewExt) ? 'bi-layers-fill' : 'bi-vector-pen' %> text-4xl"></i>
+      </div>
+      <h3 class="font-bold text-base text-gray-800 truncate w-full text-center mb-2"><%= file.originalName %></h3>
+      <p class="text-xs text-gray-500 text-center mb-6 leading-relaxed">
+        Adobe design files are not safe to render directly in the browser. Download the original file to open it in the correct design application.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-3 w-full">
+        <a 
+          href="/api/files/download/<%= file.id %>" 
+          class="flex-1 bg-brand-teal text-white py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-brand-teal-dark shadow-sm transition flex items-center justify-center gap-1.5"
+        >
+          <i class="bi bi-download"></i> Download File
+        </a>
+        <% if (['ai', 'eps'].includes(previewExt)) { %>
+          <button
+            id="try-design-pdf-preview"
+            type="button"
+            class="flex-1 bg-gray-100 text-gray-700 py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-gray-200 border border-gray-200 shadow-sm transition flex items-center justify-center gap-1.5"
+          >
+            <i class="bi bi-eye"></i> Try Preview
+          </button>
+        <% } %>
+      </div>
+      <% if (['ai', 'eps'].includes(previewExt)) { %>
+        <div id="design-pdf-preview" class="hidden w-full mt-6 embed-pdf-container bg-white rounded-xl overflow-hidden shadow-md border border-gray-200">
+          <iframe data-src="/vendor/embedpdf/viewer.html?file=<%= encodedStreamUrl %>" class="w-full h-full border-none"></iframe>
+        </div>
+        <script>
+          document.getElementById('try-design-pdf-preview')?.addEventListener('click', () => {
+            const wrapper = document.getElementById('design-pdf-preview');
+            const iframe = wrapper?.querySelector('iframe');
+            if (wrapper && iframe && !iframe.src) {
+              iframe.src = iframe.dataset.src;
+              wrapper.classList.remove('hidden');
+            }
+          });
+        </script>
+      <% } %>
+    </div>
+
+  <!-- 9. UNSUPPORTED FILES -->
+  <% } else if (type === 'unsupported') { %>
+    <div class="bg-white border border-gray-200 p-8 rounded-2xl shadow-md w-full max-w-md flex flex-col items-center">
+      <div class="bg-gray-50 text-gray-500 w-20 h-20 rounded-full flex items-center justify-center shadow-sm mb-6 border border-gray-200">
+        <i class="bi bi-file-earmark-arrow-down text-4xl"></i>
+      </div>
+      <h3 class="font-bold text-base text-gray-800 truncate w-full text-center mb-2"><%= file.originalName %></h3>
+      <p class="text-xs text-gray-500 text-center mb-6 leading-relaxed">
+        This file type is not previewed in the browser. Download the file to open it with a compatible application.
+      </p>
+      <a 
+        href="/api/files/download/<%= file.id %>" 
+        class="w-full bg-brand-teal text-white py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-brand-teal-dark shadow-sm transition flex items-center justify-center gap-1.5"
+      >
+        <i class="bi bi-download"></i> Download File
+      </a>
     </div>
   <% } else if (type === 'zip') { %>
     <script src="/vendor/jszip/jszip.min.js"></script>
