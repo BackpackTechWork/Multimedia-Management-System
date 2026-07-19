@@ -11,7 +11,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "setup:vendors": "node scripts/setup-vendors.js"
+    "setup:vendors": "node scripts/setup-vendors.js",
+    "import:user-files": "node scripts/import-user-files.js"
   },
   "dependencies": {
     "@fontsource/inter": "^5.0.17",
