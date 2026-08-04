@@ -1459,7 +1459,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- CHUNKED FILE UPLOADER SYSTEM ---
   const LEGACY_CHUNK_SIZE = 5 * 1024 * 1024;
-  const CHUNK_SIZE = 16 * 1024 * 1024;
+  const CHUNK_SIZE = 8 * 1024 * 1024;
   const uploadInput = document.getElementById('upload-input');
   const uploadProgressModal = document.getElementById('upload-progress-modal');
   const uploadProgressText = document.getElementById('upload-progress-text');
@@ -1908,6 +1908,20 @@ document.addEventListener('DOMContentLoaded', () => {
       : `${hours} hr left`;
   }
 
+  function roundUploadPercent(value) {
+    const percent = Math.max(0, Math.min(Number(value) || 0, 100));
+    if (percent > 0 && percent < 1) return Math.round(percent * 100) / 100;
+    if (percent < 10) return Math.round(percent * 10) / 10;
+    return Math.round(percent);
+  }
+
+  function formatUploadPercent(value) {
+    const percent = roundUploadPercent(value);
+    if (percent > 0 && percent < 1) return `${percent.toFixed(2)}%`;
+    if (percent < 10 && !Number.isInteger(percent)) return `${percent.toFixed(1)}%`;
+    return `${percent}%`;
+  }
+
   function getUploadFileIcon(file) {
     const extension = file.name.split('.').pop()?.toLowerCase() || '';
     if (file.type.startsWith('video/')) return 'bi-file-earmark-play-fill text-red-500';
@@ -2019,7 +2033,7 @@ document.addEventListener('DOMContentLoaded', () => {
       item.statusIcon.textContent = 'Queued';
     } else if (status === 'uploading') {
       item.statusIcon.className = 'w-12 shrink-0 text-right text-[11px] font-semibold text-brand-teal';
-      item.statusIcon.textContent = `${Math.round(item.progress)}%`;
+      item.statusIcon.textContent = formatUploadPercent(item.progress);
     } else if (status === 'paused') {
       item.statusIcon.className = 'w-14 shrink-0 text-right text-[11px] font-semibold text-amber-700';
       item.statusIcon.textContent = 'Paused';
@@ -2042,7 +2056,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (uploadQueue.length === 0) return 0;
     const totalBytes = uploadQueue.reduce((sum, item) => sum + item.file.size, 0);
     const uploadedBytes = uploadQueue.reduce((sum, item) => sum + item.uploadedBytes, 0);
-    return totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 100;
+    return totalBytes > 0 ? roundUploadPercent((uploadedBytes / totalBytes) * 100) : 100;
   }
 
   function updateUploadSummary({ force = false } = {}) {
@@ -2054,7 +2068,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const failed = uploadQueue.filter(item => item.status === 'failed').length;
     const finalizing = uploadQueue.filter(item => item.status === 'finalizing').length;
     const paused = uploadQueue.filter(item => item.status === 'paused').length;
-    const percent = totalBytes > 0 ? Math.round((uploadedBytes / totalBytes) * 100) : 100;
+    const percent = totalBytes > 0 ? roundUploadPercent((uploadedBytes / totalBytes) * 100) : 100;
 
     if (uploadProgressText) {
       if (uploadPaused || paused > 0) {
@@ -2128,6 +2142,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fingerprint = getUploadFingerprint(file, folderId);
     const pendingUploads = getPendingUploads();
     const existing = pendingUploads[fingerprint];
+    const isNewUpload = !existing;
     const chunkSize = Number.isSafeInteger(Number(existing?.chunkSize)) && Number(existing.chunkSize) > 0
       ? Number(existing.chunkSize)
       : existing
@@ -2151,7 +2166,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     savePendingUploads(pendingUploads);
 
-    const identity = { fingerprint, uploadId, chunkSize };
+    const identity = { fingerprint, uploadId, chunkSize, isNewUpload };
     uploadIdentityByFile.set(file, identity);
     return identity;
   }
@@ -2336,7 +2351,7 @@ document.addEventListener('DOMContentLoaded', () => {
             uploadQueueByFile.delete(file);
             uploadQueue = uploadQueue.filter(queueItem => queueItem.file !== file);
           } else {
-            const serverPercent = Math.min(98, Math.round((uploadedChunks.size / totalChunks) * 98));
+            const serverPercent = Math.min(98, roundUploadPercent((uploadedChunks.size / totalChunks) * 98));
             const liveUpload = streamingById.get(record.uploadId);
             const currentPercent = uploadQueueByFile.get(file)?.progress || 0;
             const percent = Math.max(currentPercent, Number(record.progress) || 0, Number(liveUpload?.percent) || 0, serverPercent);
@@ -2892,12 +2907,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     lastProgressUpdateAt = now;
     if (uploadProgressBar) uploadProgressBar.style.width = `${percent}%`;
-    if (uploadProgressDetails) uploadProgressDetails.textContent = `${percent}% - ${detailText}`;
+    if (uploadProgressDetails) uploadProgressDetails.textContent = `${formatUploadPercent(percent)} - ${detailText}`;
   }
 
   async function uploadFileInChunks(file, folderId, onProgress, { deferStats = false } = {}) {
     const resolvedFolderId = folderId !== undefined ? folderId : (window.getCurrentFolderId ? window.getCurrentFolderId() : '');
-    const { uploadId, chunkSize } = getOrCreateUploadIdentity(file, resolvedFolderId);
+    const { uploadId, chunkSize, isNewUpload } = getOrCreateUploadIdentity(file, resolvedFolderId);
     const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
     activeUploadIds.add(uploadId);
     let uploadCompleted = false;
@@ -2919,6 +2934,7 @@ document.addEventListener('DOMContentLoaded', () => {
           fileSize: file.size,
           totalChunks,
           chunkSize,
+          isNewUpload,
           csrfToken,
           deferStats
         }, percent => {
@@ -2934,12 +2950,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      // 1. Query server to see which chunks were already successfully uploaded
-      const statusRes = await fetchWithConnectionRecovery(`/api/upload/status?uploadId=${encodeURIComponent(uploadId)}`, {
-        signal: uploadSessionController?.signal
-      });
-      if (!statusRes.ok) throw new Error(`Upload status check failed with status ${statusRes.status}`);
-      const statusData = await statusRes.json();
+      // A new random upload id cannot have server chunks. Skip the resume
+      // lookup so the first upload request begins immediately.
+      let statusData = { completed: false, processing: false, uploadedChunks: [] };
+      if (!isNewUpload) {
+        const statusRes = await fetchWithConnectionRecovery(`/api/upload/status?uploadId=${encodeURIComponent(uploadId)}`, {
+          signal: uploadSessionController?.signal
+        });
+        if (!statusRes.ok) throw new Error(`Upload status check failed with status ${statusRes.status}`);
+        statusData = await statusRes.json();
+      }
       if (statusData.completed) {
         uploadCompleted = true;
         clearUploadIdentity(file);
@@ -2961,10 +2981,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let completedChunks = uploadedChunks.size;
       if (completedChunks > 0 && onProgress) {
-        onProgress(Math.round((completedChunks / totalChunks) * 100));
+        onProgress(roundUploadPercent((completedChunks / totalChunks) * 98));
       }
 
-      await runWithConcurrency(missingChunkIndices, CHUNK_UPLOAD_CONCURRENCY, async (i) => {
+      const uploadMissingChunk = async (i) => {
         await waitForUploadResume();
         if (uploadCancelled) throw new Error('Upload cancelled');
         const start = i * chunkSize;
@@ -2981,10 +3001,17 @@ document.addEventListener('DOMContentLoaded', () => {
         await uploadChunkWithRetry(formData);
 
         completedChunks += 1;
-        const percent = Math.min(98, Math.round((completedChunks / totalChunks) * 98));
+        const percent = Math.min(98, roundUploadPercent((completedChunks / totalChunks) * 98));
         if (onProgress) onProgress(percent);
         else updateProgress(percent, `Uploaded chunk ${i + 1} of ${totalChunks}`);
-      });
+      };
+
+      // Complete one small block first so genuine progress appears quickly;
+      // then use parallel requests for the remainder of the file.
+      if (completedChunks === 0 && missingChunkIndices.length > 0) {
+        await uploadMissingChunk(missingChunkIndices.shift());
+      }
+      await runWithConcurrency(missingChunkIndices, CHUNK_UPLOAD_CONCURRENCY, uploadMissingChunk);
 
       // 3. Request final merge
       setUploadItemState(file, 'finalizing', 100);

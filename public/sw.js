@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'harbor-drive-shell-v14';
+const CACHE_VERSION = 'harbor-drive-shell-v16';
 const STATIC_ASSETS = [
   '/site.webmanifest', '/favicon.svg', '/apple-touch-icon.png',
   '/css/drive.css', '/css/auth.css', '/css/preview.css',
@@ -191,6 +191,14 @@ async function waitForStreamResume(active) {
   }
 }
 
+function getChunkUploadPercent(completedChunks, totalChunks) {
+  if (totalChunks <= 0) return 0;
+  const percent = Math.max(0, Math.min((completedChunks / totalChunks) * 98, 98));
+  if (percent > 0 && percent < 1) return Math.round(percent * 100) / 100;
+  if (percent < 10) return Math.round(percent * 10) / 10;
+  return Math.round(percent);
+}
+
 async function streamFetch(url, options, active, maxAttempts = 6) {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     await waitForStreamResume(active);
@@ -229,15 +237,18 @@ async function streamFetch(url, options, active, maxAttempts = 6) {
 }
 
 async function streamUploadInWorker(payload, active) {
-  const { file, uploadId, filename, folderId, fileSize, totalChunks, chunkSize, csrfToken, deferStats } = payload;
+  const { file, uploadId, filename, folderId, fileSize, totalChunks, chunkSize, isNewUpload, csrfToken, deferStats } = payload;
   try {
-    const statusResponse = await streamFetch(
-      `/api/upload/status?uploadId=${encodeURIComponent(uploadId)}`,
-      { method: 'GET', cache: 'no-store' },
-      active
-    );
-    if (!statusResponse.ok) throw new Error(`Upload status ${statusResponse.status}`);
-    const status = await statusResponse.json();
+    let status = { completed: false, processing: false, uploadedChunks: [] };
+    if (!isNewUpload) {
+      const statusResponse = await streamFetch(
+        `/api/upload/status?uploadId=${encodeURIComponent(uploadId)}`,
+        { method: 'GET', cache: 'no-store' },
+        active
+      );
+      if (!statusResponse.ok) throw new Error(`Upload status ${statusResponse.status}`);
+      status = await statusResponse.json();
+    }
     if (status.completed || status.processing) {
       await deleteStreamPayload(uploadId).catch(() => {});
       sendStreamMessage(active, { type: 'STAGED' });
@@ -251,41 +262,49 @@ async function streamUploadInWorker(payload, active) {
     }
 
     let completedChunks = uploadedChunks.size;
-    active.percent = Math.min(98, Math.round((completedChunks / totalChunks) * 98));
+    active.percent = getChunkUploadPercent(completedChunks, totalChunks);
     sendStreamMessage(active, { type: 'PROGRESS', percent: active.percent });
+
+    const uploadChunkAtIndex = async index => {
+      await waitForStreamResume(active);
+      const start = index * chunkSize;
+      const end = Math.min(file.size, start + chunkSize);
+      const formData = new FormData();
+      formData.append('uploadId', uploadId);
+      formData.append('chunkIndex', index);
+      formData.append('chunkOffset', start);
+      formData.append('fileSize', fileSize);
+      formData.append('chunk', file.slice(start, end), `chunk_${index}`);
+      const releaseChunkSlot = await acquireStreamChunkSlot();
+      let response;
+      try {
+        await waitForStreamResume(active);
+        response = await streamFetch('/api/upload/chunk', {
+          method: 'POST',
+          headers: { 'x-csrf-token': csrfToken },
+          body: formData
+        }, active);
+      } finally {
+        releaseChunkSlot();
+      }
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || `Chunk ${index + 1} failed with status ${response.status}`);
+      }
+      completedChunks += 1;
+      active.percent = getChunkUploadPercent(completedChunks, totalChunks);
+      sendStreamMessage(active, { type: 'PROGRESS', percent: active.percent });
+    };
+
+    if (completedChunks === 0 && missingIndices.length > 0) {
+      await uploadChunkAtIndex(missingIndices.shift());
+    }
 
     let cursor = 0;
     const workers = Array.from({ length: Math.min(3, missingIndices.length) }, async () => {
       while (cursor < missingIndices.length) {
         const index = missingIndices[cursor++];
-        await waitForStreamResume(active);
-        const start = index * chunkSize;
-        const end = Math.min(file.size, start + chunkSize);
-        const formData = new FormData();
-        formData.append('uploadId', uploadId);
-        formData.append('chunkIndex', index);
-        formData.append('chunkOffset', start);
-        formData.append('fileSize', fileSize);
-        formData.append('chunk', file.slice(start, end), `chunk_${index}`);
-        const releaseChunkSlot = await acquireStreamChunkSlot();
-        let response;
-        try {
-          await waitForStreamResume(active);
-          response = await streamFetch('/api/upload/chunk', {
-            method: 'POST',
-            headers: { 'x-csrf-token': csrfToken },
-            body: formData
-          }, active);
-        } finally {
-          releaseChunkSlot();
-        }
-        if (!response.ok) {
-          const error = await response.json().catch(() => ({}));
-          throw new Error(error.error || `Chunk ${index + 1} failed with status ${response.status}`);
-        }
-        completedChunks += 1;
-        active.percent = Math.min(98, Math.round((completedChunks / totalChunks) * 98));
-        sendStreamMessage(active, { type: 'PROGRESS', percent: active.percent });
+        await uploadChunkAtIndex(index);
       }
     });
     await Promise.all(workers);

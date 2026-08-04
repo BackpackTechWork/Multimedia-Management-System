@@ -19,12 +19,22 @@ class StorageService {
     // upload staging area so polling does not perform small-file I/O over SMB.
     this.uploadReceiptsDir = path.join(this.chunksDir, '.upload-receipts');
     this.legacyUploadReceiptsDir = path.join(this.storageRoot, '.upload-receipts');
+    this.legacyUploadReceiptNames = new Set();
     this.cancelledUploadIds = new Map();
     
     fs.mkdirSync(this.storageRoot, { recursive: true });
     fs.mkdirSync(this.chunksDir, { recursive: true });
     fs.mkdirSync(this.thumbnailsDir, { recursive: true });
     fs.mkdirSync(this.uploadReceiptsDir, { recursive: true });
+    try {
+      fs.readdirSync(this.legacyUploadReceiptsDir, { withFileTypes: true })
+        .filter(entry => entry.isFile() && entry.name.endsWith('.json'))
+        .forEach(entry => this.legacyUploadReceiptNames.add(entry.name));
+    } catch (err) {
+      if (err.code !== 'ENOENT') {
+        console.warn(`Could not index legacy upload receipts: ${err.message}`);
+      }
+    }
     console.log(`Upload staging directory: ${this.chunksDir}`);
     if (storageIsNetworkShare && !process.env.UPLOAD_TEMP_ROOT) {
       console.warn('UPLOAD_TEMP_ROOT is not set; using local .upload-temp staging for SMB storage.');
@@ -129,6 +139,8 @@ class StorageService {
     } catch (err) {
       if (err instanceof SyntaxError) return null;
       if (err.code === 'ENOENT') {
+        const legacyName = path.basename(this.getLegacyUploadReceiptPath(uploadId));
+        if (!this.legacyUploadReceiptNames.has(legacyName)) return null;
         try {
           return JSON.parse(await fs.promises.readFile(this.getLegacyUploadReceiptPath(uploadId), 'utf8'));
         } catch (legacyErr) {
@@ -165,6 +177,7 @@ class StorageService {
   }
 
   async deleteUploadReceipt(uploadId) {
+    this.legacyUploadReceiptNames.delete(path.basename(this.getLegacyUploadReceiptPath(uploadId)));
     await Promise.all([
       fs.promises.rm(this.getUploadReceiptPath(uploadId), { force: true }),
       fs.promises.rm(this.getLegacyUploadReceiptPath(uploadId), { force: true })
