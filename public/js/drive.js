@@ -2392,6 +2392,10 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadProgressText.textContent = `${completed} upload${completed === 1 ? '' : 's'} complete`;
         updateProgress(100, 'All uploads are safely stored', { force: true });
         window.queueDriveToast?.('Background uploads completed', 'success');
+        // The initial post-staging reload can happen while later SMB jobs are
+        // still finishing. Refresh once more only at the terminal batch state
+        // so every newly-created database record appears in the drive listing.
+        setTimeout(() => window.location.reload(), 500);
         return;
       }
 
