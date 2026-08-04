@@ -28,7 +28,14 @@ const helmetConfig = helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "blob:"], // unsafe-inline/unsafe-eval needed for inline scripts and templates; blob: for workers
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        "blob:",
+        "https://static.cloudflareinsights.com"
+      ], // Cloudflare injects its Web Analytics beacon when Browser Insights is enabled.
+      connectSrc: ["'self'", "https://cloudflareinsights.com"],
       styleSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline needed for inline styling/attributes
       imgSrc: ["'self'", "data:"], // data: needed for SVG previews
       fontSrc: ["'self'", "data:"], // data: needed for base64 encoded woff/woff2 fonts
