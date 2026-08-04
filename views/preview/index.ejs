@@ -195,7 +195,7 @@
   <!-- 6. VIDEO PREVIEW -->
   <% } else if (type === 'video') { %>
     <div class="w-full max-w-4xl bg-black rounded-xl overflow-hidden shadow-md border border-gray-200">
-      <video src="<%= streamUrl %>" controls class="w-full max-h-[75vh]" autoplay></video>
+      <video src="<%= streamUrl %>" controls preload="metadata" playsinline class="w-full max-h-[75vh]" autoplay></video>
     </div>
 
   <!-- 7. AUDIO PREVIEW -->

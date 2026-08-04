@@ -23,7 +23,14 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.locals.assetVersion = assetVersion;
 
-app.use(compression());
+app.use(compression({
+  filter: (req, res) => {
+    // Byte-range media must pass through unchanged; compression can buffer it
+    // and makes Content-Range/Content-Length semantics unreliable.
+    if (req.path.startsWith('/preview/stream/')) return false;
+    return compression.filter(req, res);
+  }
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

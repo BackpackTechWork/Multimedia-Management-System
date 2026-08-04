@@ -10,6 +10,38 @@ const shareRepository = require('../repositories/ShareRepository');
 const storageService = require('../services/StorageService');
 const fileChecksumService = require('../services/FileChecksumService');
 
+function parseByteRange(rangeHeader, fileSize) {
+  if (!rangeHeader || !Number.isSafeInteger(fileSize) || fileSize < 0) return null;
+
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(rangeHeader.trim());
+  if (!match || (!match[1] && !match[2])) return null;
+
+  let start;
+  let end;
+
+  if (!match[1]) {
+    const suffixLength = Number(match[2]);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return null;
+    start = Math.max(fileSize - suffixLength, 0);
+    end = fileSize - 1;
+  } else {
+    start = Number(match[1]);
+    end = match[2] ? Number(match[2]) : fileSize - 1;
+  }
+
+  if (
+    !Number.isSafeInteger(start)
+    || !Number.isSafeInteger(end)
+    || start < 0
+    || start >= fileSize
+    || end < start
+  ) {
+    return null;
+  }
+
+  return { start, end: Math.min(end, fileSize - 1) };
+}
+
 async function handleFileStreamError(res, err, stream = null) {
   if (['UNKNOWN', 'ENOENT', 'EBUSY', 'EPERM', 'EACCES'].includes(err?.code) && stream?.retryAfterHydration) {
     const retryStream = await stream.retryAfterHydration();
@@ -304,12 +336,19 @@ class PreviewController {
     }
 
     const fullPath = path.join(storageService.storageRoot, filePath);
-    if (!(await this.fileExists(fullPath))) {
-      return res.status(404).send('File not found');
+    let stats;
+    try {
+      stats = await fs.promises.stat(fullPath);
+      if (!stats.isFile()) return res.status(404).send('File not found');
+    } catch (err) {
+      if (err.code === 'ENOENT') return res.status(404).send('File not found');
+      return handleFileStreamError(res, err);
     }
 
     const contentType = req.query.thumbnail ? 'image/jpeg' : file.mimeType;
     res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Accel-Buffering', 'no');
     
     let contentDisposition = '';
     if (!req.query.thumbnail) {
@@ -318,18 +357,27 @@ class PreviewController {
       res.setHeader('Content-Disposition', contentDisposition);
     }
     
+    const fileSize = stats.size;
     const range = req.headers.range;
     if (range && !req.query.thumbnail) {
-      const parts = range.replace(/bytes=/, "").split("-");
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : file.size - 1;
+      const parsedRange = parseByteRange(range, fileSize);
+      if (!parsedRange) {
+        res.setHeader('Content-Range', `bytes */${fileSize}`);
+        return res.status(416).end();
+      }
+
+      const { start, end } = parsedRange;
       const chunksize = (end - start) + 1;
       
-      const fileStream = fileChecksumService.createReadStreamWithHydration(file, fullPath, fs, { start, end });
+      const fileStream = fileChecksumService.createReadStreamWithHydration(file, fullPath, fs, {
+        start,
+        end,
+        highWaterMark: 1024 * 1024
+      });
       fileStream.file = file;
       fileStream.on('error', err => handleFileStreamError(res, err, fileStream));
       const headers = {
-        'Content-Range': `bytes ${start}-${end}/${file.size}`,
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
         'Accept-Ranges': 'bytes',
         'Content-Length': chunksize,
         'Content-Type': file.mimeType,
@@ -338,13 +386,27 @@ class PreviewController {
         headers['Content-Disposition'] = contentDisposition;
       }
       res.writeHead(206, headers);
+      res.flushHeaders();
+      req.on('aborted', () => fileStream.destroy());
+      res.on('close', () => {
+        if (!res.writableEnded) fileStream.destroy();
+      });
       fileStream.pipe(res);
     } else {
       const fileStream = req.query.thumbnail
         ? fs.createReadStream(fullPath)
-        : fileChecksumService.createReadStreamWithHydration(file, fullPath, fs);
+        : fileChecksumService.createReadStreamWithHydration(file, fullPath, fs, {
+          highWaterMark: 1024 * 1024
+        });
       fileStream.file = file;
       fileStream.on('error', err => handleFileStreamError(res, err, fileStream));
+      res.setHeader('Content-Length', fileSize);
+      if (!req.query.thumbnail) res.setHeader('Accept-Ranges', 'bytes');
+      res.flushHeaders();
+      req.on('aborted', () => fileStream.destroy());
+      res.on('close', () => {
+        if (!res.writableEnded) fileStream.destroy();
+      });
       fileStream.pipe(res);
     }
   }
