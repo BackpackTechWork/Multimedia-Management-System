@@ -111,6 +111,10 @@
           channel.port1.close();
           reject(new Error(message.error || 'Background upload failed'));
         }
+        if (message.type === 'CANCELLED') {
+          channel.port1.close();
+          reject(new DOMException('Upload cancelled', 'AbortError'));
+        }
       };
       try {
         worker.postMessage({ type: 'START_STREAM_UPLOAD', payload }, [channel.port2]);

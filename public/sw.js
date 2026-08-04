@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'harbor-drive-shell-v13';
+const CACHE_VERSION = 'harbor-drive-shell-v14';
 const STATIC_ASSETS = [
   '/site.webmanifest', '/favicon.svg', '/apple-touch-icon.png',
   '/css/drive.css', '/css/auth.css', '/css/preview.css',
@@ -10,7 +10,6 @@ const STORE_NAME = 'upload-finalizations';
 const STREAM_PAYLOAD_STORE_NAME = 'upload-payloads';
 const activeStreamUploads = new Map();
 const STREAM_CHUNK_CONCURRENCY = 4;
-const MAX_PERSISTED_STREAM_FILE_SIZE = 512 * 1024 * 1024;
 let activeStreamChunkRequests = 0;
 const streamChunkWaiters = [];
 
@@ -22,6 +21,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(Promise.all([
     caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_VERSION).map(key => caches.delete(key)))),
+    clearStreamPayloads(),
     self.clients.claim(),
     pollTrackedUploads()
   ]));
@@ -67,7 +67,7 @@ async function fetchAndCacheLatest(request) {
 self.addEventListener('message', event => {
   const { type, upload, payload, uploadIds = [] } = event.data || {};
   if (type === 'POLL_UPLOADS') {
-    event.waitUntil(Promise.all([pollTrackedUploads(), resumePersistedStreamUploads()]));
+    event.waitUntil(pollTrackedUploads());
     return;
   }
   if (type === 'LIST_STREAM_UPLOADS') {
@@ -81,10 +81,9 @@ self.addEventListener('message', event => {
   }
   if (type === 'START_STREAM_UPLOAD' && payload?.uploadId && payload?.file) {
     const port = event.ports[0];
-    // Persisting multi-gigabyte File blobs in IndexedDB duplicates enormous
-    // amounts of browser storage and can stall the page before transfer starts.
-    const persistPayload = payload.file.size <= MAX_PERSISTED_STREAM_FILE_SIZE;
-    event.waitUntil(startStreamUpload(payload, port, { persistPayload }));
+    // Start network transfer immediately. Server-side chunks provide resume
+    // safety; copying File blobs into IndexedDB delayed the first request.
+    event.waitUntil(startStreamUpload(payload, port, { persistPayload: false }));
     return;
   }
   if (['PAUSE_STREAM_UPLOADS', 'RESUME_STREAM_UPLOADS', 'CANCEL_STREAM_UPLOADS'].includes(type)) {
@@ -139,6 +138,10 @@ function startStreamUpload(payload, port = null, { persistPayload = false } = {}
   active.promise = (persistPayload ? putStreamPayload(payload) : Promise.resolve())
     .then(() => streamUploadInWorker(payload, active))
     .catch(err => {
+      if (active.cancelled || (err?.name === 'AbortError' && err?.message === 'Upload cancelled')) {
+        sendStreamMessage(active, { type: 'CANCELLED' });
+        return;
+      }
       const storageFailure = err?.name === 'QuotaExceededError'
         ? 'Not enough browser storage to preserve this upload through a hard refresh'
         : (err.message || 'Background upload failed');
@@ -147,11 +150,6 @@ function startStreamUpload(payload, port = null, { persistPayload = false } = {}
     .finally(() => activeStreamUploads.delete(payload.uploadId));
   activeStreamUploads.set(payload.uploadId, active);
   return active.promise;
-}
-
-async function resumePersistedStreamUploads() {
-  const payloads = await getStreamPayloads().catch(() => []);
-  await Promise.all(payloads.map(payload => startStreamUpload(payload, null, { persistPayload: false })));
 }
 
 function sendStreamMessage(active, message) {
@@ -188,7 +186,9 @@ async function waitForStreamResume(active) {
   while (active.paused && !active.cancelled) {
     await new Promise(resolve => active.resumeWaiters.push(resolve));
   }
-  if (active.cancelled) throw new Error('Upload cancelled');
+  if (active.cancelled) {
+    throw Object.assign(new Error('Upload cancelled'), { name: 'AbortError' });
+  }
 }
 
 async function streamFetch(url, options, active, maxAttempts = 6) {
@@ -196,20 +196,29 @@ async function streamFetch(url, options, active, maxAttempts = 6) {
     await waitForStreamResume(active);
     const controller = new AbortController();
     active.controllers.add(controller);
-    const timeoutId = setTimeout(() => controller.abort(), 45000);
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 120000);
     try {
       const response = await fetch(url, { ...options, signal: controller.signal, credentials: 'include' });
       if (response.ok) return response;
       if (response.status >= 400 && response.status < 500 && response.status !== 429) return response;
       throw new Error(`Status ${response.status}`);
     } catch (err) {
-      if (active.cancelled) throw err;
+      if (active.cancelled) {
+        throw Object.assign(new Error('Upload cancelled'), { name: 'AbortError' });
+      }
       if (active.paused) {
         await waitForStreamResume(active);
         attempt -= 1;
         continue;
       }
-      if (attempt === maxAttempts) throw err;
+      if (attempt === maxAttempts) {
+        if (timedOut) throw new Error('Upload request timed out after repeated attempts');
+        throw err;
+      }
       await new Promise(resolve => setTimeout(resolve, Math.min(10000, 750 * (2 ** (attempt - 1)))));
     } finally {
       clearTimeout(timeoutId);
@@ -371,7 +380,7 @@ function deleteUpload(uploadId) { return withStore(STORE_NAME, 'readwrite', stor
 function getUploads() { return withStore(STORE_NAME, 'readonly', store => store.getAll()); }
 function putStreamPayload(payload) { return withStore(STREAM_PAYLOAD_STORE_NAME, 'readwrite', store => store.put(payload)); }
 function deleteStreamPayload(uploadId) { return withStore(STREAM_PAYLOAD_STORE_NAME, 'readwrite', store => store.delete(uploadId)); }
-function getStreamPayloads() { return withStore(STREAM_PAYLOAD_STORE_NAME, 'readonly', store => store.getAll()); }
+function clearStreamPayloads() { return withStore(STREAM_PAYLOAD_STORE_NAME, 'readwrite', store => store.clear()); }
 
 async function registerUploadSync() {
   if ('sync' in self.registration) {
