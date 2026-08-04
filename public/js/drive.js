@@ -2901,17 +2901,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function showProgressModal() {
     if (uploadProgressModal) uploadProgressModal.classList.remove('hidden');
-    updateProgress(0, 'Preparing file slices...', { force: true });
+    updateProgress(0, 'Preparing file slices...', { force: true, showPercent: false });
   }
 
-  function updateProgress(percent, detailText, { force = false } = {}) {
+  function updateProgress(percent, detailText, { force = false, showPercent = true } = {}) {
     const now = Date.now();
     if (!force && now - lastProgressUpdateAt < 100 && percent < 100) {
       return;
     }
     lastProgressUpdateAt = now;
     if (uploadProgressBar) uploadProgressBar.style.width = `${percent}%`;
-    if (uploadProgressDetails) uploadProgressDetails.textContent = `${formatUploadPercent(percent)} - ${detailText}`;
+    if (uploadProgressDetails) {
+      uploadProgressDetails.textContent = showPercent
+        ? `${formatUploadPercent(percent)} - ${detailText}`
+        : detailText;
+    }
   }
 
   async function uploadFileInChunks(file, folderId, onProgress, { deferStats = false } = {}) {

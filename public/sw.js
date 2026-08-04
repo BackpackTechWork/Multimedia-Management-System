@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'harbor-drive-shell-v17';
+const CACHE_VERSION = 'harbor-drive-shell-v18';
 const STATIC_ASSETS = [
   '/site.webmanifest', '/favicon.svg', '/apple-touch-icon.png',
   '/css/drive.css', '/css/auth.css', '/css/preview.css',
