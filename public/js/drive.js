@@ -104,6 +104,18 @@ document.addEventListener('DOMContentLoaded', () => {
     applyDriveLayout('grid');
   });
 
+  const SIDEBAR_MY_DRIVE_OPEN_KEY = 'harbor-drive-sidebar-my-drive-open';
+  const sidebarMyDriveGroup = document.getElementById('sidebar-my-drive-group');
+  if (sidebarMyDriveGroup) {
+    sidebarMyDriveGroup.addEventListener('toggle', () => {
+      try {
+        localStorage.setItem(SIDEBAR_MY_DRIVE_OPEN_KEY, sidebarMyDriveGroup.open ? '1' : '0');
+      } catch {
+        // Storage may be unavailable in restricted/private browser contexts.
+      }
+    });
+  }
+
   function isMobileSidebar() {
     return window.matchMedia('(max-width: 1023px)').matches;
   }

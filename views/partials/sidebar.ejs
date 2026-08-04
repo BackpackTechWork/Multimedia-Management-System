@@ -53,7 +53,7 @@
     <!-- 2. Core Navigation Links -->
     <nav class="flex flex-col gap-1">
       <% if (locals.userRootFolders && userRootFolders.length > 0) { %>
-        <details class="sidebar-group" open>
+        <details id="sidebar-my-drive-group" class="sidebar-group" open>
           <summary class="sidebar-link <%= locals.tab === 'my-drive' ? 'active' : '' %> list-none flex items-center justify-between !p-0 select-none">
             <a href="/" class="sidebar-folder-drop-target flex items-center gap-2 flex-1 px-4 py-2.5 cursor-pointer" onclick="event.stopPropagation();" data-id="" data-type="folder" data-name="My Drive">
               <i class="bi bi-hdd-fill text-lg"></i>
@@ -78,6 +78,19 @@
             <% }) %>
           </div>
         </details>
+        <script>
+          (function () {
+            try {
+              var group = document.getElementById('sidebar-my-drive-group');
+              if (!group) return;
+              if (localStorage.getItem('harbor-drive-sidebar-my-drive-open') === '0') {
+                group.removeAttribute('open');
+              } else {
+                group.setAttribute('open', '');
+              }
+            } catch (e) {}
+          })();
+        </script>
       <% } else { %>
         <a href="/" class="sidebar-folder-drop-target sidebar-link <%= locals.tab === 'my-drive' ? 'active' : '' %>" data-id="" data-type="folder" data-name="My Drive">
           <i class="bi bi-hdd-fill text-lg"></i>
