@@ -1999,7 +1999,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (hiddenCount > 0) {
       const summaryRow = document.createElement('div');
       summaryRow.className = 'px-4 py-3 text-xs font-semibold text-gray-500 bg-gray-50 border-t border-gray-100';
-      summaryRow.textContent = `${hiddenCount} more file${hiddenCount === 1 ? '' : 's'} will upload in the background`;
+      summaryRow.textContent = `${hiddenCount} more file${hiddenCount === 1 ? '' : 's'} queued`;
       uploadQueueList.appendChild(summaryRow);
     }
   }
@@ -2280,7 +2280,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     updateUploadSummary({ force: true });
     syncUploadNavigationLock();
-    showProgressModal();
     uploadProgressPauseBtn?.classList.add('hidden');
     if (uploadProgressCloseBtn) {
       uploadProgressCloseBtn.title = 'Discard paused uploads';
@@ -2336,7 +2335,9 @@ document.addEventListener('DOMContentLoaded', () => {
             removePendingUploadFingerprint(fingerprint);
           } else if (status.processing) {
             processing += 1;
-            setUploadItemState(file, 'finalizing', 100, { deferSummary: true });
+            // The browser upload is complete once the file is safely staged.
+            // Storage promotion is an internal server concern from this point.
+            setUploadItemState(file, 'complete', 100, { deferSummary: true });
             window.harborPwa?.trackUpload({ uploadId: record.uploadId, filename: record.name });
           } else if (status.failed && !streamingById.has(record.uploadId)) {
             failed += 1;
@@ -2389,30 +2390,36 @@ document.addEventListener('DOMContentLoaded', () => {
       if (completed === remainingItems.length) {
         restoredStreamingUploadsActive = false;
         syncUploadNavigationLock();
-        uploadProgressText.textContent = `${completed} upload${completed === 1 ? '' : 's'} complete`;
-        updateProgress(100, 'All uploads are safely stored', { force: true });
-        window.queueDriveToast?.('Background uploads completed', 'success');
-        // The initial post-staging reload can happen while later SMB jobs are
-        // still finishing. Refresh once more only at the terminal batch state
-        // so every newly-created database record appears in the drive listing.
+        uploadProgressModal?.classList.add('hidden');
         setTimeout(() => window.location.reload(), 500);
         return;
       }
 
+      const internalProcessingOnly = processing > 0
+        && streaming === 0
+        && waitingForFile === 0
+        && failed === 0
+        && connectionErrors === 0;
+      if (internalProcessingOnly) {
+        uploadProgressModal?.classList.add('hidden');
+        restoredUploadPollTimer = setTimeout(poll, 5000);
+        return;
+      }
+
+      uploadProgressModal?.classList.remove('hidden');
+
       if (streaming > 0) {
-        uploadProgressText.textContent = `Streaming ${streaming} upload${streaming === 1 ? '' : 's'} in the background`;
-      } else if (processing > 0) {
-        uploadProgressText.textContent = `Finishing ${processing} staged upload${processing === 1 ? '' : 's'}`;
+        uploadProgressText.textContent = `Uploading ${streaming} file${streaming === 1 ? '' : 's'}`;
       } else if (waitingForFile > 0) {
         uploadProgressText.textContent = `${waitingForFile} upload${waitingForFile === 1 ? '' : 's'} paused after refresh`;
       } else if (failed > 0) {
         uploadProgressText.textContent = `${failed} upload${failed === 1 ? '' : 's'} need attention`;
       } else {
-        uploadProgressText.textContent = 'Checking background uploads';
+        uploadProgressText.textContent = 'Checking uploads';
       }
 
-      let details = 'Safely staged; the server is finishing in the background';
-      if (streaming > 0) details = 'Transfer continues while you browse or refresh Harbor Drive';
+      let details = 'Upload complete';
+      if (streaming > 0) details = 'Uploading files';
       if (waitingForFile > 0) details = 'Reselect the same file to resume from the saved percentage';
       if (connectionErrors > 0) details = 'Could not reach the server; checking again automatically';
       updateProgress(percent, details, { force: true });
@@ -2483,9 +2490,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         await uploadFlatFiles(files, { deferStats: files.length > 1 });
         uploadInput.value = '';
-        await playUploadSuccessSound();
-        finishUploadSession();
-        window.location.reload();
+        await completeVisibleUploadSession();
       } catch (err) {
         await finishFailedUpload(err);
       }
@@ -2644,9 +2649,7 @@ document.addEventListener('DOMContentLoaded', () => {
             deferStats: droppedFiles.length > 1, 
             destinationFolderId 
           });
-          await playUploadSuccessSound();
-          finishUploadSession();
-          window.location.reload();
+          await completeVisibleUploadSession();
         } catch (err) {
           await finishFailedUpload(err);
         }
@@ -2696,9 +2699,7 @@ document.addEventListener('DOMContentLoaded', () => {
               deferStats: droppedFiles.length > 1,
               destinationFolderId
             });
-            await playUploadSuccessSound();
-            finishUploadSession();
-            window.location.reload();
+            await completeVisibleUploadSession();
           } catch (err) {
             await finishFailedUpload(err);
           }
@@ -2734,15 +2735,13 @@ document.addEventListener('DOMContentLoaded', () => {
           if (uploadCancelled) throw new Error('Upload cancelled');
 
           const parentFolderId = pathFolderIdMap[item.path];
-          const result = await uploadFileInChunks(item.file, parentFolderId, (percent) => {
+          await uploadFileInChunks(item.file, parentFolderId, (percent) => {
             setUploadItemState(item.file, 'uploading', percent);
           }, { deferStats: isLargeQueue });
-          setUploadItemState(item.file, result?.processing ? 'finalizing' : 'complete', 100);
+          setUploadItemState(item.file, 'complete', 100);
         });
 
-        await playUploadSuccessSound();
-        finishUploadSession();
-        window.location.reload();
+        await completeVisibleUploadSession();
       } catch (err) {
         await finishFailedUpload(err, `Drop upload failed: ${err.message}`);
       }
@@ -2753,10 +2752,10 @@ document.addEventListener('DOMContentLoaded', () => {
     await runFileUploadBatch(files, async (file) => {
       if (uploadCancelled) throw new Error('Upload cancelled');
 
-      const result = await uploadFileInChunks(file, destinationFolderId, (percent) => {
+      await uploadFileInChunks(file, destinationFolderId, (percent) => {
         setUploadItemState(file, 'uploading', percent);
       }, { deferStats });
-      setUploadItemState(file, result?.processing ? 'finalizing' : 'complete', 100);
+      setUploadItemState(file, 'complete', 100);
     });
   }
 
@@ -2875,16 +2874,14 @@ document.addEventListener('DOMContentLoaded', () => {
           if (uploadCancelled) throw new Error('Upload cancelled');
 
           const parentFolderId = pathFolderIdMap[item.path];
-          const result = await uploadFileInChunks(item.file, parentFolderId, (percent) => {
+          await uploadFileInChunks(item.file, parentFolderId, (percent) => {
             setUploadItemState(item.file, 'uploading', percent);
           }, { deferStats: isLargeQueue });
-          setUploadItemState(item.file, result?.processing ? 'finalizing' : 'complete', 100);
+          setUploadItemState(item.file, 'complete', 100);
         });
 
         folderUploadInput.value = '';
-        await playUploadSuccessSound();
-        finishUploadSession();
-        window.location.reload();
+        await completeVisibleUploadSession();
       } catch (err) {
         folderUploadInput.value = '';
         await finishFailedUpload(err, `Folder upload failed: ${err.message}`);
@@ -2893,10 +2890,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function playUploadSuccessSound() {
-    updateProgress(100, 'Safely staged; syncing to storage in the background', { force: true });
+    updateProgress(100, 'Upload complete', { force: true });
     if (window.playNotificationSound) {
       await window.playNotificationSound();
     }
+  }
+
+  async function completeVisibleUploadSession() {
+    await playUploadSuccessSound();
+    finishUploadSession();
+    uploadProgressModal?.classList.add('hidden');
+    showDriveToast('Upload complete', 'success');
+
+    // Keep storage promotion invisible. This poll refreshes the listing once
+    // every staged file is available, without exposing an internal sync state.
+    restorePendingUploadStatus().catch(err => {
+      console.warn('Could not monitor completed uploads:', err);
+    });
   }
 
   function showProgressModal() {
@@ -2948,10 +2958,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }, percent => {
           updatePendingUploadProgress(uploadId, percent);
           if (onProgress) onProgress(percent);
-          else updateProgress(percent, 'Streaming in the background');
+          else updateProgress(percent, 'Uploading file');
         });
         if (streamed?.handled) {
-          setUploadItemState(file, 'finalizing', 100);
+          setUploadItemState(file, 'complete', 100);
           window.harborPwa?.trackUpload({ uploadId, filename: file.name });
           uploadCompleted = true;
           return { processing: true };
@@ -2974,7 +2984,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return { completed: true };
       }
       if (statusData.processing) {
-        setUploadItemState(file, 'finalizing', 100);
+        setUploadItemState(file, 'complete', 100);
         window.harborPwa?.trackUpload({ uploadId, filename: file.name });
         uploadCompleted = true;
         return { processing: true };
@@ -3022,8 +3032,8 @@ document.addEventListener('DOMContentLoaded', () => {
       await runWithConcurrency(missingChunkIndices, CHUNK_UPLOAD_CONCURRENCY, uploadMissingChunk);
 
       // 3. Request final merge
-      setUploadItemState(file, 'finalizing', 100);
-      if (!onProgress) updateProgress(99, 'Verifying uploaded data on disk...', { force: true });
+      setUploadItemState(file, 'uploading', 99);
+      if (!onProgress) updateProgress(99, 'Saving upload...', { force: true });
       
       const completeRes = await fetchWithConnectionRecovery('/api/upload/complete', {
         method: 'POST',

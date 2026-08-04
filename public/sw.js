@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'harbor-drive-shell-v18';
+const CACHE_VERSION = 'harbor-drive-shell-v20';
 const STATIC_ASSETS = [
   '/site.webmanifest', '/favicon.svg', '/apple-touch-icon.png',
   '/css/drive.css', '/css/auth.css', '/css/preview.css',
@@ -144,7 +144,7 @@ function startStreamUpload(payload, port = null, { persistPayload = false } = {}
       }
       const storageFailure = err?.name === 'QuotaExceededError'
         ? 'Not enough browser storage to preserve this upload through a hard refresh'
-        : (err.message || 'Background upload failed');
+        : (err.message || 'Upload failed');
       sendStreamMessage(active, { type: 'ERROR', error: storageFailure });
     })
     .finally(() => activeStreamUploads.delete(payload.uploadId));
@@ -336,7 +336,7 @@ self.addEventListener('push', event => {
   let data = {};
   try { data = event.data?.json() || {}; } catch { data = { body: event.data?.text() }; }
   event.waitUntil(self.registration.showNotification(data.title || 'Harbor Drive', {
-    body: data.body || 'Your background task is complete.',
+    body: data.body || 'Your task is complete.',
     icon: '/web-app-manifest-192x192.png', badge: '/favicon-96x96.png',
     data: { url: data.url || '/my-drive' }
   }));

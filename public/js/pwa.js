@@ -109,7 +109,7 @@
         }
         if (message.type === 'ERROR') {
           channel.port1.close();
-          reject(new Error(message.error || 'Background upload failed'));
+          reject(new Error(message.error || 'Upload failed'));
         }
         if (message.type === 'CANCELLED') {
           channel.port1.close();
