@@ -1458,7 +1458,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- CHUNKED FILE UPLOADER SYSTEM ---
-  const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+  const LEGACY_CHUNK_SIZE = 5 * 1024 * 1024;
+  const CHUNK_SIZE = 16 * 1024 * 1024;
   const uploadInput = document.getElementById('upload-input');
   const uploadProgressModal = document.getElementById('upload-progress-modal');
   const uploadProgressText = document.getElementById('upload-progress-text');
@@ -1472,8 +1473,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const isConstrainedConnection = /(^|-)2g|3g/.test(navigator.connection?.effectiveType || '');
   const CHUNK_UPLOAD_CONCURRENCY = isConstrainedConnection ? 2 : Math.max(2, Math.min(4, navigator.hardwareConcurrency || 4));
   const FILE_UPLOAD_CONCURRENCY = isConstrainedConnection ? 1 : 2;
-  const CHUNK_REQUEST_TIMEOUT_MS = 45 * 1000;
-  const FINALIZATION_TIMEOUT_MS = 30 * 60 * 1000;
+  const CHUNK_REQUEST_TIMEOUT_MS = 120 * 1000;
   const MAX_RENDERED_UPLOAD_ROWS = 100;
   const MAX_PENDING_UPLOAD_RECORDS = 400;
   let lastProgressUpdateAt = 0;
@@ -1594,7 +1594,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (uploadProgressCloseBtn) {
     uploadProgressCloseBtn.addEventListener('click', async (e) => {
-      if (!uploadInProgress) return;
+      if (!uploadInProgress) {
+        const discardable = Array.from(restoredUploadItemsById.entries())
+          .filter(([, restored]) => ['paused', 'failed'].includes(uploadQueueByFile.get(restored.file)?.status));
+        if (discardable.length === 0) {
+          uploadProgressModal?.classList.add('hidden');
+          return;
+        }
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const shouldDiscard = await confirm(
+          `Discard ${discardable.length} paused upload${discardable.length === 1 ? '' : 's'}? Temporary chunks will be removed.`
+        );
+        if (!shouldDiscard) return;
+
+        const uploadIds = discardable.map(([uploadId]) => uploadId);
+        removePendingUploadIds(uploadIds);
+        restoredUploadPollGeneration += 1;
+        clearTimeout(restoredUploadPollTimer);
+        uploadProgressText.textContent = 'Discarding paused uploads...';
+        updateProgress(0, 'Removing temporary chunks', { force: true });
+        await window.harborPwa?.cancelUploads(uploadIds);
+        await fetch('/api/upload/cancel', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrfToken
+          },
+          body: JSON.stringify({ uploadIds })
+        }).catch(err => console.warn('Paused upload cleanup failed:', err));
+
+        discardable.forEach(([uploadId, restored]) => {
+          restoredUploadItemsById.delete(uploadId);
+          uploadQueueByFile.get(restored.file)?.row?.remove();
+          uploadQueueByFile.delete(restored.file);
+          uploadQueue = uploadQueue.filter(item => item.file !== restored.file);
+        });
+        restoredStreamingUploadsActive = false;
+        syncUploadNavigationLock();
+        uploadProgressModal?.classList.add('hidden');
+        return;
+      }
 
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -1666,7 +1707,10 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadIdentityByFile.clear();
     updatePauseButton();
     uploadProgressPauseBtn?.classList.remove('hidden');
-    if (uploadProgressCloseBtn) uploadProgressCloseBtn.title = 'Cancel upload';
+    if (uploadProgressCloseBtn) {
+      uploadProgressCloseBtn.title = 'Cancel upload';
+      uploadProgressCloseBtn.setAttribute('aria-label', 'Cancel upload');
+    }
     if (uploadQueueList) uploadQueueList.replaceChildren();
   }
 
@@ -1695,7 +1739,12 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadProgressText.textContent = 'Cancelling upload...';
     updateProgress(0, 'Removing temporary chunks...', { force: true });
 
-    await cleanupActiveUploadChunks();
+    const uploadIds = Array.from(activeUploadIds);
+    // Make cancellation durable before waiting on the service worker/server.
+    // Otherwise a refresh can resurrect these records as paused uploads.
+    removePendingUploadIds(uploadIds);
+    uploadQueue.forEach(item => uploadIdentityByFile.delete(item.file));
+    await cleanupActiveUploadChunks(uploadIds);
     finishUploadSession();
     if (uploadProgressModal) uploadProgressModal.classList.add('hidden');
     if (uploadInput) uploadInput.value = '';
@@ -1815,10 +1864,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function cleanupActiveUploadChunks() {
-    const uploadIds = Array.from(activeUploadIds);
+  async function cleanupActiveUploadChunks(uploadIds = Array.from(activeUploadIds)) {
     if (uploadIds.length > 0) {
-      window.harborPwa?.cancelUploads(uploadIds);
+      await window.harborPwa?.cancelUploads(uploadIds);
       await fetch('/api/upload/cancel', {
         method: 'POST',
         headers: {
@@ -2080,6 +2128,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const fingerprint = getUploadFingerprint(file, folderId);
     const pendingUploads = getPendingUploads();
     const existing = pendingUploads[fingerprint];
+    const chunkSize = Number.isSafeInteger(Number(existing?.chunkSize)) && Number(existing.chunkSize) > 0
+      ? Number(existing.chunkSize)
+      : existing
+        ? LEGACY_CHUNK_SIZE
+        : CHUNK_SIZE;
     const uploadId = existing?.uploadId || (
       window.crypto?.randomUUID
         ? window.crypto.randomUUID()
@@ -2093,11 +2146,12 @@ document.addEventListener('DOMContentLoaded', () => {
       lastModified: file.lastModified,
       folderId: folderId ?? '',
       progress: Number(existing?.progress) || 0,
+      chunkSize,
       updatedAt: Date.now()
     };
     savePendingUploads(pendingUploads);
 
-    const identity = { fingerprint, uploadId };
+    const identity = { fingerprint, uploadId, chunkSize };
     uploadIdentityByFile.set(file, identity);
     return identity;
   }
@@ -2115,6 +2169,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const pendingUploads = getPendingUploads();
     delete pendingUploads[fingerprint];
     savePendingUploads(pendingUploads);
+  }
+
+  function removePendingUploadIds(uploadIds) {
+    const ids = new Set(uploadIds);
+    if (ids.size === 0) return;
+    const pendingUploads = getPendingUploads();
+    let changed = false;
+    Object.entries(pendingUploads).forEach(([fingerprint, record]) => {
+      if (!ids.has(record?.uploadId)) return;
+      delete pendingUploads[fingerprint];
+      changed = true;
+    });
+    if (changed) savePendingUploads(pendingUploads);
   }
 
   async function fetchRestoredUploadStatus(uploadId) {
@@ -2200,10 +2267,25 @@ document.addEventListener('DOMContentLoaded', () => {
     syncUploadNavigationLock();
     showProgressModal();
     uploadProgressPauseBtn?.classList.add('hidden');
-    if (uploadProgressCloseBtn) uploadProgressCloseBtn.title = 'Hide upload status';
+    if (uploadProgressCloseBtn) {
+      uploadProgressCloseBtn.title = 'Discard paused uploads';
+      uploadProgressCloseBtn.setAttribute('aria-label', 'Discard paused uploads');
+    }
 
     const poll = async () => {
       if (generation !== restoredUploadPollGeneration || uploadInProgress) return;
+
+      const pollItems = restoredItems.filter(item => !item.discarded);
+      if (pollItems.length === 0) {
+        restoredStreamingUploadsActive = false;
+        restoredUploadItemsById.clear();
+        uploadQueue = [];
+        uploadQueueByFile.clear();
+        uploadQueueList?.replaceChildren();
+        uploadProgressModal?.classList.add('hidden');
+        syncUploadNavigationLock();
+        return;
+      }
 
       let completed = 0;
       let processing = 0;
@@ -2219,11 +2301,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const streamingById = new Map(activeStreamingUploads.map(upload => [upload.uploadId, upload]));
 
-      await runStatusChecks(restoredItems, 6, async item => {
+      await runStatusChecks(pollItems, 6, async item => {
         const { record, file, fingerprint } = item;
         try {
           let status = await fetchRestoredUploadStatus(record.uploadId);
-          const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+          const chunkSize = Number(record.chunkSize) || LEGACY_CHUNK_SIZE;
+          const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
           const uploadedChunks = new Set(status.uploadedChunks || []);
 
           if (!status.completed && !status.processing && !status.failed && uploadedChunks.size === totalChunks) {
@@ -2243,6 +2326,15 @@ document.addEventListener('DOMContentLoaded', () => {
           } else if (status.failed && !streamingById.has(record.uploadId)) {
             failed += 1;
             setUploadItemState(file, 'failed', 0, { deferSummary: true });
+          } else if (uploadedChunks.size === 0 && !streamingById.has(record.uploadId)) {
+            // No worker, receipt, or staged chunks means this browser record is
+            // an orphan (normally a cancelled upload). Do not resurrect it.
+            item.discarded = true;
+            restoredUploadItemsById.delete(record.uploadId);
+            removePendingUploadFingerprint(fingerprint);
+            uploadQueueByFile.get(file)?.row?.remove();
+            uploadQueueByFile.delete(file);
+            uploadQueue = uploadQueue.filter(queueItem => queueItem.file !== file);
           } else {
             const serverPercent = Math.min(98, Math.round((uploadedChunks.size / totalChunks) * 98));
             const liveUpload = streamingById.get(record.uploadId);
@@ -2264,11 +2356,22 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       if (generation !== restoredUploadPollGeneration || uploadInProgress) return;
+      const remainingItems = restoredItems.filter(item => !item.discarded);
+      if (remainingItems.length === 0) {
+        restoredStreamingUploadsActive = false;
+        restoredUploadItemsById.clear();
+        uploadQueue = [];
+        uploadQueueByFile.clear();
+        uploadQueueList?.replaceChildren();
+        uploadProgressModal?.classList.add('hidden');
+        syncUploadNavigationLock();
+        return;
+      }
       updateUploadSummary({ force: true });
       restoredStreamingUploadsActive = streaming > 0;
       syncUploadNavigationLock();
       const percent = getAggregateUploadPercent();
-      if (completed === restoredItems.length) {
+      if (completed === remainingItems.length) {
         restoredStreamingUploadsActive = false;
         syncUploadNavigationLock();
         uploadProgressText.textContent = `${completed} upload${completed === 1 ? '' : 's'} complete`;
@@ -2338,19 +2441,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function runFileUploadBatch(items, worker) {
-    let workerOwnsStreams = false;
-    try {
-      workerOwnsStreams = await window.harborPwa?.canStreamUploads?.() || false;
-    } catch {
-      workerOwnsStreams = false;
-    }
-    if (workerOwnsStreams) {
-      // Start every file immediately so all File objects and resume metadata
-      // leave the page before it can be refreshed. The service worker applies
-      // its own global six-chunk network limit across the whole batch.
-      await Promise.all(items.map((item, index) => worker(item, index)));
-      return;
-    }
+    // Starting hundreds of Files at once creates huge IndexedDB work without
+    // exceeding the service worker's global network concurrency anyway.
     await runWithConcurrency(items, FILE_UPLOAD_CONCURRENCY, worker);
   }
 
@@ -2371,7 +2463,6 @@ document.addEventListener('DOMContentLoaded', () => {
       
       try {
         await uploadFlatFiles(files, { deferStats: files.length > 1 });
-        if (files.length > 1) await refreshUploadStats();
         uploadInput.value = '';
         await playUploadSuccessSound();
         finishUploadSession();
@@ -2534,7 +2625,6 @@ document.addEventListener('DOMContentLoaded', () => {
             deferStats: droppedFiles.length > 1, 
             destinationFolderId 
           });
-          if (droppedFiles.length > 1) await refreshUploadStats();
           await playUploadSuccessSound();
           finishUploadSession();
           window.location.reload();
@@ -2587,7 +2677,6 @@ document.addEventListener('DOMContentLoaded', () => {
               deferStats: droppedFiles.length > 1,
               destinationFolderId
             });
-            if (droppedFiles.length > 1) await refreshUploadStats();
             await playUploadSuccessSound();
             finishUploadSession();
             window.location.reload();
@@ -2626,13 +2715,12 @@ document.addEventListener('DOMContentLoaded', () => {
           if (uploadCancelled) throw new Error('Upload cancelled');
 
           const parentFolderId = pathFolderIdMap[item.path];
-          await uploadFileInChunks(item.file, parentFolderId, (percent) => {
+          const result = await uploadFileInChunks(item.file, parentFolderId, (percent) => {
             setUploadItemState(item.file, 'uploading', percent);
           }, { deferStats: isLargeQueue });
-          setUploadItemState(item.file, 'complete', 100);
+          setUploadItemState(item.file, result?.processing ? 'finalizing' : 'complete', 100);
         });
 
-        if (isLargeQueue) await refreshUploadStats();
         await playUploadSuccessSound();
         finishUploadSession();
         window.location.reload();
@@ -2646,10 +2734,10 @@ document.addEventListener('DOMContentLoaded', () => {
     await runFileUploadBatch(files, async (file) => {
       if (uploadCancelled) throw new Error('Upload cancelled');
 
-      await uploadFileInChunks(file, destinationFolderId, (percent) => {
+      const result = await uploadFileInChunks(file, destinationFolderId, (percent) => {
         setUploadItemState(file, 'uploading', percent);
       }, { deferStats });
-      setUploadItemState(file, 'complete', 100);
+      setUploadItemState(file, result?.processing ? 'finalizing' : 'complete', 100);
     });
   }
 
@@ -2768,13 +2856,12 @@ document.addEventListener('DOMContentLoaded', () => {
           if (uploadCancelled) throw new Error('Upload cancelled');
 
           const parentFolderId = pathFolderIdMap[item.path];
-          await uploadFileInChunks(item.file, parentFolderId, (percent) => {
+          const result = await uploadFileInChunks(item.file, parentFolderId, (percent) => {
             setUploadItemState(item.file, 'uploading', percent);
           }, { deferStats: isLargeQueue });
-          setUploadItemState(item.file, 'complete', 100);
+          setUploadItemState(item.file, result?.processing ? 'finalizing' : 'complete', 100);
         });
 
-        if (isLargeQueue) await refreshUploadStats();
         folderUploadInput.value = '';
         await playUploadSuccessSound();
         finishUploadSession();
@@ -2786,26 +2873,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  async function refreshUploadStats() {
-    updateProgress(99, 'Finalizing upload totals...', { force: true });
-    const res = await fetchWithConnectionRecovery('/api/upload/refresh-stats', {
-      method: 'POST',
-      signal: uploadSessionController?.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-csrf-token': csrfToken
-      },
-      body: JSON.stringify({})
-    });
-
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || 'Failed to refresh upload totals');
-    }
-  }
-
   async function playUploadSuccessSound() {
-    updateProgress(100, 'Upload complete', { force: true });
+    updateProgress(100, 'Safely staged; syncing to storage in the background', { force: true });
     if (window.playNotificationSound) {
       await window.playNotificationSound();
     }
@@ -2826,48 +2895,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (uploadProgressDetails) uploadProgressDetails.textContent = `${percent}% - ${detailText}`;
   }
 
-  function delayWithUploadAbort(ms) {
-    return new Promise((resolve, reject) => {
-      const signal = uploadSessionController?.signal;
-      const handleAbort = () => {
-        clearTimeout(timeoutId);
-        reject(new DOMException('Upload cancelled', 'AbortError'));
-      };
-      const timeoutId = setTimeout(() => {
-        signal?.removeEventListener('abort', handleAbort);
-        resolve();
-      }, ms);
-      signal?.addEventListener('abort', handleAbort, { once: true });
-    });
-  }
-
-  async function waitForServerFinalization(uploadId, file) {
-    const deadline = Date.now() + FINALIZATION_TIMEOUT_MS;
-    window.harborPwa?.trackUpload({ uploadId, filename: file.name });
-
-    while (Date.now() < deadline) {
-      await waitForUploadResume();
-      const statusRes = await fetchWithConnectionRecovery(`/api/upload/status?uploadId=${encodeURIComponent(uploadId)}`, {
-        signal: uploadSessionController?.signal
-      });
-      if (!statusRes.ok) throw new Error(`Finalization status failed with status ${statusRes.status}`);
-      const status = await statusRes.json();
-      if (status.completed) {
-        window.harborPwa?.uploadFinished({ uploadId, filename: file.name });
-        return status;
-      }
-      if (status.failed) {
-        throw new Error(status.error || 'The server could not sync the staged upload');
-      }
-      await delayWithUploadAbort(1500);
-    }
-    throw new Error('The server is still syncing this upload. It is safely staged and will continue in the background.');
-  }
-
   async function uploadFileInChunks(file, folderId, onProgress, { deferStats = false } = {}) {
-    const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
     const resolvedFolderId = folderId !== undefined ? folderId : (window.getCurrentFolderId ? window.getCurrentFolderId() : '');
-    const { uploadId } = getOrCreateUploadIdentity(file, resolvedFolderId);
+    const { uploadId, chunkSize } = getOrCreateUploadIdentity(file, resolvedFolderId);
+    const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
     activeUploadIds.add(uploadId);
     let uploadCompleted = false;
 
@@ -2887,7 +2918,7 @@ document.addEventListener('DOMContentLoaded', () => {
           folderId: resolvedFolderId,
           fileSize: file.size,
           totalChunks,
-          chunkSize: CHUNK_SIZE,
+          chunkSize,
           csrfToken,
           deferStats
         }, percent => {
@@ -2897,10 +2928,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (streamed?.handled) {
           setUploadItemState(file, 'finalizing', 100);
-          await waitForServerFinalization(uploadId, file);
+          window.harborPwa?.trackUpload({ uploadId, filename: file.name });
           uploadCompleted = true;
-          clearUploadIdentity(file);
-          return;
+          return { processing: true };
         }
       }
 
@@ -2913,14 +2943,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (statusData.completed) {
         uploadCompleted = true;
         clearUploadIdentity(file);
-        return;
+        return { completed: true };
       }
       if (statusData.processing) {
         setUploadItemState(file, 'finalizing', 100);
-        await waitForServerFinalization(uploadId, file);
+        window.harborPwa?.trackUpload({ uploadId, filename: file.name });
         uploadCompleted = true;
-        clearUploadIdentity(file);
-        return;
+        return { processing: true };
       }
       const uploadedChunks = new Set(statusData.uploadedChunks || []);
 
@@ -2938,8 +2967,8 @@ document.addEventListener('DOMContentLoaded', () => {
       await runWithConcurrency(missingChunkIndices, CHUNK_UPLOAD_CONCURRENCY, async (i) => {
         await waitForUploadResume();
         if (uploadCancelled) throw new Error('Upload cancelled');
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(file.size, start + CHUNK_SIZE);
+        const start = i * chunkSize;
+        const end = Math.min(file.size, start + chunkSize);
         const chunkBlob = file.slice(start, end);
 
         const formData = new FormData();
@@ -2982,9 +3011,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const errData = await completeRes.json().catch(() => ({}));
         throw new Error(errData.error || 'Merge request failed on the server');
       }
-      await waitForServerFinalization(uploadId, file);
+      window.harborPwa?.trackUpload({ uploadId, filename: file.name });
       uploadCompleted = true;
-      clearUploadIdentity(file);
+      return { processing: true };
 
     } catch (err) {
       if (!uploadCancelled && err.name !== 'AbortError') {

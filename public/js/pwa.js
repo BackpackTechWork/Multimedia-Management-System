@@ -165,8 +165,27 @@
     postToWorker({ type: 'RESUME_STREAM_UPLOADS', uploadIds });
   }
 
-  function cancelUploads(uploadIds) {
-    postToWorker({ type: 'CANCEL_STREAM_UPLOADS', uploadIds });
+  async function cancelUploads(uploadIds) {
+    const registration = await getRegistration();
+    const worker = navigator.serviceWorker.controller || registration?.active;
+    if (!worker || typeof MessageChannel === 'undefined') return;
+
+    const channel = new MessageChannel();
+    await new Promise(resolve => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        channel.port1.close();
+        resolve();
+      };
+      const timeoutId = setTimeout(finish, 3000);
+      channel.port1.onmessage = () => {
+        clearTimeout(timeoutId);
+        finish();
+      };
+      worker.postMessage({ type: 'CANCEL_STREAM_UPLOADS', uploadIds }, [channel.port2]);
+    });
   }
 
   getRegistration().then(registration => {

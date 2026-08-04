@@ -795,7 +795,10 @@ class DriveController {
     }
 
     try {
-      await Promise.all(uploadIds.slice(0, 100).map(uploadId => storageService.discardChunks(uploadId, req.session.userId)));
+      for (let index = 0; index < Math.min(uploadIds.length, 500); index += 25) {
+        await Promise.all(uploadIds.slice(index, index + 25)
+          .map(uploadId => storageService.cancelUpload(uploadId, req.session.userId)));
+      }
       res.status(200).json({ success: true });
     } catch (err) {
       res.status(err.code === 'UPLOAD_FORBIDDEN' ? 403 : 500).json({ error: err.message });

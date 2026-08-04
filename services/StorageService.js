@@ -9,13 +9,26 @@ class StorageService {
     // Keep uploads outside `public`: files in public/temp would be directly
     // downloadable before authorization and malware checks. This may point at
     // a fast local disk while STORAGE_ROOT is a slower/network-backed store.
-    this.chunksDir = path.resolve(process.env.UPLOAD_TEMP_ROOT || path.join(this.storageRoot, '.chunks'));
+    const storageIsNetworkShare = this.storageRoot.startsWith('\\\\');
+    const defaultChunksDir = storageIsNetworkShare
+      ? path.resolve('./.upload-temp')
+      : path.join(this.storageRoot, '.chunks');
+    this.chunksDir = path.resolve(process.env.UPLOAD_TEMP_ROOT || defaultChunksDir);
     this.thumbnailsDir = path.join(this.storageRoot, '.thumbnails');
-    this.uploadReceiptsDir = path.join(this.storageRoot, '.upload-receipts');
+    // Queue/status metadata is hot operational data. Keep it beside the local
+    // upload staging area so polling does not perform small-file I/O over SMB.
+    this.uploadReceiptsDir = path.join(this.chunksDir, '.upload-receipts');
+    this.legacyUploadReceiptsDir = path.join(this.storageRoot, '.upload-receipts');
+    this.cancelledUploadIds = new Map();
     
     fs.mkdirSync(this.storageRoot, { recursive: true });
     fs.mkdirSync(this.chunksDir, { recursive: true });
     fs.mkdirSync(this.thumbnailsDir, { recursive: true });
+    fs.mkdirSync(this.uploadReceiptsDir, { recursive: true });
+    console.log(`Upload staging directory: ${this.chunksDir}`);
+    if (storageIsNetworkShare && !process.env.UPLOAD_TEMP_ROOT) {
+      console.warn('UPLOAD_TEMP_ROOT is not set; using local .upload-temp staging for SMB storage.');
+    }
   }
 
   getUserStorageDir(userId) {
@@ -69,6 +82,33 @@ class StorageService {
     await fs.promises.rm(dir, { recursive: true, force: true });
   }
 
+  async cancelUpload(uploadId, userId) {
+    const safeUploadId = path.basename(this.getChunkUploadDir(uploadId));
+    if (userId !== null) await this.assertUploadOwner(uploadId, userId);
+    this.cancelledUploadIds.set(safeUploadId, Date.now());
+    if (this.cancelledUploadIds.size > 2000) {
+      const cutoff = Date.now() - (24 * 60 * 60 * 1000);
+      for (const [id, cancelledAt] of this.cancelledUploadIds) {
+        if (cancelledAt < cutoff) this.cancelledUploadIds.delete(id);
+      }
+    }
+    const chunkDir = this.getChunkUploadDir(uploadId);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      try {
+        await fs.promises.rm(chunkDir, { recursive: true, force: true });
+        break;
+      } catch (err) {
+        if (!['EBUSY', 'EPERM'].includes(err.code) || attempt === 19) throw err;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+  }
+
+  isUploadCancelled(uploadId) {
+    const safeUploadId = path.basename(this.getChunkUploadDir(uploadId));
+    return this.cancelledUploadIds.has(safeUploadId);
+  }
+
   getStagedUploadPath(uploadId) {
     return path.join(this.getChunkUploadDir(uploadId), 'upload.part');
   }
@@ -78,11 +118,24 @@ class StorageService {
     return path.join(this.uploadReceiptsDir, `${safeUploadId}.json`);
   }
 
+  getLegacyUploadReceiptPath(uploadId) {
+    const safeUploadId = path.basename(this.getChunkUploadDir(uploadId));
+    return path.join(this.legacyUploadReceiptsDir, `${safeUploadId}.json`);
+  }
+
   async getUploadReceipt(uploadId) {
     try {
       return JSON.parse(await fs.promises.readFile(this.getUploadReceiptPath(uploadId), 'utf8'));
     } catch (err) {
-      if (err.code === 'ENOENT' || err instanceof SyntaxError) return null;
+      if (err instanceof SyntaxError) return null;
+      if (err.code === 'ENOENT') {
+        try {
+          return JSON.parse(await fs.promises.readFile(this.getLegacyUploadReceiptPath(uploadId), 'utf8'));
+        } catch (legacyErr) {
+          if (legacyErr.code === 'ENOENT' || legacyErr instanceof SyntaxError) return null;
+          throw legacyErr;
+        }
+      }
       throw err;
     }
   }
@@ -112,7 +165,10 @@ class StorageService {
   }
 
   async deleteUploadReceipt(uploadId) {
-    await fs.promises.rm(this.getUploadReceiptPath(uploadId), { force: true });
+    await Promise.all([
+      fs.promises.rm(this.getUploadReceiptPath(uploadId), { force: true }),
+      fs.promises.rm(this.getLegacyUploadReceiptPath(uploadId), { force: true })
+    ]);
   }
 
   async ensureStagedUploadFile(stagedPath) {
@@ -125,6 +181,11 @@ class StorageService {
   }
 
   async saveChunk(uploadId, chunkIndex, chunkBuffer, chunkOffset = null, userId = null) {
+    if (this.isUploadCancelled(uploadId)) {
+      const err = new Error('Upload was cancelled');
+      err.code = 'UPLOAD_CANCELLED';
+      throw err;
+    }
     const dir = this.getChunkUploadDir(uploadId);
     await fs.promises.mkdir(dir, { recursive: true });
     if (userId !== null) await this.assertUploadOwner(uploadId, userId, { create: true });
@@ -150,6 +211,13 @@ class StorageService {
         await handle.close();
       }
 
+      if (this.isUploadCancelled(uploadId)) {
+        await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
+        const err = new Error('Upload was cancelled');
+        err.code = 'UPLOAD_CANCELLED';
+        throw err;
+      }
+
       const chunkDigest = crypto.createHash('sha256').update(chunkBuffer).digest('hex');
       await fs.promises.writeFile(chunkPath, JSON.stringify({
         offset: chunkOffset,
@@ -161,6 +229,12 @@ class StorageService {
 
     // Legacy chunks are retained for uploads started by an older browser tab.
     await fs.promises.writeFile(chunkPath, chunkBuffer);
+    if (this.isUploadCancelled(uploadId)) {
+      await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
+      const err = new Error('Upload was cancelled');
+      err.code = 'UPLOAD_CANCELLED';
+      throw err;
+    }
   }
 
   async getUploadedChunks(uploadId, userId = null) {

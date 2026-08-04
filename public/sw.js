@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'harbor-drive-shell-v12';
+const CACHE_VERSION = 'harbor-drive-shell-v13';
 const STATIC_ASSETS = [
   '/site.webmanifest', '/favicon.svg', '/apple-touch-icon.png',
   '/css/drive.css', '/css/auth.css', '/css/preview.css',
@@ -10,6 +10,7 @@ const STORE_NAME = 'upload-finalizations';
 const STREAM_PAYLOAD_STORE_NAME = 'upload-payloads';
 const activeStreamUploads = new Map();
 const STREAM_CHUNK_CONCURRENCY = 4;
+const MAX_PERSISTED_STREAM_FILE_SIZE = 512 * 1024 * 1024;
 let activeStreamChunkRequests = 0;
 const streamChunkWaiters = [];
 
@@ -80,7 +81,10 @@ self.addEventListener('message', event => {
   }
   if (type === 'START_STREAM_UPLOAD' && payload?.uploadId && payload?.file) {
     const port = event.ports[0];
-    event.waitUntil(startStreamUpload(payload, port, { persistPayload: true }));
+    // Persisting multi-gigabyte File blobs in IndexedDB duplicates enormous
+    // amounts of browser storage and can stall the page before transfer starts.
+    const persistPayload = payload.file.size <= MAX_PERSISTED_STREAM_FILE_SIZE;
+    event.waitUntil(startStreamUpload(payload, port, { persistPayload }));
     return;
   }
   if (['PAUSE_STREAM_UPLOADS', 'RESUME_STREAM_UPLOADS', 'CANCEL_STREAM_UPLOADS'].includes(type)) {
@@ -103,7 +107,10 @@ self.addEventListener('message', event => {
         active.resumeWaiters.splice(0).forEach(resolve => resolve());
       }
     });
-    if (persistenceUpdates.length > 0) event.waitUntil(Promise.all(persistenceUpdates));
+    const updatePromise = Promise.all(persistenceUpdates).then(() => {
+      if (type === 'CANCEL_STREAM_UPLOADS') event.ports[0]?.postMessage({ cancelled: true });
+    });
+    event.waitUntil(updatePromise);
     return;
   }
   if (!upload?.uploadId) return;
