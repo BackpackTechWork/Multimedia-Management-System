@@ -31,41 +31,113 @@
             </a>
           </div>
 
-          <form method="GET" action="/storage" class="flex flex-wrap items-center gap-3">
-            <label class="inline-flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 transition">
-              <span>Type</span>
-              <select name="type" class="bg-transparent outline-none cursor-pointer text-sm" onchange="this.form.submit()">
-                <option value="all" <%= typeFilter === 'all' ? 'selected' : '' %>>All</option>
-                <option value="videos" <%= typeFilter === 'videos' ? 'selected' : '' %>>Videos</option>
-                <option value="images" <%= typeFilter === 'images' ? 'selected' : '' %>>Images</option>
-                <option value="documents" <%= typeFilter === 'documents' ? 'selected' : '' %>>Documents</option>
-                <option value="spreadsheets" <%= typeFilter === 'spreadsheets' ? 'selected' : '' %>>Spreadsheets</option>
-                <option value="audio" <%= typeFilter === 'audio' ? 'selected' : '' %>>Audio</option>
-                <option value="archives" <%= typeFilter === 'archives' ? 'selected' : '' %>>Archives</option>
-                <option value="code" <%= typeFilter === 'code' ? 'selected' : '' %>>Code</option>
-                <option value="other" <%= typeFilter === 'other' ? 'selected' : '' %>>Other</option>
-              </select>
-            </label>
+          <form method="GET" action="/storage" class="relative z-20 flex flex-wrap items-center gap-3">
+            <input type="hidden" name="type" id="storage-type-input" value="<%= typeFilter || 'all' %>">
+            <input type="hidden" name="modified" id="storage-modified-input" value="<%= modifiedFilter || 'all' %>">
+            <input type="hidden" name="source" id="storage-source-input" value="<%= sourceFilter || 'all' %>">
+            <input type="hidden" name="sortBy" value="<%= sortBy || 'size' %>">
+            <input type="hidden" name="sortOrder" value="<%= sortOrder || 'desc' %>">
 
-            <label class="inline-flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 transition">
-              <span>Modified</span>
-              <select name="modified" class="bg-transparent outline-none cursor-pointer text-sm" onchange="this.form.submit()">
-                <option value="all" <%= modifiedFilter === 'all' ? 'selected' : '' %>>Any time</option>
-                <option value="today" <%= modifiedFilter === 'today' ? 'selected' : '' %>>Today</option>
-                <option value="week" <%= modifiedFilter === 'week' ? 'selected' : '' %>>Last 7 days</option>
-                <option value="month" <%= modifiedFilter === 'month' ? 'selected' : '' %>>Last 30 days</option>
-                <option value="year" <%= modifiedFilter === 'year' ? 'selected' : '' %>>Last year</option>
-              </select>
-            </label>
+            <% 
+              const storageTypeOptions = [
+                { val: 'all', label: 'All', icon: 'bi-grid-fill' },
+                { val: 'videos', label: 'Videos', icon: 'bi-film' },
+                { val: 'images', label: 'Images', icon: 'bi-image' },
+                { val: 'documents', label: 'Documents', icon: 'bi-file-earmark-text' },
+                { val: 'spreadsheets', label: 'Spreadsheets', icon: 'bi-file-spreadsheet' },
+                { val: 'audio', label: 'Audio', icon: 'bi-music-note-beamed' },
+                { val: 'archives', label: 'Archives', icon: 'bi-file-zip' },
+                { val: 'code', label: 'Code', icon: 'bi-code-slash' },
+                { val: 'other', label: 'Other', icon: 'bi-file-earmark' }
+              ];
+              const storageModifiedOptions = [
+                { val: 'all', label: 'Any time', icon: 'bi-calendar3' },
+                { val: 'today', label: 'Today', icon: 'bi-calendar-event' },
+                { val: 'week', label: 'Last 7 days', icon: 'bi-calendar-week' },
+                { val: 'month', label: 'Last 30 days', icon: 'bi-calendar-month' },
+                { val: 'year', label: 'Last year', icon: 'bi-calendar-range' }
+              ];
+              const storageSourceOptions = [
+                { val: 'all', label: 'All', icon: 'bi-collection' },
+                { val: 'private', label: 'Private', icon: 'bi-lock' },
+                { val: 'public', label: 'Public', icon: 'bi-globe' }
+              ];
+              const selectedType = storageTypeOptions.find(o => o.val === (typeFilter || 'all')) || storageTypeOptions[0];
+              const selectedModified = storageModifiedOptions.find(o => o.val === (modifiedFilter || 'all')) || storageModifiedOptions[0];
+              const selectedSource = storageSourceOptions.find(o => o.val === (sourceFilter || 'all')) || storageSourceOptions[0];
+            %>
 
-            <label class="inline-flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 transition">
-              <span>Source</span>
-              <select name="source" class="bg-transparent outline-none cursor-pointer text-sm" onchange="this.form.submit()">
-                <option value="all" <%= sourceFilter === 'all' ? 'selected' : '' %>>All</option>
-                <option value="private" <%= sourceFilter === 'private' ? 'selected' : '' %>>Private</option>
-                <option value="public" <%= sourceFilter === 'public' ? 'selected' : '' %>>Public</option>
-              </select>
-            </label>
+            <div class="relative" id="storage-type-dropdown">
+              <button type="button" class="dropdown-trigger inline-flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 transition cursor-pointer select-none">
+                <span class="text-gray-500">Type</span>
+                <span class="selected-text flex items-center gap-1.5">
+                  <i class="bi <%= selectedType.icon %> text-gray-400"></i>
+                  <%= selectedType.label %>
+                </span>
+                <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
+              </button>
+              <div class="dropdown-menu absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50 animate-in fade-in-50 slide-in-from-top-1 duration-100">
+                <% storageTypeOptions.forEach(item => { %>
+                  <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= (typeFilter || 'all') === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
+                    <span class="flex items-center gap-2">
+                      <i class="bi <%= item.icon %> <%= (typeFilter || 'all') === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
+                      <%= item.label %>
+                    </span>
+                    <% if ((typeFilter || 'all') === item.val) { %>
+                      <i class="bi bi-check-lg text-brand-teal text-sm"></i>
+                    <% } %>
+                  </button>
+                <% }) %>
+              </div>
+            </div>
+
+            <div class="relative" id="storage-modified-dropdown">
+              <button type="button" class="dropdown-trigger inline-flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 transition cursor-pointer select-none">
+                <span class="text-gray-500">Modified</span>
+                <span class="selected-text flex items-center gap-1.5">
+                  <i class="bi <%= selectedModified.icon %> text-gray-400"></i>
+                  <%= selectedModified.label %>
+                </span>
+                <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
+              </button>
+              <div class="dropdown-menu absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50 animate-in fade-in-50 slide-in-from-top-1 duration-100">
+                <% storageModifiedOptions.forEach(item => { %>
+                  <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= (modifiedFilter || 'all') === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
+                    <span class="flex items-center gap-2">
+                      <i class="bi <%= item.icon %> <%= (modifiedFilter || 'all') === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
+                      <%= item.label %>
+                    </span>
+                    <% if ((modifiedFilter || 'all') === item.val) { %>
+                      <i class="bi bi-check-lg text-brand-teal text-sm"></i>
+                    <% } %>
+                  </button>
+                <% }) %>
+              </div>
+            </div>
+
+            <div class="relative" id="storage-source-dropdown">
+              <button type="button" class="dropdown-trigger inline-flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 transition cursor-pointer select-none">
+                <span class="text-gray-500">Source</span>
+                <span class="selected-text flex items-center gap-1.5">
+                  <i class="bi <%= selectedSource.icon %> text-gray-400"></i>
+                  <%= selectedSource.label %>
+                </span>
+                <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
+              </button>
+              <div class="dropdown-menu absolute left-0 mt-2 w-44 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50 animate-in fade-in-50 slide-in-from-top-1 duration-100">
+                <% storageSourceOptions.forEach(item => { %>
+                  <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= (sourceFilter || 'all') === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
+                    <span class="flex items-center gap-2">
+                      <i class="bi <%= item.icon %> <%= (sourceFilter || 'all') === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
+                      <%= item.label %>
+                    </span>
+                    <% if ((sourceFilter || 'all') === item.val) { %>
+                      <i class="bi bi-check-lg text-brand-teal text-sm"></i>
+                    <% } %>
+                  </button>
+                <% }) %>
+              </div>
+            </div>
           </form>
 
           <div class="flex flex-col gap-3">
@@ -97,16 +169,42 @@
           </div>
         </div>
 
+        <%
+          const activeSortBy = sortBy || 'size';
+          const activeSortOrder = sortOrder || 'desc';
+          const storageQueryBase = `type=${encodeURIComponent(typeFilter || 'all')}&modified=${encodeURIComponent(modifiedFilter || 'all')}&source=${encodeURIComponent(sourceFilter || 'all')}`;
+          const modifiedSortOrder = activeSortBy === 'modified' && activeSortOrder === 'desc' ? 'asc' : 'desc';
+          const sizeSortOrder = activeSortBy === 'size' && activeSortOrder === 'desc' ? 'asc' : 'desc';
+        %>
         <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div class="grid grid-cols-12 gap-3 px-4 py-3 border-b border-gray-200 text-sm font-semibold text-gray-600">
             <div class="col-span-7 md:col-span-6">Name</div>
             <div class="hidden md:block md:col-span-2">Type</div>
-            <div class="hidden sm:block sm:col-span-2">Modified</div>
-            <div class="col-span-5 sm:col-span-3 md:col-span-2 text-right flex items-center justify-end gap-2">
-              Storage used
-              <span class="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-700" aria-hidden="true">
-                <i class="bi bi-arrow-down text-base"></i>
-              </span>
+            <div class="hidden sm:block sm:col-span-2">
+              <a
+                href="/storage?<%= storageQueryBase %>&sortBy=modified&sortOrder=<%= modifiedSortOrder %>"
+                class="inline-flex items-center gap-2 hover:text-brand-teal transition <%= activeSortBy === 'modified' ? 'text-gray-800' : 'text-gray-600' %>"
+                title="Sort by modified <%= activeSortBy === 'modified' && activeSortOrder === 'desc' ? 'ascending' : 'descending' %>"
+                aria-label="Sort by modified <%= activeSortBy === 'modified' && activeSortOrder === 'desc' ? 'ascending' : 'descending' %>"
+              >
+                Modified
+                <span class="inline-flex h-7 w-7 items-center justify-center rounded-full <%= activeSortBy === 'modified' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' %>">
+                  <i class="bi <%= activeSortBy === 'modified' ? (activeSortOrder === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down') : 'bi-arrow-down-up' %> text-base"></i>
+                </span>
+              </a>
+            </div>
+            <div class="col-span-5 sm:col-span-3 md:col-span-2 text-right">
+              <a
+                href="/storage?<%= storageQueryBase %>&sortBy=size&sortOrder=<%= sizeSortOrder %>"
+                class="inline-flex items-center justify-end gap-2 hover:text-brand-teal transition <%= activeSortBy === 'size' ? 'text-gray-800' : 'text-gray-600' %>"
+                title="Sort by storage used <%= activeSortBy === 'size' && activeSortOrder === 'desc' ? 'ascending' : 'descending' %>"
+                aria-label="Sort by storage used <%= activeSortBy === 'size' && activeSortOrder === 'desc' ? 'ascending' : 'descending' %>"
+              >
+                Storage used
+                <span class="inline-flex h-7 w-7 items-center justify-center rounded-full <%= activeSortBy === 'size' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500' %>">
+                  <i class="bi <%= activeSortBy === 'size' ? (activeSortOrder === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down') : 'bi-arrow-down-up' %> text-base"></i>
+                </span>
+              </a>
             </div>
           </div>
 

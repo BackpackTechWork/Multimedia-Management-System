@@ -6,7 +6,10 @@ require('dotenv').config();
 class StorageService {
   constructor() {
     this.storageRoot = path.resolve(process.env.STORAGE_ROOT || './storage');
-    this.chunksDir = path.join(this.storageRoot, '.chunks');
+    // Keep uploads outside `public`: files in public/temp would be directly
+    // downloadable before authorization and malware checks. This may point at
+    // a fast local disk while STORAGE_ROOT is a slower/network-backed store.
+    this.chunksDir = path.resolve(process.env.UPLOAD_TEMP_ROOT || path.join(this.storageRoot, '.chunks'));
     this.thumbnailsDir = path.join(this.storageRoot, '.thumbnails');
     this.uploadReceiptsDir = path.join(this.storageRoot, '.upload-receipts');
     
@@ -31,7 +34,37 @@ class StorageService {
     return path.join(this.chunksDir, safeUploadId);
   }
 
-  async discardChunks(uploadId) {
+  getUploadOwnerPath(uploadId) {
+    return path.join(this.getChunkUploadDir(uploadId), 'owner.json');
+  }
+
+  async assertUploadOwner(uploadId, userId, { create = false } = {}) {
+    const dir = this.getChunkUploadDir(uploadId);
+    if (create) await fs.promises.mkdir(dir, { recursive: true });
+
+    const ownerPath = this.getUploadOwnerPath(uploadId);
+    try {
+      const owner = JSON.parse(await fs.promises.readFile(ownerPath, 'utf8'));
+      if (Number(owner.userId) !== Number(userId)) {
+        const err = new Error('Upload session does not belong to this user');
+        err.code = 'UPLOAD_FORBIDDEN';
+        throw err;
+      }
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+      if (!create) return false;
+      try {
+        await fs.promises.writeFile(ownerPath, JSON.stringify({ userId: Number(userId) }), { flag: 'wx' });
+      } catch (writeErr) {
+        if (writeErr.code !== 'EEXIST') throw writeErr;
+        return this.assertUploadOwner(uploadId, userId);
+      }
+    }
+    return true;
+  }
+
+  async discardChunks(uploadId, userId = null) {
+    if (userId !== null) await this.assertUploadOwner(uploadId, userId);
     const dir = this.getChunkUploadDir(uploadId);
     await fs.promises.rm(dir, { recursive: true, force: true });
   }
@@ -63,6 +96,25 @@ class StorageService {
     );
   }
 
+  async claimUploadReceipt(uploadId, receipt) {
+    await fs.promises.mkdir(this.uploadReceiptsDir, { recursive: true });
+    try {
+      await fs.promises.writeFile(
+        this.getUploadReceiptPath(uploadId),
+        JSON.stringify({ ...receipt, completedAt: new Date().toISOString() }),
+        { encoding: 'utf8', flag: 'wx' }
+      );
+      return true;
+    } catch (err) {
+      if (err.code === 'EEXIST') return false;
+      throw err;
+    }
+  }
+
+  async deleteUploadReceipt(uploadId) {
+    await fs.promises.rm(this.getUploadReceiptPath(uploadId), { force: true });
+  }
+
   async ensureStagedUploadFile(stagedPath) {
     try {
       const handle = await fs.promises.open(stagedPath, 'wx');
@@ -72,9 +124,10 @@ class StorageService {
     }
   }
 
-  async saveChunk(uploadId, chunkIndex, chunkBuffer, chunkOffset = null) {
+  async saveChunk(uploadId, chunkIndex, chunkBuffer, chunkOffset = null, userId = null) {
     const dir = this.getChunkUploadDir(uploadId);
     await fs.promises.mkdir(dir, { recursive: true });
+    if (userId !== null) await this.assertUploadOwner(uploadId, userId, { create: true });
 
     const chunkPath = path.join(dir, `chunk_${chunkIndex}`);
     if (Number.isSafeInteger(chunkOffset) && chunkOffset >= 0) {
@@ -110,11 +163,12 @@ class StorageService {
     await fs.promises.writeFile(chunkPath, chunkBuffer);
   }
 
-  async getUploadedChunks(uploadId) {
+  async getUploadedChunks(uploadId, userId = null) {
     const dir = this.getChunkUploadDir(uploadId);
     if (!fs.existsSync(dir)) {
       return [];
     }
+    if (userId !== null) await this.assertUploadOwner(uploadId, userId);
     const files = await fs.promises.readdir(dir);
     return files
       .filter(f => f.startsWith('chunk_'))
@@ -226,9 +280,9 @@ class StorageService {
     return manifestHasher.digest('hex');
   }
 
-  async assembleChunks(uploadId, totalChunks, userId, originalFilename, expectedFileSize = null) {
+  async assembleChunks(uploadId, totalChunks, userId, originalFilename, expectedFileSize = null, uploadUserId = null) {
     const chunkDir = this.getChunkUploadDir(uploadId);
-    const uploadedChunks = new Set(await this.getUploadedChunks(uploadId));
+    const uploadedChunks = new Set(await this.getUploadedChunks(uploadId, uploadUserId));
     for (let i = 0; i < totalChunks; i++) {
       if (!uploadedChunks.has(i)) {
         throw new Error(`Missing chunk index ${i} for upload ${uploadId}`);
@@ -240,7 +294,9 @@ class StorageService {
       .then(() => true)
       .catch(() => false);
 
-    await this.checkStorageLimits(uploadId, { requiresCopy: !hasStagedUpload });
+    const defaultChunksDir = path.join(this.storageRoot, '.chunks');
+    const stagedOnSeparateRoot = path.resolve(this.chunksDir) !== path.resolve(defaultChunksDir);
+    await this.checkStorageLimits(uploadId, { requiresCopy: !hasStagedUpload || stagedOnSeparateRoot });
 
     const ext = path.extname(originalFilename);
     const uniqueFilename = `${crypto.randomUUID()}${ext}`;
@@ -257,7 +313,20 @@ class StorageService {
       // checksum avoids rereading very large files solely during finalization.
       const checksum = await this.getManifestChecksum(uploadId, totalChunks, expectedFileSize)
         || await this.hashFile(stagedPath);
-      await fs.promises.rename(stagedPath, destinationPath);
+      try {
+        await fs.promises.rename(stagedPath, destinationPath);
+      } catch (err) {
+        if (err.code !== 'EXDEV') throw err;
+        // A separate fast temp disk needs a copy. This runs in the background
+        // finalize worker, so the browser is no longer held open by the sync.
+        try {
+          await fs.promises.copyFile(stagedPath, destinationPath);
+        } catch (copyErr) {
+          await fs.promises.rm(destinationPath, { force: true }).catch(() => {});
+          throw copyErr;
+        }
+        await fs.promises.unlink(stagedPath);
+      }
       await fs.promises.rm(chunkDir, { recursive: true, force: true });
 
       return {
@@ -320,8 +389,15 @@ class StorageService {
 
   async deleteDiskFile(relativeStoragePath) {
     const fullPath = path.join(this.storageRoot, relativeStoragePath);
-    if (fs.existsSync(fullPath)) {
-      await fs.promises.unlink(fullPath);
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      try {
+        await fs.promises.unlink(fullPath);
+        return;
+      } catch (err) {
+        if (err.code === 'ENOENT') return;
+        if (!['EBUSY', 'EPERM'].includes(err.code) || attempt === 59) throw err;
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
     }
   }
 

@@ -175,14 +175,231 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // --- SEARCH FILTERS (desktop inline + mobile popover) ---
+  const SEARCH_FILTERS_KEY = 'harbor-drive-search-filters-expanded';
+  const SEARCH_FILTER_SECTIONS_KEY = 'harbor-drive-search-filter-sections';
+  const searchFiltersToggle = document.getElementById('search-filters-toggle');
+  const searchFiltersPanel = document.getElementById('search-filters-panel');
+  const driveSearchFilters = document.getElementById('drive-search-filters');
+  const driveSearchForm = document.getElementById('drive-search-form');
+  const driveSearchShell = document.getElementById('drive-search-shell');
+  const searchFilterSections = Array.from(document.querySelectorAll('[data-filter-section]'));
+  const desktopSearchMedia = window.matchMedia('(min-width: 1024px)');
+
+  function isDesktopSearchLayout() {
+    return desktopSearchMedia.matches;
+  }
+
+  function positionSearchFiltersPanel() {
+    if (!searchFiltersPanel || !driveSearchShell) return;
+    const rect = driveSearchShell.getBoundingClientRect();
+    const top = Math.max(rect.bottom + 10, 72);
+    searchFiltersPanel.style.setProperty('--search-filters-top', `${top}px`);
+  }
+
+  function readSearchFilterSections() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(SEARCH_FILTER_SECTIONS_KEY) || '{}');
+      return {
+        type: stored.type === true,
+        sort: stored.sort === true
+      };
+    } catch {
+      return { type: false, sort: false };
+    }
+  }
+
+  function writeSearchFilterSections(state) {
+    try {
+      localStorage.setItem(SEARCH_FILTER_SECTIONS_KEY, JSON.stringify(state));
+    } catch {
+      // Storage may be unavailable in restricted/private browser contexts.
+    }
+  }
+
+  function applySearchFilterSection(sectionEl, open, { persist = true } = {}) {
+    if (!sectionEl) return;
+    const key = sectionEl.getAttribute('data-filter-section');
+    const toggle = sectionEl.querySelector('.search-filters-section__toggle');
+    sectionEl.classList.toggle('is-open', open);
+    toggle?.setAttribute('aria-expanded', String(open));
+
+    if (!persist || !key) return;
+    const next = readSearchFilterSections();
+    next[key] = open;
+    writeSearchFilterSections(next);
+  }
+
+  function restoreSearchFilterSections() {
+    const state = readSearchFilterSections();
+    searchFilterSections.forEach(sectionEl => {
+      const key = sectionEl.getAttribute('data-filter-section');
+      applySearchFilterSection(sectionEl, state[key] === true, { persist: false });
+    });
+  }
+
+  function applySearchFiltersExpanded(expanded, { persist = true } = {}) {
+    if (!searchFiltersToggle || !searchFiltersPanel) return;
+
+    const isExpanded = expanded === true && !isDesktopSearchLayout();
+    if (isExpanded) {
+      positionSearchFiltersPanel();
+      searchFiltersPanel.hidden = false;
+      searchFiltersPanel.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        positionSearchFiltersPanel();
+        searchFiltersPanel.classList.add('is-open');
+      });
+    } else {
+      searchFiltersPanel.classList.remove('is-open');
+      window.setTimeout(() => {
+        if (searchFiltersToggle.getAttribute('aria-expanded') === 'true' && !isDesktopSearchLayout()) return;
+        searchFiltersPanel.hidden = true;
+        searchFiltersPanel.classList.add('hidden');
+      }, 200);
+    }
+
+    searchFiltersToggle.setAttribute('aria-expanded', String(isExpanded));
+    searchFiltersToggle.classList.toggle('is-active', isExpanded);
+
+    if (!persist || isDesktopSearchLayout()) return;
+    try {
+      localStorage.setItem(SEARCH_FILTERS_KEY, isExpanded ? '1' : '0');
+    } catch {
+      // Storage may be unavailable in restricted/private browser contexts.
+    }
+  }
+
+  const repositionOpenSearchFilters = () => {
+    if (isDesktopSearchLayout()) {
+      applySearchFiltersExpanded(false, { persist: false });
+      return;
+    }
+    if (searchFiltersToggle?.getAttribute('aria-expanded') === 'true') {
+      positionSearchFiltersPanel();
+    }
+  };
+  window.addEventListener('resize', repositionOpenSearchFilters);
+  window.addEventListener('scroll', repositionOpenSearchFilters, true);
+  desktopSearchMedia.addEventListener?.('change', repositionOpenSearchFilters);
+
+  let savedSearchFiltersExpanded = false;
+  try {
+    savedSearchFiltersExpanded = localStorage.getItem(SEARCH_FILTERS_KEY) === '1';
+  } catch {
+    savedSearchFiltersExpanded = false;
+  }
+  restoreSearchFilterSections();
+  applySearchFiltersExpanded(!isDesktopSearchLayout() && savedSearchFiltersExpanded, { persist: false });
+
+  searchFiltersToggle?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isDesktopSearchLayout()) return;
+    if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
+    if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
+    const nextExpanded = searchFiltersToggle.getAttribute('aria-expanded') !== 'true';
+    applySearchFiltersExpanded(nextExpanded);
+  });
+
+  searchFilterSections.forEach(sectionEl => {
+    const toggle = sectionEl.querySelector('.search-filters-section__toggle');
+    toggle?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const willOpen = !sectionEl.classList.contains('is-open');
+      applySearchFilterSection(sectionEl, willOpen);
+    });
+  });
+
+  [
+    { id: 'search-type-dropdown', inputId: 'search-type-input' },
+    { id: 'search-sortBy-dropdown', inputId: 'search-sortBy-input' }
+  ].forEach(({ id, inputId }) => {
+    const group = document.getElementById(id);
+    const input = document.getElementById(inputId);
+    if (!group || !input || !driveSearchForm) return;
+
+    group.querySelectorAll('.dropdown-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const value = item.getAttribute('data-value');
+        if (input.value === value) {
+          applySearchFiltersExpanded(false);
+          return;
+        }
+        input.value = value;
+        driveSearchForm.submit();
+      });
+    });
+  });
+
+  // --- CUSTOM FILTER DROPDOWNS ---
+  const filterDropdownConfigs = [
+    { id: 'search-type-dropdown-desktop', inputId: 'search-type-input' },
+    { id: 'search-sortBy-dropdown-desktop', inputId: 'search-sortBy-input' },
+    { id: 'storage-type-dropdown', inputId: 'storage-type-input' },
+    { id: 'storage-modified-dropdown', inputId: 'storage-modified-input' },
+    { id: 'storage-source-dropdown', inputId: 'storage-source-input' }
+  ];
+  const filterDropdowns = filterDropdownConfigs
+    .map(({ id, inputId }) => {
+      const el = document.getElementById(id);
+      return el ? { el, inputId } : null;
+    })
+    .filter(Boolean);
+
+  const closeAllFilterDropdowns = (exceptEl = null) => {
+    filterDropdowns.forEach(({ el }) => {
+      if (el !== exceptEl) el.querySelector('.dropdown-menu')?.classList.add('hidden');
+    });
+  };
+
+  const isInsideFilterDropdown = (target) =>
+    filterDropdowns.some(({ el }) => el.contains(target)) ||
+    Boolean(driveSearchFilters?.contains(target));
+
+  filterDropdowns.forEach(({ el, inputId }) => {
+    const trigger = el.querySelector('.dropdown-trigger');
+    const menu = el.querySelector('.dropdown-menu');
+    const input = document.getElementById(inputId);
+    const form = el.closest('form') || driveSearchForm;
+    if (!trigger || !menu) return;
+
+    trigger.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const shouldOpen = menu.classList.contains('hidden');
+      closeAllFilterDropdowns();
+      applySearchFiltersExpanded(false);
+      if (shouldOpen) menu.classList.remove('hidden');
+      if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
+      if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
+    });
+
+    el.querySelectorAll('.dropdown-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const value = item.getAttribute('data-value');
+        menu.classList.add('hidden');
+        if (!input || !form) return;
+        if (input.value === value) return;
+        input.value = value;
+        form.submit();
+      });
+    });
+  });
+
   if (newDropdownBtn && newDropdownMenu) {
     newDropdownBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       if (!canWriteCurrentFolder()) return;
       newDropdownMenu.classList.toggle('hidden');
       if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
-      document.querySelector('#search-type-dropdown .dropdown-menu')?.classList.add('hidden');
-      document.querySelector('#search-sortBy-dropdown .dropdown-menu')?.classList.add('hidden');
+      closeAllFilterDropdowns();
+      applySearchFiltersExpanded(false);
     });
   }
 
@@ -191,80 +408,18 @@ document.addEventListener('DOMContentLoaded', () => {
       e.stopPropagation();
       profileDropdownMenu.classList.toggle('hidden');
       if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
-      document.querySelector('#search-type-dropdown .dropdown-menu')?.classList.add('hidden');
-      document.querySelector('#search-sortBy-dropdown .dropdown-menu')?.classList.add('hidden');
+      closeAllFilterDropdowns();
+      applySearchFiltersExpanded(false);
     });
   }
 
-  // --- CUSTOM SEARCH DROPDOWNS ---
-  const searchTypeDropdown = document.getElementById('search-type-dropdown');
-  const searchSortDropdown = document.getElementById('search-sortBy-dropdown');
-
-  if (searchTypeDropdown) {
-    const trigger = searchTypeDropdown.querySelector('.dropdown-trigger');
-    const menu = searchTypeDropdown.querySelector('.dropdown-menu');
-    const input = document.getElementById('search-type-input');
-    const form = searchTypeDropdown.closest('form');
-
-    trigger.addEventListener('click', (e) => {
-      e.stopPropagation();
-      menu.classList.toggle('hidden');
-      if (searchSortDropdown) {
-        searchSortDropdown.querySelector('.dropdown-menu').classList.add('hidden');
-      }
-      if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
-      if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
-    });
-
-    searchTypeDropdown.querySelectorAll('.dropdown-item').forEach(item => {
-      item.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const value = item.getAttribute('data-value');
-        if (input && form) {
-          input.value = value;
-          form.submit();
-        }
-        menu.classList.add('hidden');
-      });
-    });
-  }
-
-  if (searchSortDropdown) {
-    const trigger = searchSortDropdown.querySelector('.dropdown-trigger');
-    const menu = searchSortDropdown.querySelector('.dropdown-menu');
-    const input = document.getElementById('search-sortBy-input');
-    const form = searchSortDropdown.closest('form');
-
-    trigger.addEventListener('click', (e) => {
-      e.stopPropagation();
-      menu.classList.toggle('hidden');
-      if (searchTypeDropdown) {
-        searchTypeDropdown.querySelector('.dropdown-menu').classList.add('hidden');
-      }
-      if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
-      if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
-    });
-
-    searchSortDropdown.querySelectorAll('.dropdown-item').forEach(item => {
-      item.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const value = item.getAttribute('data-value');
-        if (input && form) {
-          input.value = value;
-          form.submit();
-        }
-        menu.classList.add('hidden');
-      });
-    });
-  }
-
-  // Close dropdowns when clicking outside (using capture phase to bypass stopPropagation)
+  // Close dropdowns when clicking outside
   document.addEventListener('click', (e) => {
-    if (searchTypeDropdown && !searchTypeDropdown.contains(e.target)) {
-      searchTypeDropdown.querySelector('.dropdown-menu')?.classList.add('hidden');
-    }
-    if (searchSortDropdown && !searchSortDropdown.contains(e.target)) {
-      searchSortDropdown.querySelector('.dropdown-menu')?.classList.add('hidden');
+    if (!isInsideFilterDropdown(e.target)) {
+      closeAllFilterDropdowns();
+      if (searchFiltersToggle?.getAttribute('aria-expanded') === 'true') {
+        applySearchFiltersExpanded(false);
+      }
     }
     if (newDropdownMenu && newDropdownBtn && !newDropdownBtn.contains(e.target) && !newDropdownMenu.contains(e.target)) {
       newDropdownMenu.classList.add('hidden');
@@ -272,7 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (profileDropdownMenu && profileDropdownBtn && !profileDropdownBtn.contains(e.target) && !profileDropdownMenu.contains(e.target)) {
       profileDropdownMenu.classList.add('hidden');
     }
-  }, true);
+  });
 
   // Sidebar upload button
   if (sidebarUploadBtn) {
@@ -1047,11 +1202,14 @@ document.addEventListener('DOMContentLoaded', () => {
       justDragged = false;
       return;
     }
+    if (isInsideFilterDropdown(e.target) ||
+        e.target.closest('#new-dropdown-btn, #new-dropdown-menu, #profile-dropdown-btn, #profile-dropdown-menu')) {
+      return;
+    }
     clearSelection();
     if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
     if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
-    document.querySelector('#search-type-dropdown .dropdown-menu')?.classList.add('hidden');
-    document.querySelector('#search-sortBy-dropdown .dropdown-menu')?.classList.add('hidden');
+    closeAllFilterDropdowns();
     contextMenu.classList.add('hidden');
     emptySpaceContextMenu.classList.add('hidden');
   });
@@ -1299,9 +1457,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const uploadProgressToggleBtn = document.getElementById('upload-progress-toggle-btn');
   const uploadProgressBody = document.getElementById('upload-progress-body');
   const uploadQueueList = document.getElementById('upload-queue-list');
-  const CHUNK_UPLOAD_CONCURRENCY = 3;
-  const FILE_UPLOAD_CONCURRENCY = 2;
-  const MAX_RENDERED_UPLOAD_ROWS = 250;
+  const isConstrainedConnection = /(^|-)2g|3g/.test(navigator.connection?.effectiveType || '');
+  const CHUNK_UPLOAD_CONCURRENCY = isConstrainedConnection ? 2 : Math.max(2, Math.min(4, navigator.hardwareConcurrency || 4));
+  const FILE_UPLOAD_CONCURRENCY = isConstrainedConnection ? 1 : 2;
+  const CHUNK_REQUEST_TIMEOUT_MS = 45 * 1000;
+  const FINALIZATION_TIMEOUT_MS = 30 * 60 * 1000;
+  const MAX_RENDERED_UPLOAD_ROWS = 100;
   const MAX_PENDING_UPLOAD_RECORDS = 400;
   let lastProgressUpdateAt = 0;
   let uploadSessionController = null;
@@ -1315,14 +1476,108 @@ document.addEventListener('DOMContentLoaded', () => {
   let uploadQueue = [];
   const uploadQueueByFile = new Map();
   const activeUploadIds = new Set();
+  const activeUploadRequestControllers = new Set();
   const uploadIdentityByFile = new Map();
   const PENDING_UPLOADS_KEY = 'harbor-drive-pending-uploads-v1';
+  let restoredUploadPollTimer = null;
+  let restoredUploadPollGeneration = 0;
+  let restoredStreamingUploadsActive = false;
+  const restoredUploadItemsById = new Map();
+  let uploadNavigationLocked = false;
+  let lastBlockedNavigationNoticeAt = 0;
 
-  window.addEventListener('beforeunload', (e) => {
-    if (!uploadInProgress) return;
+  function hasRefreshSensitiveUploads() {
+    const currentTransferActive = uploadInProgress && uploadQueue.some(item =>
+      ['queued', 'uploading', 'paused'].includes(item.status)
+    );
+    return currentTransferActive || restoredStreamingUploadsActive;
+  }
 
-    e.preventDefault();
-    e.returnValue = '';
+  function syncUploadNavigationLock() {
+    const locked = hasRefreshSensitiveUploads();
+    if (locked === uploadNavigationLocked) return;
+    uploadNavigationLocked = locked;
+    document.querySelectorAll('a[href]').forEach(anchor => {
+      if (locked) {
+        anchor.dataset.uploadNavigationLocked = 'true';
+        anchor.setAttribute('aria-disabled', 'true');
+      } else if (anchor.dataset.uploadNavigationLocked === 'true') {
+        delete anchor.dataset.uploadNavigationLocked;
+        anchor.removeAttribute('aria-disabled');
+      }
+    });
+  }
+
+  function explainBlockedNavigation() {
+    if (Date.now() - lastBlockedNavigationNoticeAt < 1000) return;
+    lastBlockedNavigationNoticeAt = Date.now();
+    window.showDriveToast?.(
+      'Navigation is locked while files are transferring. Cancel the upload or wait for it to finish.',
+      'warning',
+      6500
+    );
+  }
+
+  document.addEventListener('keydown', event => {
+    const refreshShortcut = event.key === 'F5' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'r');
+    if (!refreshShortcut || !hasRefreshSensitiveUploads()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    explainBlockedNavigation();
+  }, true);
+
+  document.addEventListener('click', event => {
+    if (!hasRefreshSensitiveUploads()) return;
+    const anchor = event.target.closest?.('a[href]');
+    if (!anchor || anchor.hasAttribute('download')) return;
+    try {
+      const destination = new URL(anchor.href, window.location.href);
+      const isHashOnlyNavigation = destination.origin === window.location.origin &&
+        destination.pathname === window.location.pathname &&
+        destination.search === window.location.search &&
+        destination.hash && destination.hash !== window.location.hash;
+      if (isHashOnlyNavigation) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      explainBlockedNavigation();
+    } catch {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      explainBlockedNavigation();
+    }
+  }, true);
+
+  document.addEventListener('submit', event => {
+    if (!hasRefreshSensitiveUploads()) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    explainBlockedNavigation();
+  }, true);
+
+  if ('navigation' in window) {
+    window.navigation.addEventListener('navigate', event => {
+      if (!hasRefreshSensitiveUploads()) return;
+      try {
+        const destination = new URL(event.destination.url);
+        const isHashOnlyNavigation = destination.origin === window.location.origin &&
+          destination.pathname === window.location.pathname &&
+          destination.search === window.location.search &&
+          destination.hash && destination.hash !== window.location.hash;
+        if (isHashOnlyNavigation) return;
+      } catch {
+        // Unknown destinations remain locked while the transfer is active.
+      }
+      if (event.cancelable) {
+        event.preventDefault();
+        explainBlockedNavigation();
+      }
+    });
+  }
+
+  window.addEventListener('beforeunload', event => {
+    if (!hasRefreshSensitiveUploads()) return;
+    event.preventDefault();
+    event.returnValue = '';
   });
 
   if (uploadProgressCloseBtn) {
@@ -1331,6 +1586,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       e.preventDefault();
       e.stopImmediatePropagation();
+      const canStillCancelTransfer = uploadQueue.some(item => ['queued', 'uploading', 'paused'].includes(item.status));
+      if (!canStillCancelTransfer) {
+        uploadProgressModal?.classList.add('hidden');
+        return;
+      }
       const shouldCancel = await confirm('Cancel the current upload? Uploaded temporary chunks will be removed.');
       if (!shouldCancel) return;
 
@@ -1341,6 +1601,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (uploadProgressPauseBtn) {
     uploadProgressPauseBtn.addEventListener('click', () => {
       if (!uploadInProgress) return;
+      if (!uploadQueue.some(item => ['queued', 'uploading', 'paused'].includes(item.status))) return;
       if (uploadPaused) {
         resumeUpload();
       } else {
@@ -1373,6 +1634,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function startUploadSession() {
+    restoredUploadPollGeneration += 1;
+    clearTimeout(restoredUploadPollTimer);
+    restoredUploadPollTimer = null;
+    restoredStreamingUploadsActive = false;
+    restoredUploadItemsById.clear();
     uploadSessionController = new AbortController();
     uploadInProgress = true;
     uploadCancelled = false;
@@ -1383,8 +1649,12 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadQueue = [];
     uploadQueueByFile.clear();
     activeUploadIds.clear();
+    activeUploadRequestControllers.forEach(controller => controller.abort());
+    activeUploadRequestControllers.clear();
     uploadIdentityByFile.clear();
     updatePauseButton();
+    uploadProgressPauseBtn?.classList.remove('hidden');
+    if (uploadProgressCloseBtn) uploadProgressCloseBtn.title = 'Cancel upload';
     if (uploadQueueList) uploadQueueList.replaceChildren();
   }
 
@@ -1399,8 +1669,11 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadResumeWaiters.splice(0).forEach(resolve => resolve());
     uploadStartedAt = 0;
     activeUploadIds.clear();
+    activeUploadRequestControllers.forEach(controller => controller.abort());
+    activeUploadRequestControllers.clear();
     uploadIdentityByFile.clear();
     updatePauseButton();
+    syncUploadNavigationLock();
   }
 
   async function cancelActiveUpload() {
@@ -1434,6 +1707,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!uploadInProgress || uploadCancelled) return;
     uploadPaused = true;
     uploadPauseReason = reason;
+    activeUploadRequestControllers.forEach(controller => controller.abort());
+    window.harborPwa?.pauseUploads(Array.from(activeUploadIds));
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
 
@@ -1463,6 +1738,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reconnectTimer = null;
     uploadPaused = false;
     uploadPauseReason = null;
+    window.harborPwa?.resumeUploads(Array.from(activeUploadIds));
 
     uploadQueue.forEach(item => {
       if (item.status === 'paused') {
@@ -1486,21 +1762,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function isNetworkError(err) {
     return err instanceof TypeError ||
+      err?.name === 'UploadTimeoutError' ||
       err?.message === 'Failed to fetch' ||
-      /network|fetch/i.test(err?.message || '');
+      /network|fetch|timed out/i.test(err?.message || '');
   }
 
   async function fetchWithConnectionRecovery(url, options) {
     while (true) {
       await waitForUploadResume();
+      const timeoutController = new AbortController();
+      activeUploadRequestControllers.add(timeoutController);
+      const timeoutId = setTimeout(() => timeoutController.abort(), CHUNK_REQUEST_TIMEOUT_MS);
+      const externalSignal = options?.signal;
+      const relayAbort = () => timeoutController.abort();
+      externalSignal?.addEventListener('abort', relayAbort, { once: true });
       try {
-        return await fetch(url, options);
+        return await fetch(url, { ...options, signal: timeoutController.signal });
       } catch (err) {
-        if (uploadCancelled || err.name === 'AbortError') throw err;
+        if (uploadCancelled || externalSignal?.aborted) throw err;
+        if (uploadPaused && err.name === 'AbortError') {
+          await waitForUploadResume();
+          continue;
+        }
+        if (err.name === 'AbortError' && timeoutController.signal.aborted) {
+          err = Object.assign(new Error('The server did not respond before the upload request timed out'), {
+            name: 'UploadTimeoutError'
+          });
+        }
         if (!isNetworkError(err)) throw err;
 
-        pauseUpload('Connection lost. Waiting to reconnect', 'network');
+        pauseUpload(err.name === 'UploadTimeoutError'
+          ? 'The server stopped responding. Retrying safely'
+          : 'Connection lost. Waiting to reconnect', 'network');
         await waitForUploadResume();
+      } finally {
+        clearTimeout(timeoutId);
+        activeUploadRequestControllers.delete(timeoutController);
+        externalSignal?.removeEventListener('abort', relayAbort);
       }
     }
   }
@@ -1508,6 +1806,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function cleanupActiveUploadChunks() {
     const uploadIds = Array.from(activeUploadIds);
     if (uploadIds.length > 0) {
+      window.harborPwa?.cancelUploads(uploadIds);
       await fetch('/api/upload/cancel', {
         method: 'POST',
         headers: {
@@ -1577,6 +1876,7 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadQueue.forEach(item => uploadQueueByFile.set(item.file, item));
     renderUploadQueue();
     updateUploadSummary({ force: true });
+    syncUploadNavigationLock();
   }
 
   function renderUploadQueue() {
@@ -1630,7 +1930,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function setUploadItemState(file, status, progress = 0) {
+  function setUploadItemState(file, status, progress = 0, { deferSummary = false } = {}) {
     const item = uploadQueueByFile.get(file);
     if (!item) return;
 
@@ -1644,7 +1944,8 @@ document.addEventListener('DOMContentLoaded', () => {
     item.uploadedBytes = Math.round((item.progress / 100) * file.size);
 
     if (!item.row) {
-      updateUploadSummary();
+      if (!deferSummary) updateUploadSummary();
+      syncUploadNavigationLock();
       return;
     }
 
@@ -1673,7 +1974,8 @@ document.addEventListener('DOMContentLoaded', () => {
       item.statusIcon.innerHTML = '<i class="bi bi-exclamation-circle-fill text-xl"></i>';
     }
 
-    updateUploadSummary();
+    if (!deferSummary) updateUploadSummary();
+    syncUploadNavigationLock();
   }
 
   function getAggregateUploadPercent() {
@@ -1745,6 +2047,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function updatePendingUploadProgress(uploadId, percent) {
+    const nextPercent = Math.max(0, Math.min(Number(percent) || 0, 100));
+    const pendingUploads = getPendingUploads();
+    let changed = false;
+    Object.values(pendingUploads).forEach(record => {
+      if (record?.uploadId !== uploadId || nextPercent <= (Number(record.progress) || 0)) return;
+      record.progress = nextPercent;
+      record.updatedAt = Date.now();
+      changed = true;
+    });
+    if (changed) savePendingUploads(pendingUploads);
+  }
+
   function getUploadFingerprint(file, folderId) {
     return md5(`${file.name}:${file.size}:${file.lastModified}:${folderId ?? ''}`);
   }
@@ -1765,6 +2080,7 @@ document.addEventListener('DOMContentLoaded', () => {
       size: file.size,
       lastModified: file.lastModified,
       folderId: folderId ?? '',
+      progress: Number(existing?.progress) || 0,
       updatedAt: Date.now()
     };
     savePendingUploads(pendingUploads);
@@ -1783,6 +2099,220 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadIdentityByFile.delete(file);
   }
 
+  function removePendingUploadFingerprint(fingerprint) {
+    const pendingUploads = getPendingUploads();
+    delete pendingUploads[fingerprint];
+    savePendingUploads(pendingUploads);
+  }
+
+  async function fetchRestoredUploadStatus(uploadId) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(`/api/upload/status?uploadId=${encodeURIComponent(uploadId)}`, {
+        signal: controller.signal,
+        cache: 'no-store',
+        credentials: 'same-origin'
+      });
+      if (!response.ok || response.redirected) throw new Error(`Status ${response.status}`);
+      return await response.json();
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  async function enqueueRestoredFinalization(record, totalChunks) {
+    const response = await fetch('/api/upload/complete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': csrfToken
+      },
+      body: JSON.stringify({
+        uploadId: record.uploadId,
+        totalChunks,
+        filename: record.name,
+        fileSize: record.size,
+        folderId: record.folderId,
+        deferStats: false
+      })
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || `Finalization status ${response.status}`);
+    }
+  }
+
+  async function restorePendingUploadStatus() {
+    if (uploadInProgress) return;
+
+    const cutoff = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const pendingEntries = Object.entries(getPendingUploads())
+      .filter(([, record]) => record?.uploadId && record?.name && Number.isFinite(Number(record.size)))
+      .filter(([fingerprint, record]) => {
+        if ((record.updatedAt || 0) >= cutoff) return true;
+        removePendingUploadFingerprint(fingerprint);
+        return false;
+      });
+    if (pendingEntries.length === 0) return;
+
+    const generation = ++restoredUploadPollGeneration;
+    const restoredItems = pendingEntries.map(([fingerprint, record]) => ({
+      fingerprint,
+      record,
+      file: {
+        name: record.name,
+        size: Number(record.size),
+        lastModified: Number(record.lastModified) || 0,
+        type: ''
+      }
+    }));
+
+    let initialStreamingUploads = [];
+    try {
+      initialStreamingUploads = await window.harborPwa?.getStreamingUploads?.() || [];
+    } catch {
+      initialStreamingUploads = [];
+    }
+    const initialStreamingById = new Map(initialStreamingUploads.map(upload => [upload.uploadId, upload]));
+    restoredStreamingUploadsActive = initialStreamingUploads.length > 0;
+
+    prepareUploadQueue(restoredItems.map(item => item.file));
+    restoredItems.forEach(({ record, file }) => {
+      restoredUploadItemsById.set(record.uploadId, { record, file });
+      const liveUpload = initialStreamingById.get(record.uploadId);
+      const initialPercent = Math.max(Number(record.progress) || 0, Number(liveUpload?.percent) || 0);
+      setUploadItemState(file, liveUpload ? (liveUpload.paused ? 'paused' : 'uploading') : 'paused', initialPercent, { deferSummary: true });
+    });
+    updateUploadSummary({ force: true });
+    syncUploadNavigationLock();
+    showProgressModal();
+    uploadProgressPauseBtn?.classList.add('hidden');
+    if (uploadProgressCloseBtn) uploadProgressCloseBtn.title = 'Hide upload status';
+
+    const poll = async () => {
+      if (generation !== restoredUploadPollGeneration || uploadInProgress) return;
+
+      let completed = 0;
+      let processing = 0;
+      let streaming = 0;
+      let waitingForFile = 0;
+      let failed = 0;
+      let connectionErrors = 0;
+      let activeStreamingUploads = [];
+      try {
+        activeStreamingUploads = await window.harborPwa?.getStreamingUploads?.() || [];
+      } catch {
+        activeStreamingUploads = [];
+      }
+      const streamingById = new Map(activeStreamingUploads.map(upload => [upload.uploadId, upload]));
+
+      await runStatusChecks(restoredItems, 6, async item => {
+        const { record, file, fingerprint } = item;
+        try {
+          let status = await fetchRestoredUploadStatus(record.uploadId);
+          const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+          const uploadedChunks = new Set(status.uploadedChunks || []);
+
+          if (!status.completed && !status.processing && !status.failed && uploadedChunks.size === totalChunks) {
+            await enqueueRestoredFinalization(record, totalChunks);
+            status = { ...status, processing: true };
+          }
+
+          if (status.completed) {
+            completed += 1;
+            setUploadItemState(file, 'complete', 100, { deferSummary: true });
+            restoredUploadItemsById.delete(record.uploadId);
+            removePendingUploadFingerprint(fingerprint);
+          } else if (status.processing) {
+            processing += 1;
+            setUploadItemState(file, 'finalizing', 100, { deferSummary: true });
+            window.harborPwa?.trackUpload({ uploadId: record.uploadId, filename: record.name });
+          } else if (status.failed && !streamingById.has(record.uploadId)) {
+            failed += 1;
+            setUploadItemState(file, 'failed', 0, { deferSummary: true });
+          } else {
+            const serverPercent = Math.min(98, Math.round((uploadedChunks.size / totalChunks) * 98));
+            const liveUpload = streamingById.get(record.uploadId);
+            const currentPercent = uploadQueueByFile.get(file)?.progress || 0;
+            const percent = Math.max(currentPercent, Number(record.progress) || 0, Number(liveUpload?.percent) || 0, serverPercent);
+            updatePendingUploadProgress(record.uploadId, percent);
+            if (liveUpload) {
+              streaming += 1;
+              setUploadItemState(file, liveUpload.paused ? 'paused' : 'uploading', percent, { deferSummary: true });
+            } else {
+              waitingForFile += 1;
+              setUploadItemState(file, 'paused', percent, { deferSummary: true });
+            }
+          }
+        } catch (err) {
+          connectionErrors += 1;
+          console.warn(`Could not restore upload status for ${record.name}:`, err);
+        }
+      });
+
+      if (generation !== restoredUploadPollGeneration || uploadInProgress) return;
+      updateUploadSummary({ force: true });
+      restoredStreamingUploadsActive = streaming > 0;
+      syncUploadNavigationLock();
+      const percent = getAggregateUploadPercent();
+      if (completed === restoredItems.length) {
+        restoredStreamingUploadsActive = false;
+        syncUploadNavigationLock();
+        uploadProgressText.textContent = `${completed} upload${completed === 1 ? '' : 's'} complete`;
+        updateProgress(100, 'All uploads are safely stored', { force: true });
+        window.queueDriveToast?.('Background uploads completed', 'success');
+        return;
+      }
+
+      if (streaming > 0) {
+        uploadProgressText.textContent = `Streaming ${streaming} upload${streaming === 1 ? '' : 's'} in the background`;
+      } else if (processing > 0) {
+        uploadProgressText.textContent = `Finishing ${processing} staged upload${processing === 1 ? '' : 's'}`;
+      } else if (waitingForFile > 0) {
+        uploadProgressText.textContent = `${waitingForFile} upload${waitingForFile === 1 ? '' : 's'} paused after refresh`;
+      } else if (failed > 0) {
+        uploadProgressText.textContent = `${failed} upload${failed === 1 ? '' : 's'} need attention`;
+      } else {
+        uploadProgressText.textContent = 'Checking background uploads';
+      }
+
+      let details = 'Safely staged; the server is finishing in the background';
+      if (streaming > 0) details = 'Transfer continues while you browse or refresh Harbor Drive';
+      if (waitingForFile > 0) details = 'Reselect the same file to resume from the saved percentage';
+      if (connectionErrors > 0) details = 'Could not reach the server; checking again automatically';
+      updateProgress(percent, details, { force: true });
+
+      restoredUploadPollTimer = setTimeout(poll, 5000);
+    };
+
+    await poll();
+  }
+
+  async function runStatusChecks(items, concurrency, worker) {
+    let nextIndex = 0;
+    const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex++;
+        await worker(items[index], index);
+      }
+    });
+    await Promise.all(workers);
+  }
+
+  window.addEventListener('harbor:upload-progress', event => {
+    const uploadId = event.detail?.uploadId;
+    const restoredItem = restoredUploadItemsById.get(uploadId);
+    if (!restoredItem || uploadInProgress) return;
+    const queueItem = uploadQueueByFile.get(restoredItem.file);
+    const percent = Math.max(queueItem?.progress || 0, Number(event.detail?.percent) || 0);
+    updatePendingUploadProgress(uploadId, percent);
+    setUploadItemState(restoredItem.file, 'uploading', percent);
+    restoredStreamingUploadsActive = true;
+    syncUploadNavigationLock();
+    showProgressModal();
+  });
+
   async function runWithConcurrency(items, concurrency, worker) {
     let nextIndex = 0;
     const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
@@ -1795,6 +2325,23 @@ document.addEventListener('DOMContentLoaded', () => {
     await Promise.all(workers);
   }
 
+  async function runFileUploadBatch(items, worker) {
+    let workerOwnsStreams = false;
+    try {
+      workerOwnsStreams = await window.harborPwa?.canStreamUploads?.() || false;
+    } catch {
+      workerOwnsStreams = false;
+    }
+    if (workerOwnsStreams) {
+      // Start every file immediately so all File objects and resume metadata
+      // leave the page before it can be refreshed. The service worker applies
+      // its own global six-chunk network limit across the whole batch.
+      await Promise.all(items.map((item, index) => worker(item, index)));
+      return;
+    }
+    await runWithConcurrency(items, FILE_UPLOAD_CONCURRENCY, worker);
+  }
+
   if (uploadInput) {
     uploadInput.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files);
@@ -1805,6 +2352,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (window.primeNotificationSound) window.primeNotificationSound();
+      window.harborPwa?.prepareUploadNotifications();
       startUploadSession();
       prepareUploadQueue(files);
       showProgressModal();
@@ -1953,6 +2501,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (window.clearSelection) window.clearSelection();
       if (window.primeNotificationSound) window.primeNotificationSound();
+      window.harborPwa?.prepareUploadNotifications();
       startUploadSession();
 
       const items = Array.from(e.dataTransfer.items || []);
@@ -2061,7 +2610,7 @@ document.addEventListener('DOMContentLoaded', () => {
           pathFolderIdMap[item.path] = folderId;
         }
 
-        await runWithConcurrency(fileItems, FILE_UPLOAD_CONCURRENCY, async (item) => {
+        await runFileUploadBatch(fileItems, async (item) => {
           if (uploadCancelled) throw new Error('Upload cancelled');
 
           const parentFolderId = pathFolderIdMap[item.path];
@@ -2082,7 +2631,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function uploadFlatFiles(files, { deferStats = false, destinationFolderId = undefined } = {}) {
-    await runWithConcurrency(files, FILE_UPLOAD_CONCURRENCY, async (file) => {
+    await runFileUploadBatch(files, async (file) => {
       if (uploadCancelled) throw new Error('Upload cancelled');
 
       await uploadFileInChunks(file, destinationFolderId, (percent) => {
@@ -2140,6 +2689,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (window.primeNotificationSound) window.primeNotificationSound();
+      window.harborPwa?.prepareUploadNotifications();
       startUploadSession();
 
       const queue = [];
@@ -2202,7 +2752,7 @@ document.addEventListener('DOMContentLoaded', () => {
           pathFolderIdMap[item.path] = folderId;
         }
 
-        await runWithConcurrency(fileItems, FILE_UPLOAD_CONCURRENCY, async (item) => {
+        await runFileUploadBatch(fileItems, async (item) => {
           if (uploadCancelled) throw new Error('Upload cancelled');
 
           const parentFolderId = pathFolderIdMap[item.path];
@@ -2264,6 +2814,44 @@ document.addEventListener('DOMContentLoaded', () => {
     if (uploadProgressDetails) uploadProgressDetails.textContent = `${percent}% - ${detailText}`;
   }
 
+  function delayWithUploadAbort(ms) {
+    return new Promise((resolve, reject) => {
+      const signal = uploadSessionController?.signal;
+      const handleAbort = () => {
+        clearTimeout(timeoutId);
+        reject(new DOMException('Upload cancelled', 'AbortError'));
+      };
+      const timeoutId = setTimeout(() => {
+        signal?.removeEventListener('abort', handleAbort);
+        resolve();
+      }, ms);
+      signal?.addEventListener('abort', handleAbort, { once: true });
+    });
+  }
+
+  async function waitForServerFinalization(uploadId, file) {
+    const deadline = Date.now() + FINALIZATION_TIMEOUT_MS;
+    window.harborPwa?.trackUpload({ uploadId, filename: file.name });
+
+    while (Date.now() < deadline) {
+      await waitForUploadResume();
+      const statusRes = await fetchWithConnectionRecovery(`/api/upload/status?uploadId=${encodeURIComponent(uploadId)}`, {
+        signal: uploadSessionController?.signal
+      });
+      if (!statusRes.ok) throw new Error(`Finalization status failed with status ${statusRes.status}`);
+      const status = await statusRes.json();
+      if (status.completed) {
+        window.harborPwa?.uploadFinished({ uploadId, filename: file.name });
+        return status;
+      }
+      if (status.failed) {
+        throw new Error(status.error || 'The server could not sync the staged upload');
+      }
+      await delayWithUploadAbort(1500);
+    }
+    throw new Error('The server is still syncing this upload. It is safely staged and will continue in the background.');
+  }
+
   async function uploadFileInChunks(file, folderId, onProgress, { deferStats = false } = {}) {
     const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
     const resolvedFolderId = folderId !== undefined ? folderId : (window.getCurrentFolderId ? window.getCurrentFolderId() : '');
@@ -2275,6 +2863,35 @@ document.addEventListener('DOMContentLoaded', () => {
       if (uploadStartedAt === 0) uploadStartedAt = Date.now();
       setUploadItemState(file, 'uploading', 0);
 
+      // Hand the File to the service worker before the page performs any
+      // network await. Every selected File is therefore worker-owned almost
+      // immediately, including files that would previously have remained in
+      // the page-only queue and disappeared after refresh.
+      if (window.harborPwa?.streamUpload) {
+        const streamed = await window.harborPwa.streamUpload({
+          file,
+          uploadId,
+          filename: file.name,
+          folderId: resolvedFolderId,
+          fileSize: file.size,
+          totalChunks,
+          chunkSize: CHUNK_SIZE,
+          csrfToken,
+          deferStats
+        }, percent => {
+          updatePendingUploadProgress(uploadId, percent);
+          if (onProgress) onProgress(percent);
+          else updateProgress(percent, 'Streaming in the background');
+        });
+        if (streamed?.handled) {
+          setUploadItemState(file, 'finalizing', 100);
+          await waitForServerFinalization(uploadId, file);
+          uploadCompleted = true;
+          clearUploadIdentity(file);
+          return;
+        }
+      }
+
       // 1. Query server to see which chunks were already successfully uploaded
       const statusRes = await fetchWithConnectionRecovery(`/api/upload/status?uploadId=${encodeURIComponent(uploadId)}`, {
         signal: uploadSessionController?.signal
@@ -2282,6 +2899,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!statusRes.ok) throw new Error(`Upload status check failed with status ${statusRes.status}`);
       const statusData = await statusRes.json();
       if (statusData.completed) {
+        uploadCompleted = true;
+        clearUploadIdentity(file);
+        return;
+      }
+      if (statusData.processing) {
+        setUploadItemState(file, 'finalizing', 100);
+        await waitForServerFinalization(uploadId, file);
         uploadCompleted = true;
         clearUploadIdentity(file);
         return;
@@ -2346,6 +2970,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const errData = await completeRes.json().catch(() => ({}));
         throw new Error(errData.error || 'Merge request failed on the server');
       }
+      await waitForServerFinalization(uploadId, file);
       uploadCompleted = true;
       clearUploadIdentity(file);
 
@@ -2411,6 +3036,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     return Math.abs(hash).toString(16);
   }
+
+  restorePendingUploadStatus().catch(err => {
+    console.warn('Pending upload status could not be restored:', err);
+  });
 
   // Expose triggers globally
   window.clearSelection = clearSelection;

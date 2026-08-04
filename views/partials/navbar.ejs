@@ -12,119 +12,246 @@
   </div>
 
   <% if (locals.tab === 'my-drive' || locals.tab === 'starred' || locals.tab === 'recent' || locals.tab === 'trash') { %>
-    <form action="/" method="GET" class="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5 w-full max-w-2xl border border-transparent focus-within:bg-white focus-within:border-brand-teal focus-within:shadow-sm transition-all duration-200">
-      <input type="hidden" name="tab" value="<%= tab %>">
-      <% if (locals.currentFolderId) { %>
-        <input type="hidden" name="folderId" value="<%= currentFolderId %>">
-      <% } %>
-      <i class="bi bi-search text-gray-400 text-lg"></i>
-      <input 
-        type="text" 
-        name="search" 
-        placeholder="Search files, folders by name..." 
-        value="<%= locals.searchQuery || '' %>"
-        class="bg-transparent border-none outline-none w-full text-sm text-gray-700 placeholder-gray-400"
-      >
-      
-      <!-- Hidden inputs for type and sortBy -->
-      <input type="hidden" name="type" id="search-type-input" value="<%= locals.fileType || 'all' %>">
-      <input type="hidden" name="sortBy" id="search-sortBy-input" value="<%= locals.sortBy || 'date' %>">
+    <%
+      const searchFiltersActive = (locals.fileType && locals.fileType !== 'all') || (locals.sortBy && locals.sortBy !== 'date');
+      const searchTypeOptions = [
+        { val: 'all', label: 'All Types', icon: 'bi-grid-fill' },
+        { val: 'image', label: 'Images', icon: 'bi-image' },
+        { val: 'pdf', label: 'PDFs', icon: 'bi-file-pdf' },
+        { val: 'document', label: 'Documents', icon: 'bi-file-word' },
+        { val: 'excel', label: 'Excel', icon: 'bi-file-spreadsheet' },
+        { val: 'markdown', label: 'Markdown', icon: 'bi-markdown' },
+        { val: 'code', label: 'Code', icon: 'bi-code-slash' },
+        { val: 'audio', label: 'Audio', icon: 'bi-music-note-beamed' },
+        { val: 'video', label: 'Video', icon: 'bi-film' }
+      ];
+      const searchSortOptions = [
+        { val: 'date', label: 'Sort by Date', icon: 'bi-calendar-event' },
+        { val: 'name', label: 'Sort by Name', icon: 'bi-sort-alpha-down' },
+        { val: 'size', label: 'Sort by Size', icon: 'bi-database' }
+      ];
+      const activeFileType = locals.fileType || 'all';
+      const activeSortBy = locals.sortBy || 'date';
+    %>
+    <div id="drive-search-shell" class="drive-search-shell">
+      <form id="drive-search-form" action="/" method="GET" class="drive-search-form">
+        <input type="hidden" name="tab" value="<%= tab %>">
+        <% if (locals.currentFolderId) { %>
+          <input type="hidden" name="folderId" value="<%= currentFolderId %>">
+        <% } %>
+        <input type="hidden" name="type" id="search-type-input" value="<%= activeFileType %>">
+        <input type="hidden" name="sortBy" id="search-sortBy-input" value="<%= activeSortBy %>">
 
-      <!-- Custom Dropdown for Type -->
-      <div class="relative shrink-0" id="search-type-dropdown">
-        <button type="button" class="dropdown-trigger flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-500 hover:text-brand-teal font-semibold rounded-lg hover:bg-gray-200/50 transition cursor-pointer select-none">
-          <i class="bi <%= {
-            all: 'bi-grid-fill',
-            image: 'bi-image',
-            pdf: 'bi-file-pdf',
-            document: 'bi-file-word',
-            excel: 'bi-file-spreadsheet',
-            markdown: 'bi-markdown',
-            code: 'bi-code-slash',
-            audio: 'bi-music-note-beamed',
-            video: 'bi-film'
-          }[locals.fileType] || 'bi-grid-fill' %> text-gray-400 text-sm"></i>
-          <span class="selected-text">
-            <%= {
-              all: 'All Types',
-              image: 'Images',
-              pdf: 'PDFs',
-              document: 'Documents',
-              excel: 'Excel',
-              markdown: 'Markdown',
-              code: 'Code',
-              audio: 'Audio',
-              video: 'Video'
-            }[locals.fileType] || 'All Types' %>
-          </span>
-          <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
-        </button>
-        <div class="dropdown-menu absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50 animate-in fade-in-50 slide-in-from-top-1 duration-100">
-          <% [
-            { val: 'all', label: 'All Types', icon: 'bi-grid-fill' },
-            { val: 'image', label: 'Images', icon: 'bi-image' },
-            { val: 'pdf', label: 'PDFs', icon: 'bi-file-pdf' },
-            { val: 'document', label: 'Documents', icon: 'bi-file-word' },
-            { val: 'excel', label: 'Excel', icon: 'bi-file-spreadsheet' },
-            { val: 'markdown', label: 'Markdown', icon: 'bi-markdown' },
-            { val: 'code', label: 'Code', icon: 'bi-code-slash' },
-            { val: 'audio', label: 'Audio', icon: 'bi-music-note-beamed' },
-            { val: 'video', label: 'Video', icon: 'bi-film' }
-          ].forEach(item => { %>
-            <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= (locals.fileType || 'all') === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
-              <span class="flex items-center gap-2">
-                <i class="bi <%= item.icon %> <%= (locals.fileType || 'all') === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
-                <%= item.label %>
+        <i class="bi bi-search text-gray-400 text-lg shrink-0" aria-hidden="true"></i>
+        <input
+          type="text"
+          name="search"
+          placeholder="Search files, folders by name..."
+          value="<%= locals.searchQuery || '' %>"
+          class="bg-transparent border-none outline-none w-full min-w-0 text-sm text-gray-700 placeholder-gray-400"
+        >
+
+        <div class="drive-search-inline-filters">
+          <div class="relative shrink-0" id="search-type-dropdown-desktop">
+            <button type="button" class="dropdown-trigger flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-500 hover:text-brand-teal font-semibold rounded-lg hover:bg-gray-200/50 transition cursor-pointer select-none">
+              <i class="bi <%= {
+                all: 'bi-grid-fill',
+                image: 'bi-image',
+                pdf: 'bi-file-pdf',
+                document: 'bi-file-word',
+                excel: 'bi-file-spreadsheet',
+                markdown: 'bi-markdown',
+                code: 'bi-code-slash',
+                audio: 'bi-music-note-beamed',
+                video: 'bi-film'
+              }[activeFileType] || 'bi-grid-fill' %> text-gray-400 text-sm"></i>
+              <span class="selected-text">
+                <%= {
+                  all: 'All Types',
+                  image: 'Images',
+                  pdf: 'PDFs',
+                  document: 'Documents',
+                  excel: 'Excel',
+                  markdown: 'Markdown',
+                  code: 'Code',
+                  audio: 'Audio',
+                  video: 'Video'
+                }[activeFileType] || 'All Types' %>
               </span>
-              <% if ((locals.fileType || 'all') === item.val) { %>
-                <i class="bi bi-check-lg text-brand-teal text-sm"></i>
-              <% } %>
+              <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
             </button>
-          <% }) %>
+            <div class="dropdown-menu absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50">
+              <% searchTypeOptions.forEach(item => { %>
+                <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= activeFileType === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
+                  <span class="flex items-center gap-2">
+                    <i class="bi <%= item.icon %> <%= activeFileType === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
+                    <%= item.label %>
+                  </span>
+                  <% if (activeFileType === item.val) { %>
+                    <i class="bi bi-check-lg text-brand-teal text-sm"></i>
+                  <% } %>
+                </button>
+              <% }) %>
+            </div>
+          </div>
+
+          <div class="w-px h-5 bg-gray-300 mx-1 shrink-0" aria-hidden="true"></div>
+
+          <div class="relative shrink-0" id="search-sortBy-dropdown-desktop">
+            <button type="button" class="dropdown-trigger flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-500 hover:text-brand-teal font-semibold rounded-lg hover:bg-gray-200/50 transition cursor-pointer select-none">
+              <i class="bi <%= {
+                date: 'bi-calendar-event',
+                name: 'bi-sort-alpha-down',
+                size: 'bi-database'
+              }[activeSortBy] || 'bi-calendar-event' %> text-gray-400 text-sm"></i>
+              <span class="selected-text">
+                <%= {
+                  date: 'Sort by Date',
+                  name: 'Sort by Name',
+                  size: 'Sort by Size'
+                }[activeSortBy] || 'Sort by Date' %>
+              </span>
+              <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
+            </button>
+            <div class="dropdown-menu absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50">
+              <% searchSortOptions.forEach(item => { %>
+                <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= activeSortBy === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
+                  <span class="flex items-center gap-2">
+                    <i class="bi <%= item.icon %> <%= activeSortBy === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
+                    <%= item.label %>
+                  </span>
+                  <% if (activeSortBy === item.val) { %>
+                    <i class="bi bi-check-lg text-brand-teal text-sm"></i>
+                  <% } %>
+                </button>
+              <% }) %>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="hidden"></button>
+      </form>
+
+      <div class="drive-search-filters" id="drive-search-filters">
+        <button
+          type="button"
+          id="search-filters-toggle"
+          class="search-filters-toggle<%= searchFiltersActive ? ' has-active-filters' : '' %>"
+          aria-controls="search-filters-panel"
+          aria-expanded="false"
+          aria-haspopup="true"
+          title="Search filters"
+          aria-label="Search filters"
+        >
+          <i class="bi bi-sliders" aria-hidden="true"></i>
+          <span class="search-filters-toggle__label">Filters</span>
+          <span id="search-filters-active-dot" class="search-filters-active-dot<%= searchFiltersActive ? '' : ' hidden' %>" aria-hidden="true"></span>
+        </button>
+
+        <div id="search-filters-panel" class="search-filters-panel hidden" role="dialog" aria-label="Search filters" hidden>
+          <div class="search-filters-section" data-filter-section="type">
+            <button
+              type="button"
+              class="search-filters-section__toggle"
+              aria-expanded="false"
+              aria-controls="search-type-dropdown"
+            >
+              <span>Type</span>
+              <i class="bi bi-chevron-down search-filters-section__chevron" aria-hidden="true"></i>
+            </button>
+            <div class="search-filters-section__body">
+              <div class="search-filters-section__body-inner">
+                <div id="search-type-dropdown" class="search-filters-options">
+                  <% searchTypeOptions.forEach(item => { %>
+                    <button
+                      type="button"
+                      data-value="<%= item.val %>"
+                      class="dropdown-item search-filters-option <%= activeFileType === item.val ? 'is-selected' : '' %>"
+                    >
+                      <span class="flex items-center gap-2 min-w-0">
+                        <i class="bi <%= item.icon %>" aria-hidden="true"></i>
+                        <span class="truncate"><%= item.label %></span>
+                      </span>
+                      <% if (activeFileType === item.val) { %>
+                        <i class="bi bi-check-lg" aria-hidden="true"></i>
+                      <% } %>
+                    </button>
+                  <% }) %>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="search-filters-divider" aria-hidden="true"></div>
+
+          <div class="search-filters-section" data-filter-section="sort">
+            <button
+              type="button"
+              class="search-filters-section__toggle"
+              aria-expanded="false"
+              aria-controls="search-sortBy-dropdown"
+            >
+              <span>Sort</span>
+              <i class="bi bi-chevron-down search-filters-section__chevron" aria-hidden="true"></i>
+            </button>
+            <div class="search-filters-section__body">
+              <div class="search-filters-section__body-inner">
+                <div id="search-sortBy-dropdown" class="search-filters-options">
+                  <% searchSortOptions.forEach(item => { %>
+                    <button
+                      type="button"
+                      data-value="<%= item.val %>"
+                      class="dropdown-item search-filters-option <%= activeSortBy === item.val ? 'is-selected' : '' %>"
+                    >
+                      <span class="flex items-center gap-2 min-w-0">
+                        <i class="bi <%= item.icon %>" aria-hidden="true"></i>
+                        <span class="truncate"><%= item.label %></span>
+                      </span>
+                      <% if (activeSortBy === item.val) { %>
+                        <i class="bi bi-check-lg" aria-hidden="true"></i>
+                      <% } %>
+                    </button>
+                  <% }) %>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+    </div>
+    <script>
+      (function () {
+        try {
+          if (window.matchMedia('(min-width: 1024px)').matches) return;
+          var panel = document.getElementById('search-filters-panel');
+          var toggle = document.getElementById('search-filters-toggle');
+          if (!panel || !toggle) return;
 
-      <!-- Vertical Divider -->
-      <div class="w-px h-5 bg-gray-300 mx-1 shrink-0"></div>
+          if (localStorage.getItem('harbor-drive-search-filters-expanded') === '1') {
+            var shell = document.getElementById('drive-search-shell');
+            if (shell) {
+              var top = Math.max(shell.getBoundingClientRect().bottom + 10, 72);
+              panel.style.setProperty('--search-filters-top', top + 'px');
+            }
+            panel.hidden = false;
+            panel.classList.remove('hidden');
+            panel.classList.add('is-open');
+            toggle.setAttribute('aria-expanded', 'true');
+            toggle.classList.add('is-active');
+          }
 
-      <!-- Custom Dropdown for SortBy -->
-      <div class="relative shrink-0" id="search-sortBy-dropdown">
-        <button type="button" class="dropdown-trigger flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-500 hover:text-brand-teal font-semibold rounded-lg hover:bg-gray-200/50 transition cursor-pointer select-none">
-          <i class="bi <%= {
-            date: 'bi-calendar-event',
-            name: 'bi-sort-alpha-down',
-            size: 'bi-database'
-          }[locals.sortBy] || 'bi-calendar-event' %> text-gray-400 text-sm"></i>
-          <span class="selected-text">
-            <%= {
-              date: 'Sort by Date',
-              name: 'Sort by Name',
-              size: 'Sort by Size'
-            }[locals.sortBy] || 'Sort by Date' %>
-          </span>
-          <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
-        </button>
-        <div class="dropdown-menu absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50 animate-in fade-in-50 slide-in-from-top-1 duration-100">
-          <% [
-            { val: 'date', label: 'Sort by Date', icon: 'bi-calendar-event' },
-            { val: 'name', label: 'Sort by Name', icon: 'bi-sort-alpha-down' },
-            { val: 'size', label: 'Sort by Size', icon: 'bi-database' }
-          ].forEach(item => { %>
-            <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= (locals.sortBy || 'date') === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
-              <span class="flex items-center gap-2">
-                <i class="bi <%= item.icon %> <%= (locals.sortBy || 'date') === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
-                <%= item.label %>
-              </span>
-              <% if ((locals.sortBy || 'date') === item.val) { %>
-                <i class="bi bi-check-lg text-brand-teal text-sm"></i>
-              <% } %>
-            </button>
-          <% }) %>
-        </div>
-      </div>
-
-      <button type="submit" class="hidden"></button>
-    </form>
+          var sections = {};
+          try { sections = JSON.parse(localStorage.getItem('harbor-drive-search-filter-sections') || '{}'); } catch (e) {}
+          panel.querySelectorAll('[data-filter-section]').forEach(function (section) {
+            var key = section.getAttribute('data-filter-section');
+            if (!sections[key]) return;
+            section.classList.add('is-open');
+            var sectionToggle = section.querySelector('.search-filters-section__toggle');
+            if (sectionToggle) sectionToggle.setAttribute('aria-expanded', 'true');
+          });
+        } catch (e) {}
+      })();
+    </script>
   <% } else { %>
     <div></div>
   <% } %>

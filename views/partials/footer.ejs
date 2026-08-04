@@ -1,10 +1,18 @@
-  <% if (locals.tab === 'my-drive' || locals.tab === 'starred' || locals.tab === 'recent' || locals.tab === 'shared' || locals.tab === 'trash' || locals.tab === 'storage' || locals.tab === 'admin' || locals.sessions) { %>
-    <script src="/js/drive.js"></script>
-    <script src="/js/shortcuts.js"></script>
+  <% const isDriveShell = locals.tab === 'my-drive' || locals.tab === 'starred' || locals.tab === 'recent' || locals.tab === 'shared' || locals.tab === 'trash' || locals.tab === 'storage' || locals.tab === 'admin' || locals.tab === 'profile' || locals.tab === 'devices' || locals.sessions; %>
+  <% if (isDriveShell) { %>
+    <%- include('upload-progress') %>
+  <% } %>
+  <script src="/js/pwa.js?v=<%= encodeURIComponent(locals.assetVersion || '') %>"></script>
+  <% if (isDriveShell) { %>
+    <script src="/js/drive.js?v=<%= encodeURIComponent(locals.assetVersion || '') %>"></script>
+    <script src="/js/shortcuts.js?v=<%= encodeURIComponent(locals.assetVersion || '') %>"></script>
+    <% if (locals.tab === 'profile') { %>
+      <script src="/js/auth.js?v=<%= encodeURIComponent(locals.assetVersion || '') %>"></script>
+    <% } %>
   <% } else if (locals.type) { %>
-    <script src="/js/preview.js"></script>
+    <script src="/js/preview.js?v=<%= encodeURIComponent(locals.assetVersion || '') %>"></script>
   <% } else { %>
-    <script src="/js/auth.js"></script>
+    <script src="/js/auth.js?v=<%= encodeURIComponent(locals.assetVersion || '') %>"></script>
   <% } %>
 </body>
 </html>

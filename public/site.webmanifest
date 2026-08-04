@@ -1,21 +1,26 @@
 {
   "name": "Harbor Drive",
   "short_name": "Harbor Drive",
+  "description": "Securely upload, organize, and share files.",
+  "id": "/my-drive",
+  "start_url": "/my-drive",
+  "scope": "/",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     },
     {
       "src": "/web-app-manifest-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ],
-  "theme_color": "#ffffff",
+  "theme_color": "#0f766e",
   "background_color": "#ffffff",
-  "display": "standalone"
+  "display": "standalone",
+  "categories": ["productivity", "utilities"]
 }

@@ -1,6 +1,6 @@
-const { db } = require('../config/db');
+const { db, pool } = require('../config/db');
 const { jobs } = require('../models/schema');
-const { eq, and, sql } = require('drizzle-orm');
+const { eq } = require('drizzle-orm');
 
 class JobRepository {
   async createJob(type, payload) {
@@ -13,24 +13,44 @@ class JobRepository {
   }
 
   async getNextPendingJob() {
-    return await db.transaction(async (tx) => {
-      const results = await tx.select()
-        .from(jobs)
-        .where(eq(jobs.status, 'pending'))
-        .orderBy(jobs.createdAt)
-        .limit(1);
-      
-      const job = results[0] || null;
-      if (job) {
-        await tx.update(jobs)
-          .set({ status: 'running' })
-          .where(eq(jobs.id, job.id));
-        
-        job.status = 'running';
-        job.payload = JSON.parse(job.payload);
+    // Claim optimistically in autocommit mode. A conditional UPDATE guarantees
+    // that only one worker wins each job without holding SELECT/range locks
+    // across statements (the previous transaction could deadlock on status_idx).
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        const [candidates] = await pool.query(
+          "SELECT id FROM jobs WHERE status = 'pending' ORDER BY created_at, id LIMIT 16"
+        );
+        if (candidates.length === 0) return null;
+
+        for (const candidate of candidates) {
+          const [claim] = await pool.query(
+            "UPDATE jobs SET status = 'running' WHERE id = ? AND status = 'pending'",
+            [candidate.id]
+          );
+          if (claim.affectedRows !== 1) continue;
+
+          const [results] = await pool.query("SELECT * FROM jobs WHERE id = ? LIMIT 1", [candidate.id]);
+          const job = results[0];
+          if (!job) return null;
+          job.status = 'running';
+          job.createdAt = job.created_at;
+          job.payload = JSON.parse(job.payload);
+          return job;
+        }
+      } catch (err) {
+        const retryable = err.code === 'ER_LOCK_DEADLOCK' || err.code === 'ER_LOCK_WAIT_TIMEOUT';
+        if (!retryable || attempt === 3) throw err;
+        await new Promise(resolve => setTimeout(resolve, 15 * (attempt + 1) + Math.floor(Math.random() * 25)));
       }
-      return job;
-    });
+    }
+    return null;
+  }
+
+  async recoverInterruptedJobs() {
+    await db.update(jobs)
+      .set({ status: 'pending' })
+      .where(eq(jobs.status, 'running'));
   }
 
   async updateJobStatus(id, status) {

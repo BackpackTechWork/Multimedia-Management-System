@@ -9,11 +9,20 @@ const folderRepository = require('../repositories/FolderRepository');
 const jobRepository = require('../repositories/JobRepository');
 const storageService = require('./StorageService');
 
+// libvips caches open source descriptors by default. On Windows those cached
+// descriptors make a freshly thumbnailed upload return EBUSY during Trash
+// purge even though the thumbnail job has completed. Keep the memory/item
+// caches, but release source files as soon as each operation finishes.
+sharp.cache({ files: 0 });
+
 class QueueService {
   constructor() {
     this.isRunning = false;
     this.intervalId = null;
     this.verboseJobs = process.env.VERBOSE_JOBS === 'true';
+    this.activeJobs = 0;
+    this.activeUploadFinalizations = new Map();
+    this.concurrency = Math.max(1, Math.min(16, Number.parseInt(process.env.JOB_CONCURRENCY || '4', 10) || 4));
   }
 
   logJob(message) {
@@ -27,9 +36,23 @@ class QueueService {
     this.isRunning = true;
     console.log('Background job queue processing started...');
     
-    this.intervalId = setInterval(() => this.processNextJob(), 3000);
+    this.intervalId = setInterval(() => this.drainQueue(), 1000);
+    jobRepository.recoverInterruptedJobs()
+      .catch(err => console.error('Could not recover interrupted background jobs:', err))
+      .finally(() => this.drainQueue());
     
     this.trashCleanupIntervalId = setInterval(() => this.processTrashPurge(), 3600 * 1000);
+  }
+
+  drainQueue() {
+    while (this.isRunning && this.activeJobs < this.concurrency) {
+      this.activeJobs += 1;
+      this.processNextJob()
+        .catch(err => console.error('Queue worker failed:', err))
+        .finally(() => {
+          this.activeJobs -= 1;
+        });
+    }
   }
 
   stop() {
@@ -54,6 +77,9 @@ class QueueService {
           case 'folder_copy':
             await this.handleFolderCopyJob(job.payload);
             break;
+          case 'upload_finalize':
+            await this.handleUploadFinalizeJob(job.payload);
+            break;
           default:
             console.warn(`Unknown job type: ${job.type}`);
         }
@@ -61,6 +87,17 @@ class QueueService {
         this.logJob(`Job ${job.id} completed successfully.`);
       } catch (err) {
         console.error(`Job ${job.id} failed:`, err.message);
+        if (job.type === 'upload_finalize' && job.payload?.uploadId) {
+          const latestReceipt = await storageService.getUploadReceipt(job.payload.uploadId).catch(() => null);
+          if (latestReceipt?.state !== 'complete') {
+            await storageService.saveUploadReceipt(job.payload.uploadId, {
+              userId: job.payload.userId,
+              ownerId: job.payload.ownerId,
+              state: 'failed',
+              error: err.message
+            }).catch(() => {});
+          }
+        }
         await jobRepository.updateJobStatus(job.id, 'failed');
       }
     } catch (err) {
@@ -68,9 +105,123 @@ class QueueService {
     }
   }
 
+  async handleUploadFinalizeJob(payload) {
+    const uploadId = payload.uploadId;
+    const activeFinalization = this.activeUploadFinalizations.get(uploadId);
+    if (activeFinalization) return activeFinalization;
+
+    const finalization = this.performUploadFinalizeJob(payload)
+      .finally(() => this.activeUploadFinalizations.delete(uploadId));
+    this.activeUploadFinalizations.set(uploadId, finalization);
+    return finalization;
+  }
+
+  async performUploadFinalizeJob({ uploadId, userId, ownerId, folderId, filename, fileSize, totalChunks, deferStats }) {
+    const existing = await storageService.getUploadReceipt(uploadId);
+    if (existing?.state === 'complete' && existing.fileId) return;
+
+    if (await this.destinationFolderUnavailable(folderId, ownerId)) {
+      await storageService.discardChunks(uploadId, userId).catch(() => {});
+      throw new Error('The destination folder was deleted before the upload completed');
+    }
+
+    let result = null;
+    let fileCreated = false;
+    try {
+      await storageService.saveUploadReceipt(uploadId, {
+        userId: Number(userId), ownerId: Number(ownerId), state: 'processing', filename
+      });
+      result = await storageService.assembleChunks(
+        uploadId,
+        Number(totalChunks),
+        Number(ownerId),
+        filename,
+        Number(fileSize),
+        Number(userId)
+      );
+
+      if (await this.destinationFolderUnavailable(folderId, ownerId)) {
+        throw new Error('The destination folder was deleted before the upload completed');
+      }
+
+      const mimeType = require('mime-types').lookup(filename) || 'application/octet-stream';
+      const ext = path.extname(filename).substring(1).toLowerCase();
+      const fileId = await fileRepository.createFile(
+        Number(ownerId),
+        folderId ? Number(folderId) : null,
+        result.filename,
+        filename,
+        ext,
+        mimeType,
+        result.size,
+        result.path,
+        result.checksum
+      );
+      fileCreated = true;
+
+      if (await this.destinationFolderUnavailable(folderId, ownerId)) {
+        await db.delete(files).where(eq(files.id, fileId));
+        await storageService.deleteDiskFile(result.path).catch(() => {});
+        result = null;
+        fileCreated = false;
+        throw new Error('The destination folder was deleted before the upload completed');
+      }
+
+      await storageService.saveUploadReceipt(uploadId, {
+        userId: Number(userId), ownerId: Number(ownerId), fileId, state: 'complete'
+      });
+
+      const driveService = require('./DriveService');
+      // Always refresh in the worker: the browser may have closed after staging.
+      await driveService.updateStorageStats(Number(ownerId));
+      if (mimeType.startsWith('image/')) {
+        await jobRepository.createJob('thumbnail', { fileId });
+      }
+    } catch (err) {
+      if (result?.path && !fileCreated) await storageService.deleteDiskFile(result.path).catch(() => {});
+      throw err;
+    }
+  }
+
+  async destinationFolderUnavailable(folderId, ownerId) {
+    if (!folderId) return false;
+    const folder = await folderRepository.findById(Number(folderId));
+    if (!folder || Number(folder.userId) !== Number(ownerId)) return true;
+
+    const trashedAncestor = await db.select({ id: trashItems.id })
+      .from(trashItems)
+      .innerJoin(folders, and(
+        eq(trashItems.entityType, 'folder'),
+        eq(trashItems.entityId, folders.id)
+      ))
+      .where(sql`${folder.path} LIKE CONCAT(${folders.path}, '%')`)
+      .limit(1);
+    return trashedAncestor.length > 0;
+  }
+
   async handleThumbnailJob({ fileId }) {
     const file = await fileRepository.findById(fileId);
     if (!file) return;
+
+    const trashed = await db.select({ id: trashItems.id })
+      .from(trashItems)
+      .where(and(eq(trashItems.entityType, 'file'), eq(trashItems.entityId, fileId)))
+      .limit(1);
+    if (trashed.length > 0) return;
+    if (file.folderId) {
+      const parentFolder = await folderRepository.findById(file.folderId);
+      if (parentFolder) {
+        const trashedAncestor = await db.select({ id: trashItems.id })
+          .from(trashItems)
+          .innerJoin(folders, and(
+            eq(trashItems.entityType, 'folder'),
+            eq(trashItems.entityId, folders.id)
+          ))
+          .where(sql`${parentFolder.path} LIKE CONCAT(${folders.path}, '%')`)
+          .limit(1);
+        if (trashedAncestor.length > 0) return;
+      }
+    }
 
     const sourcePath = path.join(storageService.storageRoot, file.path);
     if (!fs.existsSync(sourcePath)) {

@@ -77,7 +77,12 @@ class DriveService {
   }
 
   async purgeItemPermanently(userId, entityType, entityId, { isSuperAdmin = false } = {}) {
-    const ownerId = await this.resolveEntityOwnerId(entityType, entityId);
+    const entityOwnerId = await this.resolveEntityOwnerId(entityType, entityId);
+    const [trashRecord] = await db.select()
+      .from(trashItems)
+      .where(and(eq(trashItems.entityType, entityType), eq(trashItems.entityId, entityId)))
+      .limit(1);
+    const ownerId = entityOwnerId || trashRecord?.userId;
     if (!ownerId || (!isSuperAdmin && ownerId !== userId)) {
       throw new Error('Item not found');
     }
@@ -85,7 +90,11 @@ class DriveService {
     if (entityType === 'file') {
       const file = await fileRepository.findById(entityId);
       if (file && file.userId === ownerId) {
-        await storageService.deleteDiskFile(file.path);
+        try {
+          await storageService.deleteDiskFile(file.path);
+        } catch (err) {
+          throw new Error(`Could not remove ${file.originalName} from storage: ${err.message}`);
+        }
 
         const versions = await fileRepository.getVersions(entityId);
         for (let ver of versions) {
@@ -110,7 +119,11 @@ class DriveService {
         );
 
         for (let file of filesToPurge) {
-          await storageService.deleteDiskFile(file.path);
+          try {
+            await storageService.deleteDiskFile(file.path);
+          } catch (err) {
+            throw new Error(`Could not remove ${file.originalName} from storage: ${err.message}`);
+          }
           const versions = await fileRepository.getVersions(file.id);
           for (let ver of versions) {
             await storageService.deleteDiskFile(ver.storagePath);

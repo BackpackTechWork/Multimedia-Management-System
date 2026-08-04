@@ -30,12 +30,12 @@
   <main class="flex-1 flex flex-col min-h-0 min-w-0 bg-[#F8F9FA] overflow-hidden">
     
     <!-- Action Toolbar & Breadcrumbs -->
-    <div class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0 select-none">
-      <div class="flex flex-col">
-        <%- include('../partials/breadcrumbs') %>
-      </div>
+    <div class="drive-toolbar bg-white border-b border-gray-200 px-6 py-3 shrink-0 select-none">
+      <div class="drive-toolbar__primary">
+        <div class="drive-toolbar__crumbs min-w-0">
+          <%- include('../partials/breadcrumbs') %>
+        </div>
 
-      <div class="drive-toolbar-controls flex items-center gap-3">
         <div id="layout-toggle" class="layout-toggle" role="group" aria-label="Choose file layout">
           <button id="layout-list-btn" type="button" class="layout-toggle__button" title="List view" aria-label="List view" aria-pressed="false">
             <i class="layout-toggle__check bi bi-check-lg" aria-hidden="true"></i>
@@ -46,34 +46,38 @@
             <i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i>
           </button>
         </div>
+      </div>
 
-        <!-- Contextual Action Bar (Toggled based on selection) -->
-        <div class="drive-action-bar flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-lg p-1">
-        <button id="detail-star-btn" data-tooltip="Toggle Star" aria-label="Toggle Star" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-yellow-500 rounded-md transition duration-150">
-          <i class="bi bi-star-fill text-base"></i>
-        </button>
-        <button id="detail-share-btn" data-tooltip="Share link" aria-label="Share link" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-brand-teal rounded-md transition duration-150">
-          <i class="bi bi-share-fill text-base"></i>
-        </button>
-        <button id="detail-rename-btn" data-tooltip="Rename" aria-label="Rename" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-brand-teal rounded-md transition duration-150">
-          <i class="bi bi-pencil-square text-base"></i>
-        </button>
-        <button id="detail-move-btn" data-tooltip="Move folder location" aria-label="Move folder location" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-brand-teal rounded-md transition duration-150">
-          <i class="bi bi-folder-symlink-fill text-base"></i>
-        </button>
-        <button id="detail-copy-btn" data-tooltip="Copy to folder" aria-label="Copy to folder" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-brand-teal rounded-md transition duration-150">
-          <i class="bi bi-file-earmark-medical-fill text-base"></i>
-        </button>
-        <button id="detail-versions-btn" data-tooltip="Version history" aria-label="Version history" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-brand-teal rounded-md transition duration-150 hidden">
-          <i class="bi bi-clock-history text-base"></i>
-        </button>
-        <button id="detail-download-btn" data-tooltip="Download directly" aria-label="Download directly" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-brand-teal rounded-md transition duration-150">
-          <i class="bi bi-download text-base"></i>
-        </button>
-        <div class="w-px h-6 bg-gray-200 mx-1"></div>
-        <button id="detail-delete-btn" data-tooltip="Move to Trash" aria-label="Move to Trash" class="p-2 hover:bg-gray-200 text-gray-500 hover:text-red-500 rounded-md transition duration-150">
-          <i class="bi bi-trash-fill text-base"></i>
-        </button>
+      <!-- Contextual Action Bar (Toggled based on selection) -->
+      <div class="drive-toolbar-controls">
+        <div class="drive-action-bar-scroll">
+          <div class="drive-action-bar">
+            <button id="detail-star-btn" type="button" data-tooltip="Toggle Star" aria-label="Toggle Star" class="drive-action-bar__btn hover:text-yellow-500">
+              <i class="bi bi-star-fill text-base" aria-hidden="true"></i>
+            </button>
+            <button id="detail-share-btn" type="button" data-tooltip="Share link" aria-label="Share link" class="drive-action-bar__btn hover:text-brand-teal">
+              <i class="bi bi-share-fill text-base" aria-hidden="true"></i>
+            </button>
+            <button id="detail-rename-btn" type="button" data-tooltip="Rename" aria-label="Rename" class="drive-action-bar__btn hover:text-brand-teal">
+              <i class="bi bi-pencil-square text-base" aria-hidden="true"></i>
+            </button>
+            <button id="detail-move-btn" type="button" data-tooltip="Move folder location" aria-label="Move folder location" class="drive-action-bar__btn hover:text-brand-teal">
+              <i class="bi bi-folder-symlink-fill text-base" aria-hidden="true"></i>
+            </button>
+            <button id="detail-copy-btn" type="button" data-tooltip="Copy to folder" aria-label="Copy to folder" class="drive-action-bar__btn hover:text-brand-teal">
+              <i class="bi bi-file-earmark-medical-fill text-base" aria-hidden="true"></i>
+            </button>
+            <button id="detail-versions-btn" type="button" data-tooltip="Version history" aria-label="Version history" class="drive-action-bar__btn hover:text-brand-teal hidden">
+              <i class="bi bi-clock-history text-base" aria-hidden="true"></i>
+            </button>
+            <button id="detail-download-btn" type="button" data-tooltip="Download directly" aria-label="Download directly" class="drive-action-bar__btn hover:text-brand-teal">
+              <i class="bi bi-download text-base" aria-hidden="true"></i>
+            </button>
+            <div class="drive-action-bar__divider" aria-hidden="true"></div>
+            <button id="detail-delete-btn" type="button" data-tooltip="Move to Trash" aria-label="Move to Trash" class="drive-action-bar__btn hover:text-red-500">
+              <i class="bi bi-trash-fill text-base" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
       </div>
     </div>

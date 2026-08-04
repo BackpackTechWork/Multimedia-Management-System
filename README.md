@@ -5,7 +5,8 @@ A self-hosted file management application built with Node.js, Express.js, EJS, T
 ## Features
 - **Materialized Path Folders**: Efficient, recursive-free folder structures for rapid deep nesting lookups.
 - **Sliding-Window Session Store**: Session verification tracked inside MySQL with sliding 7-day expirations and remote multi-device session revocations.
-- **Resumeable Chunked Uploads**: High-speed chunk slicing on client side supporting >10GB file uploads and network interruption resumes with constant memory usage.
+- **Resumable Staged Uploads**: Concurrent chunk transfer with request timeouts, automatic recovery, private fast-disk staging, and server-side finalization that continues after the browser closes.
+- **Installable PWA**: Service-worker app shell, persisted background-finalization tracking, and operating-system upload completion notifications.
 - **File Versioning**: Comprehensive file version archiving with simple one-click restoration or deletion.
 - **30-Day Trash Purging**: Graceful file deletions with 30-day retention buffers and automated background purging.
 - **Starred & Recent Filters**: Quick access to starred items and recently opened document lists.
@@ -42,6 +43,12 @@ Copy `.env.example` to `.env` and fill in your database credentials:
 cp .env.example .env
 ```
 Ensure the database specified (e.g. `drive_clone`) is created inside your MySQL server.
+
+For installations where `STORAGE_ROOT` is a slower NAS or mounted drive, set
+`UPLOAD_TEMP_ROOT` to a private directory on a fast local SSD. Do not place it
+under `public/`, because Express serves that directory without file-level
+authorization. `JOB_CONCURRENCY` controls how many users' finalize and media
+jobs can run together (the default is 4).
 
 ### 4. Fetch Local Vendor Assets
 Run the setup script to download and structure the self-hosted assets (fonts, icons, viewers) from `node_modules` into the `public/vendor/` folder:

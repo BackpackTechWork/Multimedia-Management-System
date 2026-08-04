@@ -111,16 +111,23 @@
     <!-- 3. Removed duplicate folders tree; now shown under My Drive -->
   </div>
 
-  <!-- 4. Pre-calculated Storage Meter -->
-  <% if (locals.storageStats) { %>
-    <a href="/storage" class="border-t border-gray-100 pt-4 flex flex-col gap-2 rounded-lg transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 <%= locals.tab === 'storage' ? 'text-brand-teal' : '' %>" aria-label="Open storage analytics">
-      <div class="flex items-center gap-2 text-gray-500 text-sm">
-        <i class="bi bi-cloud-check text-lg text-brand-teal"></i>
-        <span class="font-medium">Storage</span>
-      </div>
-      <div class="text-xs text-gray-400 leading-tight">
-        <%= formatBytes(storageStats.totalSize) %> used
-      </div>
-    </a>
-  <% } %>
+  <div class="sidebar-footer flex flex-col gap-3">
+    <button type="button" data-pwa-install hidden class="w-full items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-left text-sm font-semibold text-gray-700 transition hover:border-brand-teal hover:bg-gray-50 hover:text-brand-teal focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 disabled:cursor-wait disabled:opacity-70">
+      <i class="bi bi-download text-lg text-brand-teal" aria-hidden="true"></i>
+      <span data-pwa-install-label>Install Harbor Drive</span>
+    </button>
+
+    <!-- 4. Pre-calculated Storage Meter -->
+    <% if (locals.storageStats) { %>
+      <a href="/storage" class="border-t border-gray-100 pt-4 flex flex-col gap-2 rounded-lg transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2 <%= locals.tab === 'storage' ? 'text-brand-teal' : '' %>" aria-label="Open storage analytics">
+        <div class="flex items-center gap-2 text-gray-500 text-sm">
+          <i class="bi bi-cloud-check text-lg text-brand-teal"></i>
+          <span class="font-medium">Storage</span>
+        </div>
+        <div class="text-xs text-gray-400 leading-tight">
+          <%= formatBytes(storageStats.totalSize) %> used
+        </div>
+      </a>
+    <% } %>
+  </div>
 </aside>

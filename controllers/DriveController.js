@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { db } = require('../config/db');
 const { folders, files, fileVersions, trashItems, favorites, recentActivity, userStorageStats, shares } = require('../models/schema');
-const { eq, and, sql, like, inArray, desc } = require('drizzle-orm');
+const { eq, and, sql, like, inArray, asc, desc } = require('drizzle-orm');
 const fileRepository = require('../repositories/FileRepository');
 const folderRepository = require('../repositories/FolderRepository');
 const sessionRepository = require('../repositories/SessionRepository');
@@ -384,6 +384,9 @@ class DriveController {
     const typeFilter = req.query.type || 'all';
     const modifiedFilter = req.query.modified || 'all';
     const sourceFilter = req.query.source || 'all';
+    const sortBy = req.query.sortBy === 'modified' ? 'modified' : 'size';
+    const sortOrder = req.query.sortOrder === 'asc' ? 'asc' : 'desc';
+    const sortColumn = sortBy === 'modified' ? files.createdAt : files.size;
 
     try {
       const activeFilesPromise = db.select({ file: files, folder: folders })
@@ -391,7 +394,7 @@ class DriveController {
         .leftJoin(folders, eq(files.folderId, folders.id))
         .leftJoin(trashItems, and(eq(trashItems.entityId, files.id), eq(trashItems.entityType, 'file')))
         .where(and(includeAll ? sql`1 = 1` : eq(files.userId, userId), sql`${trashItems.id} IS NULL`))
-        .orderBy(desc(files.size));
+        .orderBy(sortOrder === 'asc' ? asc(sortColumn) : desc(sortColumn));
 
       const statsPromise = includeAll
         ? Promise.all([
@@ -477,6 +480,8 @@ class DriveController {
         typeFilter,
         modifiedFilter,
         sourceFilter,
+        sortBy,
+        sortOrder,
         allUserFolders,
         userRootFolders: userRootFolders.map(r => r.folders)
       });
@@ -622,18 +627,24 @@ class DriveController {
     try {
       const receipt = await storageService.getUploadReceipt(uploadId);
       if (receipt?.userId === req.session.userId) {
+        const failedChunks = receipt.state === 'failed'
+          ? await storageService.getUploadedChunks(uploadId, req.session.userId)
+          : [];
         return res.status(200).json({
           success: true,
-          completed: true,
+          completed: receipt.state === 'complete' || (!receipt.state && Boolean(receipt.fileId)),
+          processing: receipt.state === 'queued' || receipt.state === 'processing',
+          failed: receipt.state === 'failed',
+          error: receipt.state === 'failed' ? receipt.error : undefined,
           fileId: receipt.fileId,
-          uploadedChunks: []
+          uploadedChunks: failedChunks
         });
       }
 
-      const uploadedIndices = await storageService.getUploadedChunks(uploadId);
+      const uploadedIndices = await storageService.getUploadedChunks(uploadId, req.session.userId);
       res.status(200).json({ success: true, completed: false, uploadedChunks: uploadedIndices });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(err.code === 'UPLOAD_FORBIDDEN' ? 403 : 500).json({ error: err.message });
     }
   }
 
@@ -662,18 +673,16 @@ class DriveController {
         }
       }
 
-      await storageService.saveChunk(uploadId, parsedChunkIndex, req.file.buffer, parsedChunkOffset);
+      await storageService.saveChunk(uploadId, parsedChunkIndex, req.file.buffer, parsedChunkOffset, req.session.userId);
       res.status(200).json({ success: true });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(err.code === 'UPLOAD_FORBIDDEN' ? 403 : 500).json({ error: err.message });
     }
   }
 
   async completeUpload(req, res) {
     const { uploadId, totalChunks, filename, fileSize, folderId, deferStats } = req.body;
     const userId = req.session.userId;
-    let result = null;
-    let fileCreated = false;
 
     if (!uploadId || !totalChunks || !filename) {
       return res.status(400).json({ error: 'Missing merge details' });
@@ -682,7 +691,16 @@ class DriveController {
     try {
       const existingReceipt = await storageService.getUploadReceipt(uploadId);
       if (existingReceipt?.userId === userId) {
-        return res.status(200).json({ success: true, fileId: existingReceipt.fileId, resumed: true });
+        if (existingReceipt.state === 'failed') {
+          await storageService.deleteUploadReceipt(uploadId);
+        } else {
+          return res.status(existingReceipt.state === 'complete' ? 200 : 202).json({
+            success: true,
+            fileId: existingReceipt.fileId,
+            processing: existingReceipt.state !== 'complete',
+            resumed: true
+          });
+        }
       }
 
       const destFolderId = folderId ? parseInt(folderId) : null;
@@ -695,53 +713,64 @@ class DriveController {
         ownerId = destFolder.userId;
       }
       
-      const parsedFileSize = fileSize === undefined ? null : Number(fileSize);
-      result = await storageService.assembleChunks(
-        uploadId,
-        parseInt(totalChunks),
+      const parsedFileSize = Number(fileSize);
+      const parsedTotalChunks = Number.parseInt(totalChunks, 10);
+      if (!Number.isSafeInteger(parsedTotalChunks) || parsedTotalChunks < 1 || parsedTotalChunks > 1000000) {
+        return res.status(400).json({ error: 'Invalid chunk count' });
+      }
+      if (!Number.isSafeInteger(parsedFileSize) || parsedFileSize < 0) {
+        return res.status(400).json({ error: 'Invalid file size' });
+      }
+
+      await storageService.assertUploadOwner(uploadId, userId);
+      const uploadedChunks = new Set(await storageService.getUploadedChunks(uploadId, userId));
+      for (let index = 0; index < parsedTotalChunks; index += 1) {
+        if (!uploadedChunks.has(index)) {
+          return res.status(409).json({ error: `Upload is missing chunk ${index}; it can be resumed safely` });
+        }
+      }
+      const stagedSize = await storageService.getChunkUploadSize(uploadId);
+      if (stagedSize !== parsedFileSize) {
+        return res.status(409).json({ error: 'Staged upload size does not match the selected file' });
+      }
+      const manifestChecksum = await storageService.getManifestChecksum(uploadId, parsedTotalChunks, parsedFileSize);
+      if (!manifestChecksum) {
+        return res.status(409).json({ error: 'Staged upload verification failed; retry the selected file' });
+      }
+      const claimed = await storageService.claimUploadReceipt(uploadId, {
+        userId,
         ownerId,
-        filename,
-        parsedFileSize
-      );
-
-      const mimeType = require('mime-types').lookup(filename) || 'application/octet-stream';
-      const ext = path.extname(filename).substring(1).toLowerCase();
-
-      const fileId = await fileRepository.createFile(
-        ownerId,
-        destFolderId,
-        result.filename,
-        filename,
-        ext,
-        mimeType,
-        result.size,
-        result.path,
-        result.checksum
-      );
-      fileCreated = true;
-
-      await storageService.saveUploadReceipt(uploadId, { userId, ownerId, fileId }).catch(err => {
-        console.error(`Failed to save upload receipt for ${uploadId}:`, err.message);
+        state: 'queued',
+        filename
       });
-
-      if (!deferStats) {
-        await driveService.updateStorageStats(ownerId).catch(err => {
-          console.error(`Failed to refresh storage stats after upload ${uploadId}:`, err.message);
+      if (!claimed) {
+        const claimedReceipt = await storageService.getUploadReceipt(uploadId);
+        return res.status(claimedReceipt?.state === 'complete' ? 200 : 202).json({
+          success: true,
+          fileId: claimedReceipt?.fileId,
+          processing: claimedReceipt?.state !== 'complete',
+          resumed: true
         });
       }
-
-      if (mimeType.startsWith('image/')) {
-        await jobRepository.createJob('thumbnail', { fileId }).catch(err => {
-          console.error(`Failed to queue thumbnail for file ${fileId}:`, err.message);
+      try {
+        await jobRepository.createJob('upload_finalize', {
+          uploadId,
+          userId,
+          ownerId,
+          folderId: destFolderId,
+          filename,
+          fileSize: parsedFileSize,
+          totalChunks: parsedTotalChunks,
+          deferStats: Boolean(deferStats)
         });
+      } catch (err) {
+        await storageService.deleteUploadReceipt(uploadId).catch(() => {});
+        throw err;
       }
 
-      res.status(200).json({ success: true, fileId });
+      res.status(202).json({ success: true, processing: true, uploadId });
     } catch (err) {
-      if (result?.path && !fileCreated) {
-        await storageService.deleteDiskFile(result.path).catch(() => {});
-      }
-      res.status(500).json({ error: err.message });
+      res.status(err.code === 'UPLOAD_FORBIDDEN' ? 403 : 500).json({ error: err.message });
     }
   }
 
@@ -766,10 +795,10 @@ class DriveController {
     }
 
     try {
-      await Promise.all(uploadIds.map(uploadId => storageService.discardChunks(uploadId)));
+      await Promise.all(uploadIds.slice(0, 100).map(uploadId => storageService.discardChunks(uploadId, req.session.userId)));
       res.status(200).json({ success: true });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      res.status(err.code === 'UPLOAD_FORBIDDEN' ? 403 : 500).json({ error: err.message });
     }
   }
 
@@ -805,7 +834,8 @@ class DriveController {
         parseInt(totalChunks),
         file.userId,
         filename,
-        fileSize === undefined ? null : Number(fileSize)
+        fileSize === undefined ? null : Number(fileSize),
+        userId
       );
 
       const existingVersions = await fileRepository.getVersions(file.id);
@@ -1032,6 +1062,7 @@ class DriveController {
       await driveService.purgeItemPermanently(userId, entityType, parseInt(entityId), { isSuperAdmin: this.isSuperAdmin(req) });
       res.status(200).json({ success: true });
     } catch (err) {
+      console.error(`Permanent delete failed for ${entityType} ${entityId}:`, err);
       res.status(500).json({ error: err.message });
     }
   }
@@ -1075,6 +1106,7 @@ class DriveController {
         await actionHandlers[action](item);
         processed += 1;
       } catch (err) {
+        console.error(`Trash ${action} failed for ${item.entityType} ${item.entityId}:`, err);
         errors.push({
           entityType: item.entityType,
           entityId: item.entityId,

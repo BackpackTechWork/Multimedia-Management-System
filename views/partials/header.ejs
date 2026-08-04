@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="description" content="Securely upload, organize, and share files with Harbor Drive.">
   <title>Harbor Drive</title>
   
   <% if (locals.csrfToken) { %>
@@ -10,18 +12,18 @@
   <% } %>
 
   <link rel="icon" href="/web-app-manifest-512x512.png" type="image/png" sizes="512x512">
-  <link rel="apple-touch-icon" href="/web-app-manifest-512x512.png">
-  <link rel="manifest" href="/site.webmanifest">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest?v=<%= encodeURIComponent(locals.assetVersion || '') %>">
 
   <link rel="stylesheet" href="/vendor/inter/index.css">
   <link rel="stylesheet" href="/vendor/bootstrap-icons/bootstrap-icons.css">
 
   <% if (locals.tab === 'my-drive' || locals.tab === 'starred' || locals.tab === 'recent' || locals.tab === 'shared' || locals.tab === 'trash' || locals.tab === 'storage' || locals.tab === 'admin' || locals.tab === 'profile' || locals.sessions) { %>
-    <link rel="stylesheet" href="/css/drive.css">
+    <link rel="stylesheet" href="/css/drive.css?v=<%= encodeURIComponent(locals.assetVersion || '') %>">
   <% } else if (locals.type) { %>
-    <link rel="stylesheet" href="/css/preview.css">
+    <link rel="stylesheet" href="/css/preview.css?v=<%= encodeURIComponent(locals.assetVersion || '') %>">
   <% } else { %>
-    <link rel="stylesheet" href="/css/auth.css">
+    <link rel="stylesheet" href="/css/auth.css?v=<%= encodeURIComponent(locals.assetVersion || '') %>">
   <% } %>
 </head>
 <body class="bg-gray-50 text-gray-800 antialiased min-h-screen flex flex-col">

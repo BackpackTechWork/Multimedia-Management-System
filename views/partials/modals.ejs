@@ -220,38 +220,9 @@
   </div>
 </div>
 
-<!-- 6. Sticky Upload Queue -->
-<div id="upload-progress-modal" class="fixed bottom-4 right-4 md:right-4 left-4 md:left-auto bg-white border border-gray-200 shadow-xl rounded-xl w-[calc(100%-2rem)] md:w-[28rem] hidden z-50 select-none mx-4 md:mx-0 overflow-hidden">
-  <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-    <div class="min-w-0">
-      <span id="upload-progress-text" class="block text-sm font-bold text-gray-800 truncate">Preparing upload...</span>
-      <span id="upload-progress-details" class="block text-[11px] text-gray-500 mt-0.5">0% - Calculating time left</span>
-    </div>
-    <div class="flex items-center">
-      <button id="upload-progress-pause-btn" class="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md transition" title="Pause upload" aria-label="Pause upload">
-        <i class="bi bi-pause-fill text-lg"></i>
-      </button>
-      <button id="upload-progress-toggle-btn" class="p-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md transition" title="Collapse upload list">
-        <i class="bi bi-chevron-down text-base"></i>
-      </button>
-      <button id="upload-progress-close-btn" class="p-2 -mr-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-md transition" title="Cancel upload">
-        <i class="bi bi-x-lg text-base"></i>
-      </button>
-    </div>
-  </div>
-  <div id="upload-progress-body">
-    <div class="h-1 bg-gray-100 overflow-hidden">
-      <div id="upload-progress-bar" class="bg-brand-teal h-1 transition-[width] duration-150 ease-out" style="width: 0%"></div>
-    </div>
-    <div id="upload-queue-list" class="max-h-72 overflow-y-auto py-1">
-      <!-- Populated by drive.js -->
-    </div>
-  </div>
-</div>
-
 <!-- Drag Target Overlay overlay -->
 <div id="drag-overlay" class="drag-target-overlay">
-  <i class="bi bi-cloud-arrow-up-fill text-6xl mb-4 animate-bounce"></i>
+  <i class="bi bi-cloud-arrow-up-fill text-6xl mb-4"></i>
   <span class="text-2xl font-bold">Drop files here to upload</span>
   <span class="text-sm text-brand-light-grey mt-1">Files are sliced and uploaded securely</span>
 </div>

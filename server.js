@@ -15,17 +15,33 @@ const adminSeedService = require('./services/AdminSeedService');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || 'localhost';
+const assetVersion = process.env.ASSET_VERSION || Date.now().toString(36);
 
 const trustProxy = process.env.TRUST_PROXY || 'loopback';
 app.set('trust proxy', trustProxy);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+app.locals.assetVersion = assetVersion;
 
 app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  setHeaders: (res, filePath) => {
+    const normalizedPath = filePath.replace(/\\/g, '/');
+    if (normalizedPath.endsWith('/sw.js')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      return;
+    }
+    if (/\.(?:js|css|webmanifest)$/.test(normalizedPath)) {
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    }
+  }
+}));
 
 app.use(globalLimiter);
 
@@ -45,6 +61,13 @@ app.use(session({
     maxAge: 7 * 24 * 60 * 60 * 1000
   }
 }));
+
+app.use((req, res, next) => {
+  if (req.method === 'GET' && req.headers.accept?.includes('text/html')) {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+  }
+  next();
+});
 
 app.use((req, res, next) => {
   res.locals.userId = req.session?.userId || null;
