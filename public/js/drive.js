@@ -848,6 +848,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     item.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (justDragged) return;
       contextMenu.classList.add('hidden');
 
       if (e.ctrlKey || e.metaKey) {
@@ -1356,104 +1357,82 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- BOX DRAG SELECTION ---
   const gridContainer = itemsGridContainer;
   if (gridContainer) {
-    let startClientX = 0, startClientY = 0, isSelecting = false;
-    let box = null;
-
-    gridContainer.addEventListener('mousedown', (e) => {
-      if (e.target.closest('#custom-context-menu') || 
-          e.target.closest('#empty-space-context-menu') || 
-          e.target.closest('#new-dropdown-menu') || 
-          e.target.closest('#profile-dropdown-menu')) {
-        return;
-      }
-
-      const isContextMenuOpen = !contextMenu.classList.contains('hidden') || !emptySpaceContextMenu.classList.contains('hidden');
-      const isNewDropdownOpen = newDropdownMenu && !newDropdownMenu.classList.contains('hidden');
-      const isProfileDropdownOpen = profileDropdownMenu && !profileDropdownMenu.classList.contains('hidden');
-
-      if (isContextMenuOpen || isNewDropdownOpen || isProfileDropdownOpen) {
-        contextMenu.classList.add('hidden');
-        emptySpaceContextMenu.classList.add('hidden');
-        if (newDropdownMenu) newDropdownMenu.classList.add('hidden');
-        if (profileDropdownMenu) profileDropdownMenu.classList.add('hidden');
-        return;
-      }
-
-      if (e.button !== 0 || e.target.closest('.grid-item') || e.target.closest('button') || e.target.closest('input')) return;
-      e.preventDefault();
-      
-      startClientX = e.clientX;
-      startClientY = e.clientY;
-      isSelecting = true;
-      clearSelection();
-
-      box = document.createElement('div');
-      box.className = 'selection-box';
-      box.style.left = `${startClientX}px`;
-      box.style.top = `${startClientY}px`;
-      document.body.appendChild(box);
+    gridContainer.addEventListener('pointerdown', event => {
+      // Selected items retain native drag-and-drop for moving into folders.
+      if (event.button !== 0 || event.pointerType === 'touch' ||
+          event.target.closest('.grid-item.selected, a, button, input, select, textarea, label, [role="menu"], #custom-context-menu, #empty-space-context-menu')) return;
+      event.preventDefault();
+      contextMenu.classList.add('hidden');
+      emptySpaceContextMenu.classList.add('hidden');
+      const bounds = gridContainer.getBoundingClientRect();
+      const start = { x: event.clientX - bounds.left + gridContainer.scrollLeft, y: event.clientY - bounds.top + gridContainer.scrollTop };
+      const pointer = { x: event.clientX, y: event.clientY };
+      const previous = new Set(selectedItems);
+      const additive = event.ctrlKey || event.metaKey || event.shiftKey;
+      let box, frame, lastFrame;
       document.body.classList.add('is-box-selecting');
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (!isSelecting || !box) return;
-
-      const currentClientX = e.clientX;
-      const currentClientY = e.clientY;
-
-      const boxLeft = Math.min(startClientX, currentClientX);
-      const boxTop = Math.min(startClientY, currentClientY);
-      const boxWidth = Math.abs(startClientX - currentClientX);
-      const boxHeight = Math.abs(startClientY - currentClientY);
-
-      box.style.left = boxLeft + 'px';
-      box.style.top = boxTop + 'px';
-      box.style.width = boxWidth + 'px';
-      box.style.height = boxHeight + 'px';
-
-      // Check collisions with grid items
-      let changed = false;
-      const newSelectedItems = [];
-      
-      items.forEach(item => {
-        const itemRect = item.getBoundingClientRect();
-        const intersect = !(itemRect.right < boxLeft || 
-                            itemRect.left > boxLeft + boxWidth || 
-                            itemRect.bottom < boxTop || 
-                            itemRect.top > boxTop + boxHeight);
-        
-        const isSelected = item.classList.contains('selected');
-        if (intersect) {
-          if (!isSelected) {
-            item.classList.add('selected');
-            changed = true;
-          }
-          newSelectedItems.push(item);
-        } else {
-          if (isSelected) {
-            item.classList.remove('selected');
-            changed = true;
-          }
+      window.getSelection()?.removeAllRanges();
+      const draw = () => {
+        if (!box) return;
+        const viewport = gridContainer.getBoundingClientRect();
+        const anchorX = start.x + viewport.left - gridContainer.scrollLeft;
+        const anchorY = start.y + viewport.top - gridContainer.scrollTop;
+        const left = Math.min(anchorX, pointer.x), top = Math.min(anchorY, pointer.y);
+        const right = Math.max(anchorX, pointer.x), bottom = Math.max(anchorY, pointer.y);
+        Object.assign(box.style, { left: `${left}px`, top: `${top}px`, width: `${right-left}px`, height: `${bottom-top}px` });
+        const next = [];
+        items.forEach(item => {
+          const rect = item.getBoundingClientRect();
+          const hit = rect.width > 0 && rect.height > 0 && rect.left < right && rect.right > left && rect.top < bottom && rect.bottom > top;
+          const selected = hit || (additive && previous.has(item));
+          item.classList.toggle('selected', selected);
+          if (selected) next.push(item);
+        });
+        if (next.length !== selectedItems.length || next.some((item, i) => item !== selectedItems[i])) {
+          selectedItems = next;
+          updateDetailsPane();
         }
-      });
-
-      if (changed) {
-        selectedItems = newSelectedItems;
-        updateDetailsPane();
-      }
-    });
-
-    document.addEventListener('mouseup', () => {
-      if (isSelecting) {
-        isSelecting = false;
+      };
+      const autoScroll = time => {
+        const elapsed = Math.min(32, lastFrame === undefined ? 16 : time - lastFrame);
+        lastFrame = time;
+        const viewport = gridContainer.getBoundingClientRect();
+        const edge = Math.min(96, viewport.height / 3);
+        const direction = pointer.y > viewport.bottom - edge
+          ? Math.min(1, (pointer.y - viewport.bottom + edge) / edge)
+          : pointer.y < viewport.top + edge ? -Math.min(1, (viewport.top + edge - pointer.y) / edge) : 0;
+        if (direction) gridContainer.scrollTop += direction * elapsed * 0.9;
+        draw();
+        frame = window.requestAnimationFrame(autoScroll);
+      };
+      const move = e => {
+        pointer.x = e.clientX; pointer.y = e.clientY;
+        if (!box && Math.hypot(pointer.x - event.clientX, pointer.y - event.clientY) < 5) return;
+        e.preventDefault();
+        if (!box) {
+          box = document.createElement('div'); box.className = 'selection-box'; document.body.append(box);
+          frame = window.requestAnimationFrame(autoScroll);
+        }
+        draw();
+      };
+      const finish = () => {
+        window.cancelAnimationFrame(frame);
+        document.body.classList.remove('is-box-selecting');
         if (box) {
-          box.remove();
-          box = null;
-          document.body.classList.remove('is-box-selecting');
-          justDragged = true;
-          setTimeout(() => { justDragged = false; }, 50);
+          box.remove(); justDragged = true;
+          setTimeout(() => { justDragged = false; }, 0);
         }
-      }
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', finish);
+        window.removeEventListener('pointercancel', finish);
+        window.removeEventListener('blur', finish);
+        gridContainer.removeEventListener('scroll', draw);
+      };
+      window.addEventListener('pointermove', move, { passive: false });
+      window.addEventListener('pointerup', finish);
+      window.addEventListener('pointercancel', finish);
+      window.addEventListener('blur', finish);
+      gridContainer.addEventListener('scroll', draw, { passive: true });
     });
   }
 

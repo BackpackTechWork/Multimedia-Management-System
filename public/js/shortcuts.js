@@ -74,6 +74,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    if (e.defaultPrevented || document.querySelector(
+      '#new-folder-modal:not(.hidden), #rename-modal:not(.hidden), #move-copy-modal:not(.hidden), #share-modal:not(.hidden), #versions-modal:not(.hidden)'
+    )) return;
+
     const activeElement = document.activeElement;
     if (activeElement && (
       activeElement.tagName === 'INPUT' || 

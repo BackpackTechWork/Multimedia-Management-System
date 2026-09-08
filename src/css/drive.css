@@ -580,13 +580,17 @@ body > .flex-1.flex.overflow-hidden {
   border: 1px solid var(--teal);
   background-color: rgba(41, 115, 115, 0.15);
   pointer-events: none;
-  z-index: 50;
+  z-index: 35;
   border-radius: 2px;
 }
 
 body.is-box-selecting {
   cursor: crosshair;
-  user-select: none;
+}
+
+body.is-box-selecting, body.is-box-selecting * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
 .drag-target-overlay {

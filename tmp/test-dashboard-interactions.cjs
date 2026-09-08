@@ -1,0 +1,48 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const ejs = require('ejs');
+const {JSDOM} = require('./share-test-deps/node_modules/jsdom');
+const root = path.resolve(__dirname,'..');
+const dom = new JSDOM('<main><div id="items-grid-container"><div class="grid-item" id="first"></div><div class="grid-item" id="second"></div><button id="control">Control</button></div></main><div id="custom-context-menu" class="hidden"></div><div id="empty-space-context-menu" class="hidden"></div>',{runScripts:'outside-only'});
+const w=dom.window, grid=w.document.getElementById('items-grid-container');
+let nextFrame;
+w.requestAnimationFrame = fn => {nextFrame=fn;return 1;};
+w.cancelAnimationFrame = () => {nextFrame=null;};
+grid.getBoundingClientRect=()=>({left:100,top:80,right:700,bottom:600,width:600,height:520});
+const cards=[...w.document.querySelectorAll('.grid-item')];
+cards.forEach((card,i)=>card.getBoundingClientRect=()=>({left:140,right:240,top:100+i*560-grid.scrollTop,bottom:200+i*560-grid.scrollTop,width:100,height:100}));
+const drive=fs.readFileSync(path.join(root,'public/js/drive.js'),'utf8');
+const block=drive.slice(drive.indexOf('  // --- BOX DRAG SELECTION ---'),drive.indexOf('  // --- CHUNKED FILE UPLOADER SYSTEM ---'));
+w.eval(`const itemsGridContainer=document.getElementById('items-grid-container'); const items=[...document.querySelectorAll('.grid-item')]; let selectedItems=[]; let justDragged=false; const contextMenu=document.getElementById('custom-context-menu');const emptySpaceContextMenu=document.getElementById('empty-space-context-menu');function updateDetailsPane(){};${block};window.selection=()=>selectedItems;`);
+const down=(target,x,y,extra={})=>target.dispatchEvent(new w.MouseEvent('pointerdown',{bubbles:true,cancelable:true,button:0,clientX:x,clientY:y,...extra}));
+const move=(x,y)=>w.dispatchEvent(new w.MouseEvent('pointermove',{cancelable:true,clientX:x,clientY:y}));
+down(grid,110,90);move(270,599);
+assert.equal(w.selection().length,1);
+for(let t=16;t<240;t+=16)nextFrame(t);
+assert.ok(grid.scrollTop>0);assert.equal(w.selection().length,2,'Auto-scroll selects newly revealed items');
+const oldScroll=grid.scrollTop;move(270,81);nextFrame(256);assert.ok(grid.scrollTop<oldScroll);
+w.dispatchEvent(new w.MouseEvent('pointerup'));assert.equal(nextFrame,null);assert.ok(!w.document.body.classList.contains('is-box-selecting'));
+down(cards[0],160,110);assert.ok(!w.document.body.classList.contains('is-box-selecting'),'Selected cards retain native move drag');
+down(w.document.getElementById('control'),160,110);assert.ok(!w.document.body.classList.contains('is-box-selecting'));
+const priorSelection=w.selection().length;grid.scrollTop=0;down(grid,110,90,{ctrlKey:true});move(120,100);assert.equal(w.selection().length,priorSelection,'Modifier preserves prior selection');w.dispatchEvent(new w.MouseEvent('pointercancel'));assert.equal(nextFrame,null);
+dom.window.close();
+(async()=>{
+ const markup=await ejs.renderFile(path.join(root,'views/partials/modals.ejs'),{});
+ const dialogs=new JSDOM(markup+'<div id="custom-alert-backdrop" class="pointer-events-none"></div>',{runScripts:'outside-only'});
+ const dw=dialogs.window;dw.eval(fs.readFileSync(path.join(root,'public/js/modal-keyboard.js'),'utf8'));
+ const pairs=[['new-folder-modal','create-folder-btn','new-folder-name'],['rename-modal','rename-submit-btn','rename-input'],['move-copy-modal','move-copy-submit-btn',null],['share-modal','generate-share-btn',null]];
+ for(const [modalId,buttonId,inputId] of pairs){
+  const modal=dw.document.getElementById(modalId),button=dw.document.getElementById(buttonId);let clicks=0;
+  button.addEventListener('click',()=>clicks++);modal.classList.remove('hidden');
+  const target=inputId?dw.document.getElementById(inputId):modal;
+  const enter=extra=>target.dispatchEvent(new dw.KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',...extra}));
+  enter();assert.equal(clicks,1,modalId+' submits');
+  enter({repeat:true});enter({isComposing:true});assert.equal(clicks,1);
+  button.disabled=true;enter();assert.equal(clicks,1);button.disabled=false;
+  const textarea=dw.document.createElement('textarea');modal.append(textarea);
+  const newline=new dw.KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter'});textarea.dispatchEvent(newline);assert.equal(newline.defaultPrevented,false);assert.equal(clicks,1);
+  modal.classList.add('hidden');enter();assert.equal(clicks,1,'Hidden modal does not submit');
+ }
+ dialogs.window.close();console.log('PASS: dashboard edge scrolling, document anchor, additive selection, release/cancel cleanup, move drag and control exclusions; Enter submits all four modal actions, ignoring repeat, composition, disabled actions, multiline and hidden dialogs.');
+})().catch(err=>{console.error(err);process.exitCode=1;});
