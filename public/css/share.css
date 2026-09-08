@@ -24,14 +24,14 @@
 .share-selection-toolbar { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); z-index: 46; width: min(calc(100% - 2rem), 78rem); padding: .75rem 1rem; background: #fff; border: 1px solid #ccd3da; border-radius: 12px; }
 .share-public--folder .share-main { padding-bottom: 10rem; }
 .share-drag-selecting, .share-drag-selecting * { user-select: none !important; -webkit-user-select: none !important; }
-.share-file-card:focus-visible { outline: 2px solid #297373; outline-offset: 3px; }
+.share-item-card:focus-visible { outline: 2px solid #297373; outline-offset: 3px; }
 .share-selection-hint { margin: .75rem 0 1.25rem; font-size: .8125rem; color: #59636f; }
 .share-public input[type=checkbox] { width: 18px; height: 18px; accent-color: #297373; cursor: pointer; }
 .share-file-check { position: absolute; top: .65rem; left: .65rem; z-index: 2; display: grid; place-items: center; width: 36px; height: 36px; background: #fff; border: 1px solid #dce1e5; border-radius: 8px; cursor: pointer; }
-.share-file-card:not(.is-selected) .share-file-check { display: none; }
+.share-item-card:not(.is-selected) .share-file-check { display: none; }
 .share-public .share-item-card { box-shadow: none; transition: border-color .15s, background-color .15s; }
 .share-public .share-item-card:hover { transform: none; box-shadow: none; }
-.share-public .share-file-card.is-selected { border-color: #297373; background: #eaf4f3; }
+.share-public .share-item-card.is-selected { border-color: #297373; background: #eaf4f3; }
 .share-public .share-file-card img { -webkit-user-drag: none; }
 .share-public .share-file-card:hover img { transform: none; }
 .share-selection-box { position: fixed; z-index: 45; border: 1px solid #297373; background: rgb(41 115 115 / 15%); pointer-events: none; }
@@ -46,3 +46,9 @@
   .share-selection-toolbar .share-button { width: 100%; margin: 0; }
   .share-public .share-card-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); }
 }
+
+.share-folder-card { cursor: pointer; }
+.share-folder-card.is-selected > .share-item-preview { visibility: hidden; }
+.share-folder-card .share-file-check { top: 50%; left: 1.125rem; transform: translateY(-50%); }
+.share-folder-open { display: grid; place-items: center; flex: none; width: 36px; height: 36px; margin-left: auto; color: #59636f; border-radius: 8px; }
+.share-folder-open:hover { background: #eaf4f3; color: #297373; }

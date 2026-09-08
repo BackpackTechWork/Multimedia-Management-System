@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#0f766e">
   <meta name="description" content="Securely upload, organize, and share files with Harbor Drive.">
   <title>Harbor Drive</title>
-  
-  
+
+
 
   <link rel="icon" href="/web-app-manifest-512x512.png" type="image/png" sizes="512x512">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -16,9 +16,9 @@
   <link rel="stylesheet" href="/vendor/inter/index.css">
   <link rel="stylesheet" href="/vendor/bootstrap-icons/bootstrap-icons.css">
 
-  
+
     <link rel="stylesheet" href="/css/auth.css?v=">
-  
+
 </head>
 <body class="bg-gray-50 text-gray-800 antialiased min-h-screen flex flex-col">
   <!-- Reusable Custom Alert/Confirm/Prompt Modal -->
@@ -28,18 +28,18 @@
     <div id="custom-alert-icon-container" class="w-14 h-14 rounded-full bg-teal-50 flex items-center justify-center mb-4">
       <i id="custom-alert-icon" class="bi bi-info-circle-fill text-brand-teal text-2xl"></i>
     </div>
-    
+
     <!-- Title -->
     <h3 id="custom-alert-title" class="text-lg font-bold text-gray-900 mb-2">Notification</h3>
-    
+
     <!-- Message Content -->
     <p id="custom-alert-message" class="text-sm text-gray-600 leading-relaxed mb-4 whitespace-pre-wrap font-medium max-h-40 overflow-y-auto w-full px-1"></p>
-    
+
     <!-- Input for Prompts -->
     <div id="custom-alert-input-container" class="w-full mb-6 hidden">
       <input type="text" id="custom-alert-input" class="w-full border border-gray-300 rounded-xl p-2.5 outline-none focus:border-brand-teal text-sm transition-colors duration-150">
     </div>
-    
+
     <!-- Action Buttons -->
     <div class="flex gap-3 w-full">
       <button id="custom-alert-cancel-btn" class="flex-1 py-2.5 px-4 border border-gray-200 hover:bg-gray-50 text-gray-500 rounded-xl text-sm font-semibold transition-all duration-150 focus:outline-none hidden">
@@ -64,21 +64,21 @@
     const inputEl = document.getElementById('custom-alert-input');
     const cancelBtn = document.getElementById('custom-alert-cancel-btn');
     const okBtn = document.getElementById('custom-alert-ok-btn');
-    
+
     let dialogQueue = [];
 
     function showNextDialog() {
       if (dialogQueue.length === 0) return;
       const current = dialogQueue[0];
-      
+
       // Set text content
       msgEl.textContent = current.message !== undefined ? String(current.message) : '';
       titleEl.textContent = current.title;
-      
+
       // Reset classes
       cancelBtn.classList.add('hidden');
       inputContainer.classList.add('hidden');
-      
+
       // Configure type-specific styles and visibility
       if (current.type === 'alert') {
         iconContainer.className = "w-14 h-14 rounded-full bg-teal-50 flex items-center justify-center mb-4";
@@ -103,7 +103,7 @@
       backdrop.classList.add('opacity-100');
       alertBox.classList.remove('scale-95', 'opacity-0');
       alertBox.classList.add('scale-100', 'opacity-100');
-      
+
       // Auto-focus the input/button
       setTimeout(() => {
         if (current.type === 'prompt') {
@@ -117,13 +117,13 @@
 
     function dismissDialog(value) {
       if (dialogQueue.length === 0) return;
-      
+
       // Animate scale down and fade out
       alertBox.classList.remove('scale-100', 'opacity-100');
       alertBox.classList.add('scale-95', 'opacity-0');
       backdrop.classList.remove('opacity-100');
       backdrop.classList.add('pointer-events-none');
-      
+
       const current = dialogQueue.shift();
       if (current.resolve) {
         current.resolve(value);
@@ -244,11 +244,11 @@
   </header>
 
   <main class="share-main flex-1 animate-fade-up">
-    
-    
-      
 
-      
+
+
+
+
       <section class="shared-document" aria-labelledby="shared-file-name">
         <p class="shared-document-label">Shared file</p>
         <i class="bi bi-file-pdf-fill text-red-500 shared-document-icon" aria-hidden="true"></i>
@@ -256,21 +256,21 @@
         <p class="shared-document-summary">PDF<span aria-hidden="true"> &middot; </span>99.74 MB</p>
         <div class="shared-document-actions">
           <a href="/preview/pdf/1?shareToken=test" class="share-button share-button--primary"><i class="bi bi-eye" aria-hidden="true"></i>Preview file</a>
-          
+
             <a href="/share/test/download" class="share-button"><i class="bi bi-download" aria-hidden="true"></i>Download</a>
-          
+
         </div>
         <div class="shared-document-access">
           <span><i class="bi bi-person" aria-hidden="true"></i>Owner: Aiman &lt;Owner&gt;</span>
-          
-          
+
+
         </div>
       </section>
-    
+
   </main>
 </div>
   <!-- Drag and drop overlay -->
-  
+
 
 <script>
   function formatBytes(bytes) {
@@ -293,16 +293,16 @@
       });
     });
 
-    
+
   });
 </script>
 
-  
-  
+
+
   <script src="/js/pwa.js?v="></script>
-  
+
     <script src="/js/auth.js?v="></script>
-  
+
 </body>
 </html>
 

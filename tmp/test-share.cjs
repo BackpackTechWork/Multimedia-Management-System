@@ -10,7 +10,9 @@ const root = path.resolve(__dirname, '..');
 const file = { id: 1, userId: 7, folderId: 10, originalName: 'Core-and-Extended-Mathematics-Fifth-Edition.pdf', extension: 'pdf', mimeType: 'application/pdf', size: 104585000, path: 'one.txt' };
 let share = { folderId: 10, allowDownload: true, linkRole: 'editor', linkAccess: 'anyone' };
 const folder = { id: 10, userId: 7, name: 'Shared documents', path: '10/' };
+const childFolders = [ {...folder, id:12, parentId:10, name:'Documents',path:'10/12/'}, {...folder,id:13,parentId:12,name:'Nested',path:'10/12/13/'}, {...folder,id:14,parentId:12,name:'Empty',path:'10/12/14/'} ];
 const entries = [file, {...file, id: 2, path: 'two.txt'}, {...file, id: 3, folderId: 11}];
+entries.push({...file,id:4,folderId:12,path:'one.txt'}, {...file,id:5,folderId:13,path:'two.txt'});
 const disk = path.join(__dirname, 'share-fixtures');
 fs.mkdirSync(disk, { recursive: true });
 fs.writeFileSync(path.join(disk, 'one.txt'), 'first document');
@@ -19,8 +21,8 @@ const mocks = {
  '../repositories/UserRepository': { findById: async () => ({ name: 'Aiman <Owner>' }) },
  '../config/db': {}, '../models/schema': {},
  '../repositories/ShareRepository': { findByToken: async () => share, userCanAccessShare: async () => false },
- '../repositories/FileRepository': { findById: async id => entries.find(f => f.id === id) },
- '../repositories/FolderRepository': { findById: async id => id === 10 ? folder : {...folder, id: 11, path: '100/'} },
+ '../repositories/FileRepository': { findById: async id => entries.find(f => f.id === id), findFilesInFolder: async (userId, id) => entries.filter(f => f.folderId === id).map(files => ({files})) },
+ '../repositories/FolderRepository': { findById: async id => id === 10 ? folder : childFolders.find(f => f.id === id) || {...folder, id: 11, path: '100/'}, findSubfolders: async (userId,id) => childFolders.filter(f=>f.parentId === id).map(folders=>({folders})) },
  '../services/StorageService': { storageRoot: disk }, '../services/DriveService': {},
  '../repositories/JobRepository': {}, '../services/FileChecksumService': {}
 };
@@ -44,6 +46,15 @@ const controller = controllerModule.exports;
   const zip = await JSZip.loadAsync(await response.arrayBuffer()); const names = Object.keys(zip.files);
   assert.equal(names.length, 2); assert.ok(names.some(n=>n.includes('(1)')));
   assert.deepEqual(await Promise.all(Object.values(zip.files).map(f=>f.async('string'))), ['first document','second document']);
+  const mixedRequest = pairs => fetch(url,{method:'POST',body:new URLSearchParams(pairs),signal:AbortSignal.timeout(10000)});
+  const folderResponse = await mixedRequest([['folderIds','12'],['folderIds','13'],['fileIds','4']]);
+  assert.equal(folderResponse.status,200);
+  const folderZip = await JSZip.loadAsync(await folderResponse.arrayBuffer());
+  assert.ok(folderZip.files['Documents/Empty/'].dir);
+  assert.ok(folderZip.files['Documents/Nested/' + file.originalName]);
+  assert.equal(Object.values(folderZip.files).filter(entry => !entry.dir).length,2);
+  assert.equal((await mixedRequest([['folderIds','11']])).status,403);
+  assert.equal((await mixedRequest([['folderIds','12x']])).status,400);
   assert.equal((await request(['1','3'])).status,403);
   assert.equal((await request(['1x'])).status,400);
   assert.equal((await request([])).status,400);
@@ -79,15 +90,43 @@ const controller = controllerModule.exports;
   const drag = types => {const e=new window.Event('dragenter',{bubbles:true,cancelable:true});Object.defineProperty(e,'dataTransfer',{value:{types}});window.dispatchEvent(e);};
   drag(['text/plain']);assert.ok(window.document.getElementById('drag-overlay').classList.contains('hidden'));
   drag(['Files']);assert.ok(!window.document.getElementById('drag-overlay').classList.contains('hidden'));
+  const foldersOnly = await ejs.renderFile(path.join(root,'views/share/public.ejs'),{...locals,contents:{folders:childFolders.slice(0,1),files:[]}});
+  const foldersDOM = new JSDOM(foldersOnly,{runScripts:'outside-only',url:'http://localhost/'});
+  foldersDOM.window.eval(fs.readFileSync(path.join(root,'public/js/share-selection.js'),'utf8'));
+  foldersDOM.window.document.dispatchEvent(new foldersDOM.window.Event('DOMContentLoaded'));
+  const folderCard = foldersDOM.window.document.querySelector('.share-folder-card');
+  folderCard.click();
+  assert.ok(folderCard.querySelector('input[name=folderIds]').checked);
+  assert.equal(foldersDOM.window.document.getElementById('share-selection-toolbar').hidden,false);
+  assert.ok(folderCard.querySelector('a[title="Open folder"]'));
+  const selectAll = foldersDOM.window.document.getElementById('share-select-all');
+  selectAll.checked=false; selectAll.dispatchEvent(new foldersDOM.window.Event('change'));
+  assert.equal(foldersDOM.window.document.getElementById('share-selection-toolbar').hidden,true);
+  folderCard.getBoundingClientRect=()=>({left:20,right:150,top:30,bottom:120});
+  foldersDOM.window.document.querySelector('main').dispatchEvent(new foldersDOM.window.MouseEvent('pointerdown',{bubbles:true,button:0,clientX:5,clientY:5}));
+  foldersDOM.window.dispatchEvent(new foldersDOM.window.MouseEvent('pointermove',{clientX:180,clientY:140}));
+  assert.ok(folderCard.querySelector('input').checked);
+  foldersDOM.window.dispatchEvent(new foldersDOM.window.MouseEvent('pointerup'));
+  const sideBackground = foldersDOM.window.document.querySelector('.share-page');
+  for (const [startX, endX] of [[0, 180], [300, 0]]) {
+    folderCard.querySelector('input').checked = false;
+    sideBackground.dispatchEvent(new foldersDOM.window.MouseEvent('pointerdown',{bubbles:true,button:0,clientX:startX,clientY:5}));
+    foldersDOM.window.dispatchEvent(new foldersDOM.window.MouseEvent('pointermove',{clientX:endX,clientY:140}));
+    assert.ok(folderCard.querySelector('input').checked, 'Drag from side background selects folders');
+    foldersDOM.window.dispatchEvent(new foldersDOM.window.MouseEvent('pointerup'));
+  }
+  foldersDOM.window.document.querySelector('header').dispatchEvent(new foldersDOM.window.MouseEvent('pointerdown',{bubbles:true,button:0,clientX:0,clientY:5}));
+  assert.ok(!foldersDOM.window.document.body.classList.contains('share-drag-selecting'));
+  foldersDOM.window.close();
   const single=await ejs.renderFile(path.join(root,'views/share/public.ejs'), {...locals,isFolder:false,file,contents:null,folder:null,ownerName:'Aiman <Owner>'});
   const singleDOM=new JSDOM(single); assert.ok(singleDOM.window.document.querySelector('.shared-document'));assert.equal(singleDOM.window.document.querySelector('.share-crumbbar'),null);assert.equal(singleDOM.window.document.querySelector('#drag-overlay'),null);
   assert.equal(singleDOM.window.document.querySelector('.shared-document-access').textContent.trim(), 'Owner: Aiman <Owner>');
   let rendered; share.fileId=1;
   await controller.renderShare({params:{token:'test'},query:{},session:{}},{render:(view,data)=>{rendered=data;},status:()=>{throw new Error('Unexpected render error');}});
   assert.equal(rendered.ownerName,'Aiman <Owner>'); delete share.fileId;
-  fs.writeFileSync(path.join(__dirname,'share-single-preview.html'),single);
-  fs.writeFileSync(path.join(__dirname,'share-folder-preview.html'),html);
-  console.log('PASS: ZIP contents and duplicate filenames; share permissions, password, expiry, scope and input validation; click/additive/drag selection; overlay drag filtering; single-file and folder EJS rendering.');
+  fs.writeFileSync(path.join(__dirname,'share-single-preview.html'),single.replace(/[ \t]+$/gm, ''));
+  fs.writeFileSync(path.join(__dirname,'share-folder-preview.html'),html.replace(/[ \t]+$/gm, ''));
+  console.log('PASS: folder-only click/drag selection, nested and empty folder ZIPs, overlapping selections, folder scope; ZIP contents and duplicate filenames; share permissions, password, expiry, scope and input validation; click/additive/drag selection; overlay drag filtering; single-file and folder EJS rendering.');
   dom.window.close();singleDOM.window.close();
  } finally {server.closeAllConnections();server.close();}
 })().catch(err=>{console.error(err);process.exitCode=1;});

@@ -542,28 +542,76 @@ class ShareController {
       if (share.passwordHash && !req.session?.sharedAccess?.[token]) return res.status(403).send('Open the share link and enter its password first.');
       if (!share.allowDownload) return res.status(403).send('Download is disabled for this link.');
       if (!share.folderId) return res.status(400).send('Select files from a shared folder.');
-      const requested = Array.isArray(req.body.fileIds) ? req.body.fileIds : [req.body.fileIds];
+      const asList = value => value === undefined ? [] : Array.isArray(value) ? value : [value];
+      const requestedFiles = asList(req.body.fileIds);
+      const requestedFolders = asList(req.body.folderIds);
+      const requested = [...requestedFiles, ...requestedFolders];
       if (!requested.length || requested.length > 500 || requested.some(id => !/^[1-9]\d*$/.test(String(id)) || !Number.isSafeInteger(Number(id)))) {
-        return res.status(400).send('Select between 1 and 500 files to download.');
+        return res.status(400).send('Select between 1 and 500 files or folders to download.');
       }
       const root = await folderRepository.findById(share.folderId);
       if (!root) return res.status(404).send('Shared folder no longer exists.');
-      const rootPath = root.path.replace(/\\/g, '/').replace(/\/$/, '') + '/';
+      const folderPath = folder => folder.path.replace(/\\/g, '/').replace(/\/$/, '') + '/';
+      const withinShare = folder => folder && folder.userId === root.userId && folderPath(folder).startsWith(folderPath(root));
       const selected = [];
-      // Validate the complete selection before sending any archive bytes.
-      for (const id of new Set(requested.map(Number))) {
-        const file = await fileRepository.findById(id);
-        const parent = file?.folderId ? await folderRepository.findById(file.folderId) : null;
-        const parentPath = parent?.path.replace(/\\/g, '/').replace(/\/$/, '') + '/';
-        if (!file || !parent || file.userId !== root.userId || !parentPath.startsWith(rootPath)) {
-          return res.status(403).send('One or more files are outside this shared folder.');
-        }
+      const seenFiles = new Set();
+      const seenFolders = new Set();
+      const names = new Set();
+      const allocateName = (raw, id, parentName = '') => {
+        const base = path.posix.basename(String(raw).replace(/\\/g, '/')).replace(/[\x00-\x1f]/g, '_');
+        let name = base && base !== '.' && base !== '..' ? base : `item-${id}`;
+        const extension = path.extname(name);
+        const stem = path.basename(name, extension);
+        let suffix = 1;
+        while (names.has((parentName + name).toLowerCase())) name = `${stem} (${suffix++})${extension}`;
+        names.add((parentName + name).toLowerCase());
+        return parentName + name;
+      };
+      const addFile = async (file, parentName = '') => {
+        if (seenFiles.has(file.id)) return;
         const diskPath = path.resolve(storageService.storageRoot, file.path);
         const relative = path.relative(path.resolve(storageService.storageRoot), diskPath);
         if (relative.startsWith('..') || path.isAbsolute(relative) || !(await fileExists(diskPath))) {
-          return res.status(404).send('One or more files are unavailable. Refresh the shared folder and try again.');
+          const error = new Error('One or more files are unavailable. Refresh the shared folder and try again.');
+          error.status = 404;
+          throw error;
         }
-        selected.push({ file, diskPath });
+        seenFiles.add(file.id);
+        selected.push({ diskPath, name: allocateName(file.originalName, file.id, parentName) });
+      };
+      // Validate every explicitly selected item before building the archive.
+      const selectedFolders = [];
+      for (const id of new Set(requestedFolders.map(Number))) {
+        const folder = await folderRepository.findById(id);
+        if (!withinShare(folder)) return res.status(403).send('One or more folders are outside this shared folder.');
+        selectedFolders.push(folder);
+      }
+      // Parents subsume selected descendants, so files appear only once.
+      const topFolders = selectedFolders.filter(folder => !selectedFolders.some(other => other.id !== folder.id && folderPath(folder).startsWith(folderPath(other))));
+      const queue = topFolders.map(folder => ({ folder, parentName: '' }));
+      for (let index = 0; index < queue.length; index++) {
+        const { folder, parentName } = queue[index];
+        if (seenFolders.has(folder.id)) continue;
+        if (!withinShare(folder)) return res.status(403).send('One or more folders are outside this shared folder.');
+        seenFolders.add(folder.id);
+        const name = allocateName(folder.name, folder.id, parentName) + '/';
+        selected.push({ name }); // Preserve empty folders too.
+        const rows = await fileRepository.findFilesInFolder(root.userId, folder.id);
+        for (const { files: file } of rows) {
+          if (file.userId !== root.userId || file.folderId !== folder.id) return res.status(403).send('Invalid shared folder contents.');
+          await addFile(file, name);
+        }
+        const children = await folderRepository.findSubfolders(root.userId, folder.id);
+        for (const { folders: child } of children) {
+          if (child.parentId !== folder.id) return res.status(403).send('Invalid shared folder contents.');
+          queue.push({ folder: child, parentName: name });
+        }
+      }
+      for (const id of new Set(requestedFiles.map(Number))) {
+        const file = await fileRepository.findById(id);
+        const parent = file?.folderId ? await folderRepository.findById(file.folderId) : null;
+        if (!file || file.userId !== root.userId || !withinShare(parent)) return res.status(403).send('One or more files are outside this shared folder.');
+        await addFile(file);
       }
       const { ZipArchive } = await import('archiver');
       archive = new ZipArchive({ zlib: { level: 1 } });
@@ -572,22 +620,15 @@ class ShareController {
       res.on('close', () => { if (!res.writableFinished) archive.abort(); });
       res.attachment('shared-files.zip');
       archive.pipe(res);
-      const names = new Set();
-      for (const { file, diskPath } of selected) {
-        const base = path.posix.basename(file.originalName.replace(/\\/g, '/')).replace(/[\x00-\x1f]/g, '_');
-        let name = base && base !== '.' && base !== '..' ? base : `file-${file.id}`;
-        const extension = path.extname(name);
-        const stem = path.basename(name, extension);
-        let suffix = 1;
-        while (names.has(name.toLowerCase())) name = `${stem} (${suffix++})${extension}`;
-        names.add(name.toLowerCase());
-        archive.file(diskPath, { name });
+      for (const { diskPath, name } of selected) {
+        if (diskPath) archive.file(diskPath, { name });
+        else archive.append('', { name });
       }
       await archive.finalize();
     } catch (err) {
       archive?.abort();
       if (res.headersSent) res.destroy(err);
-      else res.status(500).send('Download failed. Please try again.');
+      else res.status(err.status || 500).send(err.status ? err.message : 'Download failed. Please try again.');
     }
   }
 

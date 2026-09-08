@@ -140,6 +140,15 @@
         </div>
       <% } %>
 
+      <% if (contents.folders.length || contents.files.length) { %>
+          <form id="share-selection-toolbar" class="share-selection-toolbar" action="/share/<%= token %>/download-selected" method="post" hidden>
+            <label class="share-select-all"><input type="checkbox" id="share-select-all">Select all items</label>
+            <span id="share-selection-count" role="status" aria-live="polite">No items selected</span>
+            <% if (share.allowDownload) { %><button type="submit" id="share-download-selected" class="share-button share-button--primary" disabled><i class="bi bi-download" aria-hidden="true"></i>Download selected</button><% } else { %><span>Downloads disabled by the owner</span><% } %>
+          </form>
+          <p class="share-selection-hint">Drag across files and folders to select. Double-click a folder to open it.</p>
+      <% } %>
+
       <% if (contents.folders.length > 0) { %>
         <section class="share-section">
           <div class="share-section-heading">
@@ -148,12 +157,14 @@
           </div>
           <div class="share-card-grid">
             <% contents.folders.forEach(sub => { %>
-              <a href="/share/<%= token %>/folders/<%= sub.id %>" class="share-item-card share-folder-card group select-none">
+              <div class="share-item-card share-folder-card group select-none" tabindex="0" role="group" aria-label="<%= sub.name %>" data-folder-id="<%= sub.id %>" data-open-url="/share/<%= token %>/folders/<%= sub.id %>">
+                <label class="share-file-check"><input type="checkbox" name="folderIds" value="<%= sub.id %>" form="share-selection-toolbar" aria-label="Select <%= sub.name %>"></label>
                 <span class="share-item-preview h-10 w-10 shrink-0 shadow-sm border border-gray-100">
                   <i class="bi bi-folder-fill text-2xl text-yellow-500 transition-transform group-hover:scale-105"></i>
                 </span>
                 <span class="font-semibold text-sm text-gray-700 truncate group-hover:text-brand-teal transition-colors"><%= sub.name %></span>
-              </a>
+                <a class="share-folder-open" href="/share/<%= token %>/folders/<%= sub.id %>" aria-label="Open <%= sub.name %>" title="Open folder"><i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+              </div>
             <% }) %>
           </div>
         </section>
@@ -161,12 +172,6 @@
 
       <% if (contents.files.length > 0) { %>
         <section class="share-section" id="shared-files" aria-label="Shared files">
-          <form id="share-selection-toolbar" class="share-selection-toolbar" action="/share/<%= token %>/download-selected" method="post" hidden>
-            <label class="share-select-all"><input type="checkbox" id="share-select-all">Select all files</label>
-            <span id="share-selection-count" role="status" aria-live="polite">No files selected</span>
-            <% if (share.allowDownload) { %><button type="submit" id="share-download-selected" class="share-button share-button--primary" disabled><i class="bi bi-download" aria-hidden="true"></i>Download selected</button><% } else { %><span>Downloads disabled by the owner</span><% } %>
-          </form>
-          <p class="share-selection-hint">Drag across files or click a file to select. Double-click to preview.</p>
           <div class="share-section-heading">
             <h2 class="text-sm font-bold text-gray-700">Files</h2>
             <span class="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full"><%= contents.files.length %> total</span>

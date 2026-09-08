@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const area = document.getElementById('shared-files');
-  if (!area) return;
-  const cards = Array.from(area.querySelectorAll('.share-file-card'));
+  const area = document.querySelector('.share-public--folder .share-main');
+  if (!area || !document.getElementById('share-selection-toolbar')) return;
+  const cards = Array.from(area.querySelectorAll('.share-item-card'));
   const checks = cards.map(card => card.querySelector('input[type="checkbox"]'));
   const all = document.getElementById('share-select-all');
   const count = document.getElementById('share-selection-count');
@@ -15,22 +15,26 @@ document.addEventListener('DOMContentLoaded', () => {
     cards.forEach((card, index) => card.classList.toggle('is-selected', checks[index].checked));
     all.checked = selected === checks.length && selected > 0;
     all.indeterminate = selected > 0 && selected < checks.length;
-    count.textContent = selected ? `${selected} file${selected === 1 ? '' : 's'} selected` : 'No files selected';
-    if (selected > 500) count.textContent = `${selected} files selected. Select up to 500 per download.`;
+    count.textContent = selected ? `${selected} item${selected === 1 ? '' : 's'} selected` : 'No items selected';
+    if (selected > 500) count.textContent = `${selected} items selected. Select up to 500 per download.`;
     if (download) download.disabled = selected === 0 || selected > 500;
   };
   all.addEventListener('change', () => { checks.forEach(check => { check.checked = all.checked; }); update(); });
   area.addEventListener('change', update);
   area.closest('.share-page').addEventListener('click', event => {
-    if (suppressClick || event.target.closest('.share-file-card, a, button, input, label, form')) return;
+    if (suppressClick || event.target.closest('.share-item-card, a, button, input, label, form')) return;
     checks.forEach(check => { check.checked = false; });
     update();
   });
   cards.forEach((card, index) => {
+    card.addEventListener('dblclick', event => {
+      if (!suppressClick && card.dataset.openUrl && !event.target.closest('a, button, input, label')) window.location.href = card.dataset.openUrl;
+    });
     card.addEventListener('keydown', event => {
       if (event.target === card && (event.key === ' ' || event.key === 'Enter')) {
         event.preventDefault();
-        card.click();
+        if (event.key === 'Enter' && card.dataset.openUrl) window.location.href = card.dataset.openUrl;
+        else card.click();
       }
     });
     card.addEventListener('dragstart', event => event.preventDefault());
@@ -56,10 +60,10 @@ document.addEventListener('DOMContentLoaded', () => {
       event.preventDefault(); checks.forEach(check => { check.checked = true; }); update();
     }
   });
-  area.closest('main').addEventListener('pointerdown', event => {
-    if (event.button !== 0 || event.pointerType === 'touch' || event.target.closest('a, button, input, label, form')) return;
+  area.closest('.share-page').addEventListener('pointerdown', event => {
+    if (event.button !== 0 || event.pointerType === 'touch' || event.target.closest('header, a, button, input, label, form')) return;
     event.preventDefault();
-    event.target.closest('.share-file-card')?.focus({ preventScroll: true });
+    event.target.closest('.share-item-card')?.focus({ preventScroll: true });
     document.body.classList.add('share-drag-selecting');
     window.getSelection()?.removeAllRanges();
     const start = { x: event.clientX, y: event.clientY };

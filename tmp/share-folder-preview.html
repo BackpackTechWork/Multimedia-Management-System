@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#0f766e">
   <meta name="description" content="Securely upload, organize, and share files with Harbor Drive.">
   <title>Harbor Drive</title>
-  
-  
+
+
 
   <link rel="icon" href="/web-app-manifest-512x512.png" type="image/png" sizes="512x512">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -16,9 +16,9 @@
   <link rel="stylesheet" href="/vendor/inter/index.css">
   <link rel="stylesheet" href="/vendor/bootstrap-icons/bootstrap-icons.css">
 
-  
+
     <link rel="stylesheet" href="/css/auth.css?v=">
-  
+
 </head>
 <body class="bg-gray-50 text-gray-800 antialiased min-h-screen flex flex-col">
   <!-- Reusable Custom Alert/Confirm/Prompt Modal -->
@@ -28,18 +28,18 @@
     <div id="custom-alert-icon-container" class="w-14 h-14 rounded-full bg-teal-50 flex items-center justify-center mb-4">
       <i id="custom-alert-icon" class="bi bi-info-circle-fill text-brand-teal text-2xl"></i>
     </div>
-    
+
     <!-- Title -->
     <h3 id="custom-alert-title" class="text-lg font-bold text-gray-900 mb-2">Notification</h3>
-    
+
     <!-- Message Content -->
     <p id="custom-alert-message" class="text-sm text-gray-600 leading-relaxed mb-4 whitespace-pre-wrap font-medium max-h-40 overflow-y-auto w-full px-1"></p>
-    
+
     <!-- Input for Prompts -->
     <div id="custom-alert-input-container" class="w-full mb-6 hidden">
       <input type="text" id="custom-alert-input" class="w-full border border-gray-300 rounded-xl p-2.5 outline-none focus:border-brand-teal text-sm transition-colors duration-150">
     </div>
-    
+
     <!-- Action Buttons -->
     <div class="flex gap-3 w-full">
       <button id="custom-alert-cancel-btn" class="flex-1 py-2.5 px-4 border border-gray-200 hover:bg-gray-50 text-gray-500 rounded-xl text-sm font-semibold transition-all duration-150 focus:outline-none hidden">
@@ -64,21 +64,21 @@
     const inputEl = document.getElementById('custom-alert-input');
     const cancelBtn = document.getElementById('custom-alert-cancel-btn');
     const okBtn = document.getElementById('custom-alert-ok-btn');
-    
+
     let dialogQueue = [];
 
     function showNextDialog() {
       if (dialogQueue.length === 0) return;
       const current = dialogQueue[0];
-      
+
       // Set text content
       msgEl.textContent = current.message !== undefined ? String(current.message) : '';
       titleEl.textContent = current.title;
-      
+
       // Reset classes
       cancelBtn.classList.add('hidden');
       inputContainer.classList.add('hidden');
-      
+
       // Configure type-specific styles and visibility
       if (current.type === 'alert') {
         iconContainer.className = "w-14 h-14 rounded-full bg-teal-50 flex items-center justify-center mb-4";
@@ -103,7 +103,7 @@
       backdrop.classList.add('opacity-100');
       alertBox.classList.remove('scale-95', 'opacity-0');
       alertBox.classList.add('scale-100', 'opacity-100');
-      
+
       // Auto-focus the input/button
       setTimeout(() => {
         if (current.type === 'prompt') {
@@ -117,13 +117,13 @@
 
     function dismissDialog(value) {
       if (dialogQueue.length === 0) return;
-      
+
       // Animate scale down and fade out
       alertBox.classList.remove('scale-100', 'opacity-100');
       alertBox.classList.add('scale-95', 'opacity-0');
       backdrop.classList.remove('opacity-100');
       backdrop.classList.add('pointer-events-none');
-      
+
       const current = dialogQueue.shift();
       if (current.resolve) {
         current.resolve(value);
@@ -244,28 +244,28 @@
   </header>
 
   <main class="share-main flex-1 animate-fade-up">
-    
+
     <div class="share-crumbbar select-none">
       <nav class="flex items-center flex-wrap gap-1.5 text-sm font-semibold text-gray-500 min-w-0" aria-label="Shared folder path">
         <a href="/share/test" class="hover:text-brand-teal text-gray-500 transition flex items-center gap-1">
           <i class="bi bi-folder-fill text-yellow-500 text-base"></i>
           <span>Shared documents</span>
         </a>
-        
+
       </nav>
       <div class="flex sm:hidden items-center gap-2 text-xs font-semibold text-gray-500">
         <span class="share-pill"><i class="bi bi-eye text-brand-teal"></i>Editor</span>
       </div>
     </div>
 
-    
-    
+
+
       <section class="mt-6">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div class="flex items-center gap-2.5">
               <h1 class="text-2xl font-bold text-gray-800">Shared documents</h1>
-              
+
                 <div class="relative inline-block text-left" id="upload-dropdown-container">
                   <button type="button" id="upload-dropdown-btn" class="inline-flex items-center justify-center h-8 w-8 rounded-full border border-gray-200 bg-white text-gray-600 hover:text-brand-teal hover:border-brand-teal active:scale-95 transition shadow-sm hover:shadow" aria-haspopup="true" aria-expanded="false" title="Upload options">
                     <i class="bi bi-three-dots-vertical text-base"></i>
@@ -284,7 +284,7 @@
                   <input type="file" id="hidden-files-input" multiple class="hidden">
                   <input type="file" id="hidden-folder-input" webkitdirectory directory multiple class="hidden">
                 </div>
-              
+
             </div>
             <p class="text-sm text-gray-500 mt-1">Files and folders shared through Harbor Drive.</p>
           </div>
@@ -295,31 +295,34 @@
         </div>
       </section>
 
-      
 
-      
 
-      
-        <section class="share-section" id="shared-files" aria-label="Shared files">
+
           <form id="share-selection-toolbar" class="share-selection-toolbar" action="/share/test/download-selected" method="post" hidden>
-            <label class="share-select-all"><input type="checkbox" id="share-select-all">Select all files</label>
-            <span id="share-selection-count" role="status" aria-live="polite">No files selected</span>
+            <label class="share-select-all"><input type="checkbox" id="share-select-all">Select all items</label>
+            <span id="share-selection-count" role="status" aria-live="polite">No items selected</span>
             <button type="submit" id="share-download-selected" class="share-button share-button--primary" disabled><i class="bi bi-download" aria-hidden="true"></i>Download selected</button>
           </form>
-          <p class="share-selection-hint">Drag across files or click a file to select. Double-click to preview.</p>
+          <p class="share-selection-hint">Drag across files and folders to select. Double-click a folder to open it.</p>
+
+
+
+
+
+        <section class="share-section" id="shared-files" aria-label="Shared files">
           <div class="share-section-heading">
             <h2 class="text-sm font-bold text-gray-700">Files</h2>
             <span class="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">2 total</span>
           </div>
           <div class="share-card-grid">
-            
-              
+
+
               <div class="share-item-card share-file-card group cursor-pointer select-none" tabindex="0" role="group" aria-label="Core-and-Extended-Mathematics-Fifth-Edition.pdf" data-file-id="1" data-preview-url="/preview/pdf/1?shareToken=test">
                 <label class="share-file-check"><input type="checkbox" name="fileIds" value="1" form="share-selection-toolbar" aria-label="Select Core-and-Extended-Mathematics-Fifth-Edition.pdf"></label>
                 <div class="share-item-preview h-28 w-full overflow-hidden shadow-inner border border-gray-100">
-                  
+
                     <i class="bi bi-file-pdf-fill text-red-500 text-5xl transition-transform group-hover:scale-105"></i>
-                  
+
                 </div>
                 <div class="flex items-center justify-between gap-2 min-w-0 mt-3">
                   <div class="min-w-0">
@@ -330,22 +333,22 @@
                     <a href="/preview/pdf/1?shareToken=test" title="Preview file" class="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-brand-teal text-white hover:bg-brand-teal-dark active:scale-95 transition shadow-sm hover:shadow">
                       <i class="bi bi-eye text-sm"></i>
                     </a>
-                    
+
                       <a href="/share/test/download?fileId=1" title="Download file" class="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 bg-white text-gray-600 hover:text-brand-teal hover:border-brand-teal active:scale-95 transition shadow-sm hover:shadow">
                         <i class="bi bi-download text-sm"></i>
                       </a>
-                    
+
                   </div>
                 </div>
               </div>
-            
-              
+
+
               <div class="share-item-card share-file-card group cursor-pointer select-none" tabindex="0" role="group" aria-label="Core-and-Extended-Mathematics-Fifth-Edition.pdf" data-file-id="2" data-preview-url="/preview/pdf/2?shareToken=test">
                 <label class="share-file-check"><input type="checkbox" name="fileIds" value="2" form="share-selection-toolbar" aria-label="Select Core-and-Extended-Mathematics-Fifth-Edition.pdf"></label>
                 <div class="share-item-preview h-28 w-full overflow-hidden shadow-inner border border-gray-100">
-                  
+
                     <i class="bi bi-file-pdf-fill text-red-500 text-5xl transition-transform group-hover:scale-105"></i>
-                  
+
                 </div>
                 <div class="flex items-center justify-between gap-2 min-w-0 mt-3">
                   <div class="min-w-0">
@@ -356,23 +359,23 @@
                     <a href="/preview/pdf/2?shareToken=test" title="Preview file" class="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-brand-teal text-white hover:bg-brand-teal-dark active:scale-95 transition shadow-sm hover:shadow">
                       <i class="bi bi-eye text-sm"></i>
                     </a>
-                    
+
                       <a href="/share/test/download?fileId=2" title="Download file" class="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 bg-white text-gray-600 hover:text-brand-teal hover:border-brand-teal active:scale-95 transition shadow-sm hover:shadow">
                         <i class="bi bi-download text-sm"></i>
                       </a>
-                    
+
                   </div>
                 </div>
               </div>
-            
+
           </div>
         </section>
-      
-    
+
+
   </main>
 </div>
   <!-- Drag and drop overlay -->
-  
+
     <div id="drag-overlay" class="share-drop-overlay hidden" role="status">
       <div class="share-drop-message">
         <i class="bi bi-cloud-arrow-up-fill text-6xl"></i>
@@ -405,7 +408,7 @@
         </div>
       </div>
     </div>
-  
+
 
 <script>
   function formatBytes(bytes) {
@@ -428,7 +431,7 @@
       });
     });
 
-    
+
       const dropdownBtn = document.getElementById('upload-dropdown-btn');
       const dropdownMenu = document.getElementById('upload-dropdown-menu');
       const uploadFilesItem = document.getElementById('upload-files-item');
@@ -520,7 +523,7 @@
           dragOverlay.classList.add('hidden');
           dragOverlay.classList.remove('flex');
         }
-        
+
         const filesList = await getFilesFromDroppedItems(e.dataTransfer);
         if (filesList.length > 0) {
           uploadFiles(filesList);
@@ -567,7 +570,7 @@
           const entryName = entry?.fullPath || entry?.name || 'Unknown entry';
           console.warn(`Skipping dropped item "${entryName}":`, err);
         }
-        
+
         if (dataTransfer.items && dataTransfer.items.length > 0) {
           async function traverseEntry(entry, parentPath = '') {
             const entryPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
@@ -593,7 +596,7 @@
                 }
                 return allEntries;
               };
-              
+
               const entries = await readAllEntries().catch((err) => {
                 recordSkippedEntry(entry, err);
                 return [];
@@ -603,7 +606,7 @@
               }
             }
           }
-          
+
           for (const item of dataTransfer.items) {
             const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
             if (entry) {
@@ -622,7 +625,7 @@
         if (skippedEntries > 0) {
           console.warn(`${skippedEntries} unreadable dropped item${skippedEntries === 1 ? '' : 's'} skipped.`);
         }
-        
+
         return filesList;
       }
 
@@ -632,14 +635,14 @@
           const xhr = new XMLHttpRequest();
           xhr.open('POST', '/share/test/upload');
           xhr.setRequestHeader('Accept', 'application/json');
-          
+
           xhr.upload.onprogress = (e) => {
             if (e.lengthComputable) {
               const percent = Math.round((e.loaded / e.total) * 100);
               onProgress(percent);
             }
           };
-          
+
           xhr.onload = () => {
             if (xhr.status >= 200 && xhr.status < 400) {
               resolve();
@@ -655,16 +658,16 @@
               reject(new Error(`Upload failed with status ${xhr.status}`));
             }
           };
-          
+
           xhr.onerror = () => {
             reject(new Error('Network error during upload'));
           };
-          
+
           const formData = new FormData();
           formData.append('file', file);
           formData.append('folderId', folderId || '');
           formData.append('deferStats', deferStats ? 'true' : 'false');
-          
+
           xhr.send(formData);
         });
       }
@@ -758,7 +761,7 @@
       const widgetCloseBtn = document.getElementById('upload-progress-close-btn');
       const widgetBody = document.getElementById('upload-progress-body');
       const maxRenderedUploadRows = 250;
-      
+
       let isCollapsed = false;
       if (widgetToggleBtn && widgetBody) {
         widgetToggleBtn.addEventListener('click', (e) => {
@@ -783,7 +786,7 @@
 
       async function uploadFiles(filesList) {
         if (filesList.length === 0) return;
-        
+
         // Reset and show widget
         widgetFilesList.innerHTML = '';
         widgetTitle.textContent = 'Preparing upload...';
@@ -794,7 +797,7 @@
         widget.offsetHeight;
         widget.classList.remove('translate-y-10', 'opacity-0');
         widget.classList.add('translate-y-0', 'opacity-100');
-        
+
         // Step 1: Detect and sort directories
         const seenDirs = new Set();
         filesList.forEach(file => {
@@ -876,7 +879,7 @@
         for (let i = 0; i < filesList.length; i++) {
           const file = filesList[i];
           const els = fileElements[i];
-          
+
           const relativePath = getFileRelativePath(file);
           const parentPath = relativePath.split('/').slice(0, -1).join('/');
           const targetFolderId = pathFolderIdMap[parentPath] || '10';
@@ -930,23 +933,23 @@
             console.warn('Shared upload totals refresh failed:', err);
           });
         }
-        
+
         widgetTitle.textContent = `Upload finished`;
         widgetDetails.textContent = `Completed ${successCount} of ${filesList.length} files`;
         setTimeout(() => {
           window.location.reload();
         }, 1200);
       }
-    
+
   });
 </script>
 
-  
-  
+
+
   <script src="/js/pwa.js?v="></script>
-  
+
     <script src="/js/auth.js?v="></script>
-  
+
 </body>
 </html>
 
