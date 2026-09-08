@@ -11,9 +11,20 @@ const authLimiter = rateLimit({
 });
 
 const globalLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 120, // Limit each IP to 120 requests per minute
-  message: { error: 'Too many requests. Please slow down.' },
+  // Navigation, previews, and refreshes can each generate many requests.
+  // Keep a generous burst allowance with a short, automatic recovery window.
+  windowMs: 30 * 1000,
+  max: 600, // Limit each IP to 600 requests per 30 seconds
+  handler: (req, res) => {
+    const retryAfterSeconds = Math.max(1, Math.ceil(
+      ((req.rateLimit.resetTime?.getTime() || Date.now() + 30000) - Date.now()) / 1000
+    ));
+    res.setHeader('Retry-After', retryAfterSeconds);
+    res.status(429).json({
+      error: `Too many requests. Please try again in ${retryAfterSeconds} seconds.`,
+      retryAfterSeconds,
+    });
+  },
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => (

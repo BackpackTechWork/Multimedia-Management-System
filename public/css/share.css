@@ -1,0 +1,48 @@
+/* Public sharing uses the existing Harbor Drive palette with flat, quiet surfaces. */
+.share-public { background: #f6f7f8; }
+.share-public .share-topbar { background: #fff; box-shadow: none; backdrop-filter: none; }
+.share-public--file .share-main { display: grid; place-items: start center; padding-top: clamp(2rem, 8vh, 6rem); }
+.shared-document { width: min(100%, 38rem); padding: clamp(1.5rem, 5vw, 3rem); border: 1px solid #dce1e5; border-radius: 14px; background: #fff; text-align: center; }
+.shared-document-label { margin-bottom: 1.75rem; color: #59636f; font-size: .875rem; }
+.shared-document-icon { display: block; font-size: 3.75rem; line-height: 1.2; margin-bottom: 1.5rem; }
+.shared-document h1 { margin: 0; color: #25313b; font-size: clamp(1.25rem, 3vw, 1.6rem); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.shared-document-summary { margin-top: .75rem; color: #59636f; font-size: .875rem; }
+.shared-document-summary span { margin: 0 .4rem; }
+.shared-document-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .75rem; margin: 2rem 0; }
+.share-button { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 44px; padding: .65rem 1.1rem; border: 1px solid #ccd3da; border-radius: 8px; background: #fff; color: #34414c; font-size: .875rem; font-weight: 600; cursor: pointer; }
+.share-button:hover { background: #f1f4f5; }
+.share-button--primary { background: #297373; border-color: #297373; color: #fff; }
+.share-button--primary:hover { background: #1f5c5c; }
+.share-button:disabled { background: #edf0f2; color: #69737d; border-color: #dce1e5; cursor: default; }
+.share-public :is(a, button, input):focus-visible { outline: 2px solid #297373; outline-offset: 3px; }
+.shared-document-access { display: flex; flex-direction: column; gap: .5rem; border-top: 1px solid #e5e9ec; padding-top: 1.25rem; font-size: .8125rem; color: #59636f; }
+.shared-document-access i { margin-right: .4rem; color: #297373; }
+.share-selection-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; padding: .75rem 0; border-top: 1px solid #dce1e5; border-bottom: 1px solid #dce1e5; font-size: .875rem; color: #465360; }
+.share-select-all { display: inline-flex; align-items: center; gap: .6rem; min-height: 44px; cursor: pointer; }
+.share-selection-toolbar .share-button { margin-left: auto; }
+.share-selection-toolbar[hidden] { display: none; }
+.share-selection-toolbar { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); z-index: 46; width: min(calc(100% - 2rem), 78rem); padding: .75rem 1rem; background: #fff; border: 1px solid #ccd3da; border-radius: 12px; }
+.share-public--folder .share-main { padding-bottom: 10rem; }
+.share-drag-selecting, .share-drag-selecting * { user-select: none !important; -webkit-user-select: none !important; }
+.share-file-card:focus-visible { outline: 2px solid #297373; outline-offset: 3px; }
+.share-selection-hint { margin: .75rem 0 1.25rem; font-size: .8125rem; color: #59636f; }
+.share-public input[type=checkbox] { width: 18px; height: 18px; accent-color: #297373; cursor: pointer; }
+.share-file-check { position: absolute; top: .65rem; left: .65rem; z-index: 2; display: grid; place-items: center; width: 36px; height: 36px; background: #fff; border: 1px solid #dce1e5; border-radius: 8px; cursor: pointer; }
+.share-file-card:not(.is-selected) .share-file-check { display: none; }
+.share-public .share-item-card { box-shadow: none; transition: border-color .15s, background-color .15s; }
+.share-public .share-item-card:hover { transform: none; box-shadow: none; }
+.share-public .share-file-card.is-selected { border-color: #297373; background: #eaf4f3; }
+.share-public .share-file-card img { -webkit-user-drag: none; }
+.share-public .share-file-card:hover img { transform: none; }
+.share-selection-box { position: fixed; z-index: 45; border: 1px solid #297373; background: rgb(41 115 115 / 15%); pointer-events: none; }
+.share-drop-overlay { position: fixed; inset: 0; z-index: 9999; align-items: center; justify-content: center; background: rgb(20 55 58 / 94%); color: #fff; pointer-events: none; padding: 1.5rem; }
+.share-drop-overlay:not(.hidden) { display: flex; }
+.share-drop-message { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; max-width: 36rem; padding: 3rem 2rem; border: 2px dashed #bddbd9; border-radius: 16px; text-align: center; color: #fff; }
+.share-drop-message span { color: #fff; line-height: 1.4; }
+@media (max-width: 540px) {
+  .share-public--file .share-main { padding: 1.5rem 1rem; }
+  .shared-document-actions { flex-direction: column; }
+  .share-selection-toolbar { gap: .5rem 1rem; }
+  .share-selection-toolbar .share-button { width: 100%; margin: 0; }
+  .share-public .share-card-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); }
+}

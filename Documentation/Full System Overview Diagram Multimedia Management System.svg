@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="2300" height="1550" preserveAspectRatio="xMinYMin meet" viewBox="0 0 2300 1550" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="2300" height="1550"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-1550)" style="clip-path: url(#clip)">
+		<g transform="">
+			<rect x="0" y="0" width="2300" height="1550" style="stroke: rgb(100%,100%,100%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="828.4259999999999" y="1480" style="font-family: Helvetica-Bold; font-size: 44px;fill: rgb(6%,6%,6%); stroke:none;" transform="translate(0,2960) scale(1,-1)">Full System Overview Diagram</text>
+			<rect x="85" y="1425" width="145" height="48" rx="24" ry="24" style="stroke: rgb(5%,46%,43%); stroke-linecap: butt; stroke-width: 1; fill: rgb(5%,46%,43%); fill-rule: evenodd;"/>
+			<text x="130.328" y="1449.0" style="font-family: Helvetica-Bold; font-size: 16px;fill: rgb(100%,100%,100%); stroke:none;" transform="translate(0,2898) scale(1,-1)">Sign in</text>
+			<path d="M 157,1425 L 157,1375 Z" style="stroke: rgb(12%,12%,12%); stroke-linecap: butt; stroke-width: 2;"/>
+			<polygon points="157 1375, 160.7762 1382.053, 153.2238 1382.053" style="stroke: rgb(12%,12%,12%); stroke-linecap: butt; stroke-width: 1; fill: rgb(12%,12%,12%); fill-rule: evenodd;"/>
+			<rect x="55" y="1165" width="270" height="120" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 2; fill: rgb(90%,93%,100%); fill-rule: evenodd;"/>
+			<text x="152.488" y="1241.8" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(35%,45%,90%); stroke:none;" transform="translate(0,2483) scale(1,-1)">My Drive</text>
+			<text x="107.13399999999999" y="1211.4" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,2422) scale(1,-1)">Upload, organize, preview,</text>
+			<text x="146.04" y="1195.4" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,2390) scale(1,-1)">version, share</text>
+			<rect x="70" y="930" width="250" height="100" style="stroke: rgb(8%,61%,54%); stroke-linecap: butt; stroke-width: 2; fill: rgb(85%,97%,94%); fill-rule: evenodd;"/>
+			<text x="176.496" y="994.0" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(8%,61%,54%); stroke:none;" transform="translate(0,1988) scale(1,-1)">New</text>
+			<text x="117.96499999999999" y="970.0" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1940) scale(1,-1)">Folder, file upload, folder</text>
+			<text x="173.986" y="954.0" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1908) scale(1,-1)">upload</text>
+			<path d="M 190,1165 L 195,1030 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="195 1030, 198.5126 1037.188, 190.9653 1036.908" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<rect x="370" y="930" width="250" height="100" style="stroke: rgb(44%,50%,58%); stroke-linecap: butt; stroke-width: 2; fill: rgb(90%,92%,95%); fill-rule: evenodd;"/>
+			<text x="464.994" y="994.0" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(44%,50%,58%); stroke:none;" transform="translate(0,1988) scale(1,-1)">Recent</text>
+			<text x="428.08" y="962.0" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1924) scale(1,-1)">Recently opened files</text>
+			<path d="M 190,1165 L 495,1030 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="495 1030, 490.0793 1036.308, 487.0224 1029.401" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<rect x="670" y="930" width="250" height="100" style="stroke: rgb(88%,60%,12%); stroke-linecap: butt; stroke-width: 2; fill: rgb(100%,94%,80%); fill-rule: evenodd;"/>
+			<text x="763.491" y="994.0" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(88%,60%,12%); stroke:none;" transform="translate(0,1988) scale(1,-1)">Starred</text>
+			<text x="718.749" y="962.0" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1924) scale(1,-1)">Favorite files and folders</text>
+			<path d="M 190,1165 L 795,1030 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="795 1030, 788.939 1035.222, 787.2942 1027.85" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<rect x="970" y="930" width="250" height="100" style="stroke: rgb(18%,65%,41%); stroke-linecap: butt; stroke-width: 2; fill: rgb(87%,96%,90%); fill-rule: evenodd;"/>
+			<text x="1064.49" y="994.0" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(18%,65%,41%); stroke:none;" transform="translate(0,1988) scale(1,-1)">Shared</text>
+			<text x="1004.357" y="962.0" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1924) scale(1,-1)">Account viewer/editor access</text>
+			<path d="M 190,1165 L 1095,1030 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="1095 1030, 1088.582 1034.775, 1087.467 1027.306" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<rect x="1270" y="930" width="250" height="100" style="stroke: rgb(90%,36%,36%); stroke-linecap: butt; stroke-width: 2; fill: rgb(100%,89%,89%); fill-rule: evenodd;"/>
+			<text x="1370.493" y="994.0" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(90%,36%,36%); stroke:none;" transform="translate(0,1988) scale(1,-1)">Trash</text>
+			<text x="1296.573" y="962.0" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1924) scale(1,-1)">Restore or purge retained items</text>
+			<path d="M 190,1165 L 1395,1030 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="1395 1030, 1388.412 1034.538, 1387.571 1027.032" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<rect x="1570" y="930" width="250" height="100" style="stroke: rgb(8%,61%,54%); stroke-linecap: butt; stroke-width: 2; fill: rgb(85%,97%,94%); fill-rule: evenodd;"/>
+			<text x="1661.493" y="994.0" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(8%,61%,54%); stroke:none;" transform="translate(0,1988) scale(1,-1)">Storage</text>
+			<text x="1604.742" y="962.0" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1924) scale(1,-1)">Usage, categories, large files</text>
+			<path d="M 190,1165 L 1695,1030 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="1695 1030, 1688.313 1034.391, 1687.638 1026.869" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<rect x="1870" y="930" width="250" height="100" style="stroke: rgb(90%,31%,54%); stroke-linecap: butt; stroke-width: 2; fill: rgb(100%,88%,92%); fill-rule: evenodd;"/>
+			<text x="1969.989" y="994.0" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(90%,31%,54%); stroke:none;" transform="translate(0,1988) scale(1,-1)">Users</text>
+			<text x="1905.519" y="962.0" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1924) scale(1,-1)">Super-admin account control</text>
+			<path d="M 190,1165 L 1995,1030 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="1995 1030, 1988.249 1034.292, 1987.685 1026.76" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<rect x="260" y="650" width="310" height="115" style="stroke: rgb(60%,36%,89%); stroke-linecap: butt; stroke-width: 2; fill: rgb(93%,88%,100%); fill-rule: evenodd;"/>
+			<text x="362.971" y="723.6" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(60%,36%,89%); stroke:none;" transform="translate(0,1447) scale(1,-1)">File Preview</text>
+			<text x="332.911" y="694.8" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1389) scale(1,-1)">Image, PDF, Office, video,</text>
+			<text x="364.026" y="678.8" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1357) scale(1,-1)">audio, code, ZIP</text>
+			<rect x="670" y="650" width="270" height="115" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 2; fill: rgb(90%,93%,100%); fill-rule: evenodd;"/>
+			<text x="766.984" y="723.6" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(35%,45%,90%); stroke:none;" transform="translate(0,1447) scale(1,-1)">Versions</text>
+			<text x="726.019" y="694.8" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1389) scale(1,-1)">Upload, restore, or delete</text>
+			<text x="750.54" y="678.8" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1357) scale(1,-1)">archived versions</text>
+			<rect x="1040" y="650" width="320" height="115" style="stroke: rgb(18%,65%,41%); stroke-linecap: butt; stroke-width: 2; fill: rgb(87%,96%,90%); fill-rule: evenodd;"/>
+			<text x="1166.493" y="723.6" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(18%,65%,41%); stroke:none;" transform="translate(0,1447) scale(1,-1)">Sharing</text>
+			<text x="1126.087" y="694.8" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1389) scale(1,-1)">Registered recipients or</text>
+			<text x="1145.925" y="678.8" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1357) scale(1,-1)">configurable links</text>
+			<rect x="1460" y="650" width="300" height="115" style="stroke: rgb(8%,61%,54%); stroke-linecap: butt; stroke-width: 2; fill: rgb(85%,97%,94%); fill-rule: evenodd;"/>
+			<text x="1532.492" y="723.6" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(8%,61%,54%); stroke:none;" transform="translate(0,1447) scale(1,-1)">Background Work</text>
+			<text x="1519.742" y="694.8" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1389) scale(1,-1)">Finalize uploads, ZIP folders,</text>
+			<text x="1576.155" y="678.8" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1357) scale(1,-1)">thumbnails</text>
+			<rect x="1860" y="650" width="270" height="115" style="stroke: rgb(60%,36%,89%); stroke-linecap: butt; stroke-width: 2; fill: rgb(93%,88%,100%); fill-rule: evenodd;"/>
+			<text x="1925.466" y="723.6" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(60%,36%,89%); stroke:none;" transform="translate(0,1447) scale(1,-1)">Profile / Devices</text>
+			<text x="1891.134" y="686.8" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,1373) scale(1,-1)">Name, password, active sessions</text>
+			<path d="M 190,1165 L 415,765 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="415 765, 414.8336 772.9983, 408.2511 769.2956" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<path d="M 190,1165 L 805,765 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="805 765, 801.1468 772.0109, 797.0289 765.6797" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<path d="M 190,1165 L 1200,765 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="1200 765, 1194.833 771.1078, 1192.052 764.086" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<path d="M 190,1165 L 1610,765 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="1610 765, 1604.235 770.547, 1602.188 763.2775" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<path d="M 190,1165 L 1995,765 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="1995 765, 1988.931 770.2127, 1987.297 762.8391" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<rect x="850" y="360" width="260" height="100" style="stroke: rgb(44%,50%,58%); stroke-linecap: butt; stroke-width: 2; fill: rgb(90%,92%,95%); fill-rule: evenodd;"/>
+			<text x="929.978" y="424.0" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(44%,50%,58%); stroke:none;" transform="translate(0,848) scale(1,-1)">Viewer Link</text>
+			<text x="883.12" y="392.0" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,784) scale(1,-1)">Preview and optional download</text>
+			<rect x="1160" y="360" width="260" height="100" style="stroke: rgb(18%,65%,41%); stroke-linecap: butt; stroke-width: 2; fill: rgb(87%,96%,90%); fill-rule: evenodd;"/>
+			<text x="1242.993" y="424.0" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(18%,65%,41%); stroke:none;" transform="translate(0,848) scale(1,-1)">Editor Link</text>
+			<text x="1209.85" y="392.0" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,784) scale(1,-1)">Upload and create folders</text>
+			<rect x="1470" y="360" width="300" height="100" style="stroke: rgb(90%,36%,36%); stroke-linecap: butt; stroke-width: 2; fill: rgb(100%,89%,89%); fill-rule: evenodd;"/>
+			<text x="1548.981" y="424.0" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(90%,36%,36%); stroke:none;" transform="translate(0,848) scale(1,-1)">Access Controls</text>
+			<text x="1527.796" y="400.0" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,800) scale(1,-1)">Restricted/anyone, password,</text>
+			<text x="1601.331" y="384.0" style="font-family: Helvetica; font-size: 14px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,768) scale(1,-1)">expiry</text>
+			<path d="M 1200,650 L 980,460 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="980 460, 987.8058 461.7518, 982.8694 467.4677" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<path d="M 1200,650 L 1290,460 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="1290 460, 1290.394 467.9903, 1283.568 464.7572" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<path d="M 1200,650 L 1620,460 Z" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="1620 460, 1615.131 466.3474, 1612.018 459.4663" style="stroke: rgb(20%,20%,20%); stroke-linecap: butt; stroke-width: 1; fill: rgb(20%,20%,20%); fill-rule: evenodd;"/>
+			<rect x="60" y="95" width="2050" height="150" style="stroke: rgb(58%,63%,72%); stroke-linecap: butt; stroke-width: 2; fill: rgb(96%,96%,98%); fill-rule: evenodd;"/>
+			<text x="90" y="215" style="font-family: Helvetica-Bold; font-size: 18px;fill: rgb(27%,33%,41%); stroke:none;" transform="translate(0,430) scale(1,-1)">Who can do what</text>
+			<rect x="90" y="120" width="450" height="66" style="stroke: rgb(44%,50%,58%); stroke-linecap: butt; stroke-width: 1; fill: rgb(90%,92%,95%); fill-rule: evenodd;"/>
+			<text x="105" y="158" style="font-family: Helvetica-Bold; font-size: 14px;fill: rgb(44%,50%,58%); stroke:none;" transform="translate(0,316) scale(1,-1)">Standard user</text>
+			<text x="284.72249999999997" y="146.5" style="font-family: Helvetica; font-size: 11px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,293) scale(1,-1)">Own items and shared items within</text>
+			<text x="323.2335" y="133.5" style="font-family: Helvetica; font-size: 11px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,267) scale(1,-1)">granted permission</text>
+			<rect x="590" y="120" width="450" height="66" style="stroke: rgb(90%,31%,54%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,88%,92%); fill-rule: evenodd;"/>
+			<text x="605" y="158" style="font-family: Helvetica-Bold; font-size: 14px;fill: rgb(90%,31%,54%); stroke:none;" transform="translate(0,316) scale(1,-1)">Super administrator</text>
+			<text x="792.989" y="146.5" style="font-family: Helvetica; font-size: 11px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,293) scale(1,-1)">System-wide drive visibility plus</text>
+			<text x="825.6754999999999" y="133.5" style="font-family: Helvetica; font-size: 11px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,267) scale(1,-1)">user management</text>
+			<rect x="1090" y="120" width="450" height="66" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 1; fill: rgb(90%,93%,100%); fill-rule: evenodd;"/>
+			<text x="1105" y="158" style="font-family: Helvetica-Bold; font-size: 14px;fill: rgb(35%,45%,90%); stroke:none;" transform="translate(0,316) scale(1,-1)">Viewer recipient</text>
+			<text x="1293.583" y="146.5" style="font-family: Helvetica; font-size: 11px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,293) scale(1,-1)">Read-only preview and allowed</text>
+			<text x="1343.71" y="133.5" style="font-family: Helvetica; font-size: 11px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,267) scale(1,-1)">downloads</text>
+			<rect x="1590" y="120" width="450" height="66" style="stroke: rgb(18%,65%,41%); stroke-linecap: butt; stroke-width: 1; fill: rgb(87%,96%,90%); fill-rule: evenodd;"/>
+			<text x="1605" y="158" style="font-family: Helvetica-Bold; font-size: 14px;fill: rgb(18%,65%,41%); stroke:none;" transform="translate(0,316) scale(1,-1)">Editor recipient</text>
+			<text x="1791.13" y="146.5" style="font-family: Helvetica; font-size: 11px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,293) scale(1,-1)">Upload and create folders inside</text>
+			<text x="1833.315" y="133.5" style="font-family: Helvetica; font-size: 11px;fill: rgb(27%,31%,40%); stroke:none;" transform="translate(0,267) scale(1,-1)">a shared folder</text>
+		</g>
+	</g>
+</svg>

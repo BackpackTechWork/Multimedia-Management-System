@@ -7,6 +7,7 @@ const { shares, files, folders } = require('../models/schema');
 const { eq, inArray } = require('drizzle-orm');
 const shareRepository = require('../repositories/ShareRepository');
 const fileRepository = require('../repositories/FileRepository');
+const userRepository = require('../repositories/UserRepository');
 const folderRepository = require('../repositories/FolderRepository');
 const storageService = require('../services/StorageService');
 const driveService = require('../services/DriveService');
@@ -56,6 +57,7 @@ class ShareController {
       'uploadSharedFile',
       'refreshSharedUploadStats',
       'downloadSharedFile',
+      'downloadSelectedFiles',
       'createSharedFolder'
     ].forEach(method => {
       this[method] = this[method].bind(this);
@@ -298,11 +300,13 @@ class ShareController {
       if (share.fileId) {
         const file = await fileRepository.findById(share.fileId);
         if (!file) return res.status(404).send('Shared file no longer exists.');
+        const owner = await userRepository.findById(file.userId);
 
         return res.render('share/public', {
           token,
           share,
           isFolder: false,
+          ownerName: owner?.name || null,
           file,
           folder: null,
           contents: null,
@@ -526,6 +530,66 @@ class ShareController {
     }
   }
 
+
+  async downloadSelectedFiles(req, res) {
+    const { token } = req.params;
+    let archive;
+    try {
+      const share = await shareRepository.findByToken(token);
+      if (!share) return res.status(404).send('Share link not found.');
+      if (share.expiresAt && new Date(share.expiresAt) < new Date()) return res.status(410).send('Link expired.');
+      if (!(await this.canOpenShare(req, share))) return res.status(403).send('You do not have access to this shared folder.');
+      if (share.passwordHash && !req.session?.sharedAccess?.[token]) return res.status(403).send('Open the share link and enter its password first.');
+      if (!share.allowDownload) return res.status(403).send('Download is disabled for this link.');
+      if (!share.folderId) return res.status(400).send('Select files from a shared folder.');
+      const requested = Array.isArray(req.body.fileIds) ? req.body.fileIds : [req.body.fileIds];
+      if (!requested.length || requested.length > 500 || requested.some(id => !/^[1-9]\d*$/.test(String(id)) || !Number.isSafeInteger(Number(id)))) {
+        return res.status(400).send('Select between 1 and 500 files to download.');
+      }
+      const root = await folderRepository.findById(share.folderId);
+      if (!root) return res.status(404).send('Shared folder no longer exists.');
+      const rootPath = root.path.replace(/\\/g, '/').replace(/\/$/, '') + '/';
+      const selected = [];
+      // Validate the complete selection before sending any archive bytes.
+      for (const id of new Set(requested.map(Number))) {
+        const file = await fileRepository.findById(id);
+        const parent = file?.folderId ? await folderRepository.findById(file.folderId) : null;
+        const parentPath = parent?.path.replace(/\\/g, '/').replace(/\/$/, '') + '/';
+        if (!file || !parent || file.userId !== root.userId || !parentPath.startsWith(rootPath)) {
+          return res.status(403).send('One or more files are outside this shared folder.');
+        }
+        const diskPath = path.resolve(storageService.storageRoot, file.path);
+        const relative = path.relative(path.resolve(storageService.storageRoot), diskPath);
+        if (relative.startsWith('..') || path.isAbsolute(relative) || !(await fileExists(diskPath))) {
+          return res.status(404).send('One or more files are unavailable. Refresh the shared folder and try again.');
+        }
+        selected.push({ file, diskPath });
+      }
+      const { ZipArchive } = await import('archiver');
+      archive = new ZipArchive({ zlib: { level: 1 } });
+      archive.on('error', err => { archive.abort(); if (res.headersSent) res.destroy(err); else res.status(500).send('Download failed. Please try again.'); });
+      archive.on('warning', err => archive.emit('error', err));
+      res.on('close', () => { if (!res.writableFinished) archive.abort(); });
+      res.attachment('shared-files.zip');
+      archive.pipe(res);
+      const names = new Set();
+      for (const { file, diskPath } of selected) {
+        const base = path.posix.basename(file.originalName.replace(/\\/g, '/')).replace(/[\x00-\x1f]/g, '_');
+        let name = base && base !== '.' && base !== '..' ? base : `file-${file.id}`;
+        const extension = path.extname(name);
+        const stem = path.basename(name, extension);
+        let suffix = 1;
+        while (names.has(name.toLowerCase())) name = `${stem} (${suffix++})${extension}`;
+        names.add(name.toLowerCase());
+        archive.file(diskPath, { name });
+      }
+      await archive.finalize();
+    } catch (err) {
+      archive?.abort();
+      if (res.headersSent) res.destroy(err);
+      else res.status(500).send('Download failed. Please try again.');
+    }
+  }
 
   async downloadSharedFile(req, res) {
     const { token } = req.params;

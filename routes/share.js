@@ -20,6 +20,7 @@ router.post('/:token/password', shareController.handleSharePassword);
 router.post('/:token/upload/refresh-stats', shareController.refreshSharedUploadStats);
 router.post('/:token/upload', upload.single('file'), shareController.uploadSharedFile);
 router.post('/:token/folders', shareController.createSharedFolder);
+router.post('/:token/download-selected', shareController.downloadSelectedFiles);
 router.get('/:token/download', shareController.downloadSharedFile);
 
 module.exports = router;

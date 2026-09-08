@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="3400" height="980" preserveAspectRatio="xMinYMin meet" viewBox="0 0 3400 980" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="3400" height="980"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-980)" style="clip-path: url(#clip)">
+		<g transform="">
+			<rect x="0" y="0" width="3400" height="980" style="stroke: rgb(100%,100%,100%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<rect x="1550.0" y="795" width="300.0" height="145" style="stroke: rgb(6%,9%,16%); stroke-linecap: butt; stroke-width: 1; fill: rgb(6%,9%,16%); fill-rule: evenodd;"/>
+			<text x="1584.0125" y="882.5" style="font-family: Helvetica-Bold; font-size: 25px;fill: rgb(86%,89%,100%); stroke:none;" transform="translate(0,1765) scale(1,-1)">Super Admin Role -</text>
+			<text x="1572.8875" y="851.5" style="font-family: Helvetica-Bold; font-size: 25px;fill: rgb(86%,89%,100%); stroke:none;" transform="translate(0,1703) scale(1,-1)">How to Use Each Tab</text>
+			<rect x="1605.0" y="725" width="190.0" height="48" rx="24" ry="24" style="stroke: rgb(5%,46%,43%); stroke-linecap: butt; stroke-width: 1; fill: rgb(5%,46%,43%); fill-rule: evenodd;"/>
+			<text x="1615.8125" y="749.0" style="font-family: Helvetica-Bold; font-size: 15px;fill: rgb(100%,100%,100%); stroke:none;" transform="translate(0,1498) scale(1,-1)">Sign in as Super Admin</text>
+			<path d="M 1700,725 L 248.375,625 Z" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="248.375 625, 255.6705 621.7174, 255.1515 629.252" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1; fill: rgb(78%,83%,95%); fill-rule: evenodd;"/>
+			<rect x="55.0" y="275" width="386.75" height="350" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 2; fill: rgb(90%,93%,100%); fill-rule: evenodd;"/>
+			<text x="215.031" y="600.0" style="font-family: Helvetica-Bold; font-size: 16px;fill: rgb(35%,45%,90%); stroke:none;" transform="translate(0,1200) scale(1,-1)">My Drive</text>
+			<rect x="79.0" y="496.0" width="338.75" height="55.0" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="179.3775" y="523.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,1047) scale(1,-1)">Browse folders and files</text>
+			<rect x="79.0" y="429.0" width="338.75" height="55.0" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="185.52" y="456.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,913) scale(1,-1)">Upload files or folders</text>
+			<path d="M 248.375,496 L 248.375,484 Z" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 1.2;"/>
+			<polygon points="248.375 484, 252.1512 491.0527, 244.5988 491.0527" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 1; fill: rgb(35%,45%,90%); fill-rule: evenodd;"/>
+			<rect x="79.0" y="362.0" width="338.75" height="55.0" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="159.507" y="389.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,779) scale(1,-1)">Preview, organize, and version</text>
+			<path d="M 248.375,429 L 248.375,417 Z" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 1.2;"/>
+			<polygon points="248.375 417, 252.1512 424.0527, 244.5988 424.0527" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 1; fill: rgb(35%,45%,90%); fill-rule: evenodd;"/>
+			<rect x="79.0" y="295.0" width="338.75" height="55.0" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="180.099" y="322.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,645) scale(1,-1)">Share or move to Trash</text>
+			<path d="M 248.375,362 L 248.375,350 Z" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 1.2;"/>
+			<polygon points="248.375 350, 252.1512 357.0527, 244.5988 357.0527" style="stroke: rgb(35%,45%,90%); stroke-linecap: butt; stroke-width: 1; fill: rgb(35%,45%,90%); fill-rule: evenodd;"/>
+			<path d="M 1700,725 L 663.125,625 Z" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="663.125 625, 670.5076 621.9182, 669.7826 629.4358" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1; fill: rgb(78%,83%,95%); fill-rule: evenodd;"/>
+			<rect x="469.75" y="325" width="386.75" height="300" style="stroke: rgb(44%,50%,58%); stroke-linecap: butt; stroke-width: 2; fill: rgb(90%,92%,95%); fill-rule: evenodd;"/>
+			<text x="636.453" y="600.0" style="font-family: Helvetica-Bold; font-size: 16px;fill: rgb(44%,50%,58%); stroke:none;" transform="translate(0,1200) scale(1,-1)">Recent</text>
+			<rect x="493.75" y="454.0" width="338.75" height="55.0" style="stroke: rgb(44%,50%,58%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="580.3995" y="481.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,963) scale(1,-1)">Review recently opened files</text>
+			<rect x="493.75" y="345.0" width="338.75" height="55.0" style="stroke: rgb(44%,50%,58%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="585.814" y="372.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,745) scale(1,-1)">Open preview or download</text>
+			<path d="M 663.125,454 L 663.125,400 Z" style="stroke: rgb(44%,50%,58%); stroke-linecap: butt; stroke-width: 1.2;"/>
+			<polygon points="663.125 400, 666.9012 407.0527, 659.3488 407.0527" style="stroke: rgb(44%,50%,58%); stroke-linecap: butt; stroke-width: 1; fill: rgb(44%,50%,58%); fill-rule: evenodd;"/>
+			<path d="M 1700,725 L 1077.875,625 Z" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="1077.875 625, 1085.438 622.3909, 1084.239 629.8477" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1; fill: rgb(78%,83%,95%); fill-rule: evenodd;"/>
+			<rect x="884.5" y="325" width="386.75" height="300" style="stroke: rgb(88%,60%,12%); stroke-linecap: butt; stroke-width: 2; fill: rgb(100%,94%,80%); fill-rule: evenodd;"/>
+			<text x="1049.867" y="600.0" style="font-family: Helvetica-Bold; font-size: 16px;fill: rgb(88%,60%,12%); stroke:none;" transform="translate(0,1200) scale(1,-1)">Starred</text>
+			<rect x="908.5" y="454.0" width="338.75" height="55.0" style="stroke: rgb(88%,60%,12%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="1030.1975" y="481.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,963) scale(1,-1)">Review favorites</text>
+			<rect x="908.5" y="345.0" width="338.75" height="55.0" style="stroke: rgb(88%,60%,12%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="994.7855" y="380.0" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,760) scale(1,-1)">Remove star when no longer</text>
+			<text x="1056.191" y="365.0" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,730) scale(1,-1)">needed</text>
+			<path d="M 1077.875,454 L 1077.875,400 Z" style="stroke: rgb(88%,60%,12%); stroke-linecap: butt; stroke-width: 1.2;"/>
+			<polygon points="1077.875 400, 1081.651 407.0527, 1074.099 407.0527" style="stroke: rgb(88%,60%,12%); stroke-linecap: butt; stroke-width: 1; fill: rgb(88%,60%,12%); fill-rule: evenodd;"/>
+			<path d="M 1700,725 L 1492.625,625 Z" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="1492.625 625, 1500.618 624.6619, 1497.337 631.4648" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1; fill: rgb(78%,83%,95%); fill-rule: evenodd;"/>
+			<rect x="1299.25" y="325" width="386.75" height="300" style="stroke: rgb(18%,65%,41%); stroke-linecap: butt; stroke-width: 2; fill: rgb(87%,96%,90%); fill-rule: evenodd;"/>
+			<text x="1465.505" y="600.0" style="font-family: Helvetica-Bold; font-size: 16px;fill: rgb(18%,65%,41%); stroke:none;" transform="translate(0,1200) scale(1,-1)">Shared</text>
+			<rect x="1323.25" y="454.0" width="338.75" height="55.0" style="stroke: rgb(18%,65%,41%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="1431.941" y="481.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,963) scale(1,-1)">Browse shared items</text>
+			<rect x="1323.25" y="345.0" width="338.75" height="55.0" style="stroke: rgb(18%,65%,41%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="1435.1975" y="380.0" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,760) scale(1,-1)">Follow viewer/editor</text>
+			<text x="1461.204" y="365.0" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,730) scale(1,-1)">permission</text>
+			<path d="M 1492.625,454 L 1492.625,400 Z" style="stroke: rgb(18%,65%,41%); stroke-linecap: butt; stroke-width: 1.2;"/>
+			<polygon points="1492.625 400, 1496.401 407.0527, 1488.849 407.0527" style="stroke: rgb(18%,65%,41%); stroke-linecap: butt; stroke-width: 1; fill: rgb(18%,65%,41%); fill-rule: evenodd;"/>
+			<path d="M 1700,725 L 1907.375,625 Z" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="1907.375 625, 1902.663 631.4648, 1899.382 624.6619" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1; fill: rgb(78%,83%,95%); fill-rule: evenodd;"/>
+			<rect x="1714.0" y="325" width="386.75" height="300" style="stroke: rgb(90%,36%,36%); stroke-linecap: butt; stroke-width: 2; fill: rgb(100%,89%,89%); fill-rule: evenodd;"/>
+			<text x="1885.591" y="600.0" style="font-family: Helvetica-Bold; font-size: 16px;fill: rgb(90%,36%,36%); stroke:none;" transform="translate(0,1200) scale(1,-1)">Trash</text>
+			<rect x="1738.0" y="454.0" width="338.75" height="55.0" style="stroke: rgb(90%,36%,36%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="1841.9915" y="481.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,963) scale(1,-1)">Restore retained items</text>
+			<rect x="1738.0" y="345.0" width="338.75" height="55.0" style="stroke: rgb(90%,36%,36%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="1823.564" y="372.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,745) scale(1,-1)">Permanently delete with care</text>
+			<path d="M 1907.375,454 L 1907.375,400 Z" style="stroke: rgb(90%,36%,36%); stroke-linecap: butt; stroke-width: 1.2;"/>
+			<polygon points="1907.375 400, 1911.151 407.0527, 1903.599 407.0527" style="stroke: rgb(90%,36%,36%); stroke-linecap: butt; stroke-width: 1; fill: rgb(90%,36%,36%); fill-rule: evenodd;"/>
+			<path d="M 1700,725 L 2322.125,625 Z" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="2322.125 625, 2315.761 629.8477, 2314.562 622.3909" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1; fill: rgb(78%,83%,95%); fill-rule: evenodd;"/>
+			<rect x="2128.75" y="325" width="386.75" height="300" style="stroke: rgb(8%,61%,54%); stroke-linecap: butt; stroke-width: 2; fill: rgb(85%,97%,94%); fill-rule: evenodd;"/>
+			<text x="2292.341" y="600.0" style="font-family: Helvetica-Bold; font-size: 16px;fill: rgb(8%,61%,54%); stroke:none;" transform="translate(0,1200) scale(1,-1)">Storage</text>
+			<rect x="2152.75" y="454.0" width="338.75" height="55.0" style="stroke: rgb(8%,61%,54%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="2263.963" y="481.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,963) scale(1,-1)">Review usage totals</text>
+			<rect x="2152.75" y="345.0" width="338.75" height="55.0" style="stroke: rgb(8%,61%,54%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="2269.0265" y="372.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,745) scale(1,-1)">Filter and sort files</text>
+			<path d="M 2322.125,454 L 2322.125,400 Z" style="stroke: rgb(8%,61%,54%); stroke-linecap: butt; stroke-width: 1.2;"/>
+			<polygon points="2322.125 400, 2325.901 407.0527, 2318.349 407.0527" style="stroke: rgb(8%,61%,54%); stroke-linecap: butt; stroke-width: 1; fill: rgb(8%,61%,54%); fill-rule: evenodd;"/>
+			<path d="M 1700,725 L 2736.875,625 Z" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="2736.875 625, 2730.217 629.4358, 2729.492 621.9182" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1; fill: rgb(78%,83%,95%); fill-rule: evenodd;"/>
+			<rect x="2543.5" y="325" width="386.75" height="300" style="stroke: rgb(90%,31%,54%); stroke-linecap: butt; stroke-width: 2; fill: rgb(100%,88%,92%); fill-rule: evenodd;"/>
+			<text x="2714.643" y="600.0" style="font-family: Helvetica-Bold; font-size: 16px;fill: rgb(90%,31%,54%); stroke:none;" transform="translate(0,1200) scale(1,-1)">Users</text>
+			<rect x="2567.5" y="345.0" width="338.75" height="55.0" style="stroke: rgb(90%,31%,54%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="2657.029" y="372.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,745) scale(1,-1)">Manage accounts and roles</text>
+			<path d="M 1700,725 L 3151.625,625 Z" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1.5;"/>
+			<polygon points="3151.625 625, 3144.849 629.252, 3144.329 621.7174" style="stroke: rgb(78%,83%,95%); stroke-linecap: butt; stroke-width: 1; fill: rgb(78%,83%,95%); fill-rule: evenodd;"/>
+			<rect x="2958.25" y="325" width="386.75" height="300" style="stroke: rgb(60%,36%,89%); stroke-linecap: butt; stroke-width: 2; fill: rgb(93%,88%,100%); fill-rule: evenodd;"/>
+			<text x="3126.729" y="600.0" style="font-family: Helvetica-Bold; font-size: 16px;fill: rgb(60%,36%,89%); stroke:none;" transform="translate(0,1200) scale(1,-1)">Profile</text>
+			<rect x="2982.25" y="490.3333333333333" width="338.75" height="54.99999999999994" style="stroke: rgb(60%,36%,89%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="3075.3995" y="517.8333333333333" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,1035) scale(1,-1)">Update name or password</text>
+			<rect x="2982.25" y="417.66666666666663" width="338.75" height="55.0" style="stroke: rgb(60%,36%,89%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="3087.691" y="445.16666666666663" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,890) scale(1,-1)">Review active devices</text>
+			<path d="M 3151.625,490.333333 L 3151.625,472.666667 Z" style="stroke: rgb(60%,36%,89%); stroke-linecap: butt; stroke-width: 1.2;"/>
+			<polygon points="3151.625 472.6667, 3155.401 479.7193, 3147.849 479.7193" style="stroke: rgb(60%,36%,89%); stroke-linecap: butt; stroke-width: 1; fill: rgb(60%,36%,89%); fill-rule: evenodd;"/>
+			<rect x="2982.25" y="345.0" width="338.75" height="55.0" style="stroke: rgb(60%,36%,89%); stroke-linecap: butt; stroke-width: 1.5; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="3086.2285" y="372.5" style="font-family: Helvetica; font-size: 13px;fill: rgb(22%,27%,36%); stroke:none;" transform="translate(0,745) scale(1,-1)">Sign out when finished</text>
+			<path d="M 3151.625,417.666667 L 3151.625,400 Z" style="stroke: rgb(60%,36%,89%); stroke-linecap: butt; stroke-width: 1.2;"/>
+			<polygon points="3151.625 400, 3155.401 407.0527, 3147.849 407.0527" style="stroke: rgb(60%,36%,89%); stroke-linecap: butt; stroke-width: 1; fill: rgb(60%,36%,89%); fill-rule: evenodd;"/>
+			<text x="3190.28" y="20" style="font-family: Helvetica; font-size: 12px;fill: rgb(70%,72%,77%); stroke:none;" transform="translate(0,40) scale(1,-1)">Multimedia Management System</text>
+		</g>
+	</g>
+</svg>

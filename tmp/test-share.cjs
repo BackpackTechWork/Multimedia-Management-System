@@ -1,0 +1,93 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const Module = require('node:module');
+const express = require('express');
+const ejs = require('ejs');
+const JSZip = require('jszip');
+const { JSDOM } = require('./share-test-deps/node_modules/jsdom');
+const root = path.resolve(__dirname, '..');
+const file = { id: 1, userId: 7, folderId: 10, originalName: 'Core-and-Extended-Mathematics-Fifth-Edition.pdf', extension: 'pdf', mimeType: 'application/pdf', size: 104585000, path: 'one.txt' };
+let share = { folderId: 10, allowDownload: true, linkRole: 'editor', linkAccess: 'anyone' };
+const folder = { id: 10, userId: 7, name: 'Shared documents', path: '10/' };
+const entries = [file, {...file, id: 2, path: 'two.txt'}, {...file, id: 3, folderId: 11}];
+const disk = path.join(__dirname, 'share-fixtures');
+fs.mkdirSync(disk, { recursive: true });
+fs.writeFileSync(path.join(disk, 'one.txt'), 'first document');
+fs.writeFileSync(path.join(disk, 'two.txt'), 'second document');
+const mocks = {
+ '../repositories/UserRepository': { findById: async () => ({ name: 'Aiman <Owner>' }) },
+ '../config/db': {}, '../models/schema': {},
+ '../repositories/ShareRepository': { findByToken: async () => share, userCanAccessShare: async () => false },
+ '../repositories/FileRepository': { findById: async id => entries.find(f => f.id === id) },
+ '../repositories/FolderRepository': { findById: async id => id === 10 ? folder : {...folder, id: 11, path: '100/'} },
+ '../services/StorageService': { storageRoot: disk }, '../services/DriveService': {},
+ '../repositories/JobRepository': {}, '../services/FileChecksumService': {}
+};
+const filename = path.join(root, 'controllers/ShareController.js');
+const controllerModule = new Module(filename, module);
+controllerModule.filename = filename;
+controllerModule.paths = Module._nodeModulePaths(path.dirname(filename));
+controllerModule.require = name => Object.hasOwn(mocks, name) ? mocks[name] : Module.createRequire(filename)(name);
+controllerModule._compile(fs.readFileSync(filename, 'utf8'), filename);
+const controller = controllerModule.exports;
+(async () => {
+ const app = express(); app.use(express.urlencoded({extended: true})); app.use((req,res,next) => { req.session = {}; next(); });
+ app.post('/:token/download-selected', controller.downloadSelectedFiles);
+ const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
+ const url = `http://127.0.0.1:${server.address().port}/test/download-selected`;
+ const request = ids => fetch(url, {method:'POST', signal: AbortSignal.timeout(10000), body: new URLSearchParams(ids.map(id => ['fileIds', id]))});
+ try {
+  console.log('Testing archive');
+  let response = await request(['1', '2', '1']); assert.equal(response.status,200);
+  console.log('Archive status',response.status);
+  const zip = await JSZip.loadAsync(await response.arrayBuffer()); const names = Object.keys(zip.files);
+  assert.equal(names.length, 2); assert.ok(names.some(n=>n.includes('(1)')));
+  assert.deepEqual(await Promise.all(Object.values(zip.files).map(f=>f.async('string'))), ['first document','second document']);
+  assert.equal((await request(['1','3'])).status,403);
+  assert.equal((await request(['1x'])).status,400);
+  assert.equal((await request([])).status,400);
+  assert.equal((await request(Array(501).fill('1'))).status,400);
+  share.allowDownload = false; assert.equal((await request(['1'])).status,403); share.allowDownload = true;
+  share.passwordHash = 'protected'; assert.equal((await request(['1'])).status,403); delete share.passwordHash;
+  share.expiresAt = new Date(0); assert.equal((await request(['1'])).status,410); delete share.expiresAt;
+  share.linkAccess = 'restricted'; assert.equal((await request(['1'])).status,403); share.linkAccess = 'anyone';
+  const locals = {share, token:'test', isFolder:true, file:null, folder, breadcrumbs:[], contents:{folders:[],files:entries.slice(0,2)},formatBytes:()=> '99.74 MB'};
+  const html = await ejs.renderFile(path.join(root,'views/share/public.ejs'), locals);
+  const dom = new JSDOM(html, {runScripts:'outside-only', url:'http://localhost/'});
+  const {window} = dom; window.eval(fs.readFileSync(path.join(root,'public/js/share-selection.js'),'utf8'));
+  window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
+  const cards = [...window.document.querySelectorAll('.share-file-card')];
+  const checks = cards.map(c=>c.querySelector('input'));
+  assert.equal(window.document.getElementById('share-selection-toolbar').hidden, true);
+  cards[0].click(); assert.equal(window.document.getElementById('share-selection-toolbar').hidden, false); assert.equal(checks[0].checked,true); assert.equal(checks[1].checked,false);
+  cards[1].dispatchEvent(new window.MouseEvent('click',{bubbles:true,ctrlKey:true})); assert.ok(checks.every(c=>c.checked));
+  cards[0].dispatchEvent(new window.KeyboardEvent('keydown',{bubbles:true,key:'Escape'})); assert.ok(checks.every(c=>!c.checked));
+  cards.forEach((c,i)=>c.getBoundingClientRect=()=>({left:20+i*150,right:140+i*150,top:50,bottom:180}));
+  const area=window.document.getElementById('shared-files');
+  area.dispatchEvent(new window.MouseEvent('pointerdown',{bubbles:true,button:0,clientX:5,clientY:35}));
+  assert.ok(window.document.body.classList.contains('share-drag-selecting'));
+  window.dispatchEvent(new window.MouseEvent('pointermove',{clientX:300,clientY:190}));
+  assert.ok(checks.every(c=>c.checked)); assert.equal(window.document.getElementById('share-download-selected').disabled,false);
+  window.dispatchEvent(new window.MouseEvent('pointerup')); assert.equal(window.document.querySelector('.share-selection-box'),null); assert.ok(!window.document.body.classList.contains('share-drag-selecting'));
+  await new Promise(resolve => setTimeout(resolve, 1));
+  window.document.querySelector('.share-main').click();
+  assert.ok(checks.every(check => !check.checked));
+  assert.equal(window.document.getElementById('share-selection-toolbar').hidden, true);
+  const inline = [...window.document.scripts].filter(s=>!s.src); inline.forEach(s=>new Function(s.textContent));
+  inline.forEach(s=>window.eval(s.textContent)); window.document.dispatchEvent(new window.Event('DOMContentLoaded'));
+  const drag = types => {const e=new window.Event('dragenter',{bubbles:true,cancelable:true});Object.defineProperty(e,'dataTransfer',{value:{types}});window.dispatchEvent(e);};
+  drag(['text/plain']);assert.ok(window.document.getElementById('drag-overlay').classList.contains('hidden'));
+  drag(['Files']);assert.ok(!window.document.getElementById('drag-overlay').classList.contains('hidden'));
+  const single=await ejs.renderFile(path.join(root,'views/share/public.ejs'), {...locals,isFolder:false,file,contents:null,folder:null,ownerName:'Aiman <Owner>'});
+  const singleDOM=new JSDOM(single); assert.ok(singleDOM.window.document.querySelector('.shared-document'));assert.equal(singleDOM.window.document.querySelector('.share-crumbbar'),null);assert.equal(singleDOM.window.document.querySelector('#drag-overlay'),null);
+  assert.equal(singleDOM.window.document.querySelector('.shared-document-access').textContent.trim(), 'Owner: Aiman <Owner>');
+  let rendered; share.fileId=1;
+  await controller.renderShare({params:{token:'test'},query:{},session:{}},{render:(view,data)=>{rendered=data;},status:()=>{throw new Error('Unexpected render error');}});
+  assert.equal(rendered.ownerName,'Aiman <Owner>'); delete share.fileId;
+  fs.writeFileSync(path.join(__dirname,'share-single-preview.html'),single);
+  fs.writeFileSync(path.join(__dirname,'share-folder-preview.html'),html);
+  console.log('PASS: ZIP contents and duplicate filenames; share permissions, password, expiry, scope and input validation; click/additive/drag selection; overlay drag filtering; single-file and folder EJS rendering.');
+  dom.window.close();singleDOM.window.close();
+ } finally {server.closeAllConnections();server.close();}
+})().catch(err=>{console.error(err);process.exitCode=1;});

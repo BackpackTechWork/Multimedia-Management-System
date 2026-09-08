@@ -1,0 +1,115 @@
+{
+  "input": "C:\\Users\\Mohamed Aiman\\Desktop\\Multimedia-Management-System\\Documentation\\Multimedia Management System Per Tab Explanation.docx",
+  "fonts_by_char_count": {
+    "Times New Roman": 1077
+  },
+  "direct_run_formatting_runs": 138,
+  "direct_paragraph_formatting_paragraphs": 89,
+  "heading_like_paragraphs_not_heading_style": [
+    {
+      "para_index": 11,
+      "text": "Multimedia Management System",
+      "style": "Normal"
+    },
+    {
+      "para_index": 32,
+      "text": "Left Sidebar",
+      "style": "Normal"
+    },
+    {
+      "para_index": 57,
+      "text": "Profile Menu",
+      "style": "Normal"
+    },
+    {
+      "para_index": 271,
+      "text": "Area",
+      "style": "Normal"
+    },
+    {
+      "para_index": 272,
+      "text": "Main purpose",
+      "style": "Normal"
+    },
+    {
+      "para_index": 273,
+      "text": "Typical access",
+      "style": "Normal"
+    },
+    {
+      "para_index": 301,
+      "text": "Role",
+      "style": "Normal"
+    },
+    {
+      "para_index": 302,
+      "text": "Can access",
+      "style": "Normal"
+    },
+    {
+      "para_index": 303,
+      "text": "Can change",
+      "style": "Normal"
+    }
+  ],
+  "examples": {
+    "direct_paragraph_formatting": [
+      {
+        "para_index": 1,
+        "text": "",
+        "style": "Normal"
+      },
+      {
+        "para_index": 2,
+        "text": "",
+        "style": "Normal"
+      },
+      {
+        "para_index": 3,
+        "text": "",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "text": "",
+        "style": "Normal"
+      },
+      {
+        "para_index": 5,
+        "text": "",
+        "style": "Normal"
+      }
+    ],
+    "direct_run_formatting": [
+      {
+        "para_index": 11,
+        "run_text": "Multimedia Management System",
+        "style": "Normal"
+      },
+      {
+        "para_index": 25,
+        "run_text": "Tab Explanation and Step-by-Step User Guide",
+        "style": "Normal"
+      },
+      {
+        "para_index": 28,
+        "run_text": "System Flow",
+        "style": "Heading 1"
+      },
+      {
+        "para_index": 30,
+        "run_text": "Sidebar Structure Overview",
+        "style": "Heading 1"
+      },
+      {
+        "para_index": 32,
+        "run_text": "Left Sidebar",
+        "style": "Normal"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}
