@@ -21,7 +21,7 @@
 .share-select-all { display: inline-flex; align-items: center; gap: .6rem; min-height: 44px; cursor: pointer; }
 .share-selection-toolbar .share-button { margin-left: auto; }
 .share-selection-toolbar[hidden] { display: none; }
-.share-selection-toolbar { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); z-index: 46; width: min(calc(100% - 2rem), 78rem); padding: .75rem 1rem; background: #fff; border: 1px solid #ccd3da; border-radius: 12px; }
+.share-selection-toolbar { position: fixed; bottom: calc(2rem + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); z-index: 46; width: min(calc(100% - 2rem), 60rem); padding: .75rem 1rem; background: #fff; border: 1px solid #ccd3da; border-radius: 12px; }
 .share-public--folder .share-main { padding-bottom: 10rem; }
 .share-drag-selecting, .share-drag-selecting * { user-select: none !important; -webkit-user-select: none !important; }
 .share-item-card:focus-visible { outline: 2px solid #297373; outline-offset: 3px; }
