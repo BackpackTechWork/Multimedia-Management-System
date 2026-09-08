@@ -1397,11 +1397,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const elapsed = Math.min(32, lastFrame === undefined ? 16 : time - lastFrame);
         lastFrame = time;
         const viewport = gridContainer.getBoundingClientRect();
-        const edge = Math.min(96, viewport.height / 3);
-        const direction = pointer.y > viewport.bottom - edge
-          ? Math.min(1, (pointer.y - viewport.bottom + edge) / edge)
-          : pointer.y < viewport.top + edge ? -Math.min(1, (viewport.top + edge - pointer.y) / edge) : 0;
-        if (direction) gridContainer.scrollTop += direction * elapsed * 0.9;
+        // The dashboard can grow with the document instead of scrolling inside
+        // the grid. Use the visible edge, not the off-screen end of the grid.
+        const top = Math.max(0, viewport.top);
+        const bottom = Math.min(window.innerHeight, viewport.bottom);
+        const edge = Math.min(96, Math.max(1, (bottom - top) / 3));
+        const direction = pointer.y > bottom - edge
+          ? Math.min(1, (pointer.y - bottom + edge) / edge)
+          : pointer.y < top + edge ? -Math.min(1, (top + edge - pointer.y) / edge) : 0;
+        if (direction) {
+          const distance = direction * elapsed * 0.9;
+          let scrolled = false;
+          for (let scroller = gridContainer; scroller && scroller !== document.body; scroller = scroller.parentElement) {
+            if (scroller.scrollHeight <= scroller.clientHeight) continue;
+            if (!/(auto|scroll)/.test(window.getComputedStyle(scroller).overflowY)) continue;
+            const before = scroller.scrollTop;
+            scroller.scrollTop += distance;
+            if (scroller.scrollTop !== before) { scrolled = true; break; }
+          }
+          if (!scrolled) window.scrollBy({ top: distance, behavior: 'instant' });
+        }
         draw();
         frame = window.requestAnimationFrame(autoScroll);
       };
@@ -1426,13 +1441,13 @@ document.addEventListener('DOMContentLoaded', () => {
         window.removeEventListener('pointerup', finish);
         window.removeEventListener('pointercancel', finish);
         window.removeEventListener('blur', finish);
-        gridContainer.removeEventListener('scroll', draw);
+        window.removeEventListener('scroll', draw, true);
       };
       window.addEventListener('pointermove', move, { passive: false });
       window.addEventListener('pointerup', finish);
       window.addEventListener('pointercancel', finish);
       window.addEventListener('blur', finish);
-      gridContainer.addEventListener('scroll', draw, { passive: true });
+      window.addEventListener('scroll', draw, { passive: true, capture: true });
     });
   }
 

@@ -6,6 +6,9 @@ const {JSDOM} = require('./share-test-deps/node_modules/jsdom');
 const root = path.resolve(__dirname,'..');
 const dom = new JSDOM('<main><div id="items-grid-container"><div class="grid-item" id="first"></div><div class="grid-item" id="second"></div><button id="control">Control</button></div></main><div id="custom-context-menu" class="hidden"></div><div id="empty-space-context-menu" class="hidden"></div>',{runScripts:'outside-only'});
 const w=dom.window, grid=w.document.getElementById('items-grid-container');
+grid.style.overflowY='auto';
+Object.defineProperty(grid,'scrollHeight',{configurable:true,value:2000});
+Object.defineProperty(grid,'clientHeight',{configurable:true,value:520});
 let nextFrame;
 w.requestAnimationFrame = fn => {nextFrame=fn;return 1;};
 w.cancelAnimationFrame = () => {nextFrame=null;};
@@ -26,6 +29,20 @@ w.dispatchEvent(new w.MouseEvent('pointerup'));assert.equal(nextFrame,null);asse
 down(cards[0],160,110);assert.ok(!w.document.body.classList.contains('is-box-selecting'),'Selected cards retain native move drag');
 down(w.document.getElementById('control'),160,110);assert.ok(!w.document.body.classList.contains('is-box-selecting'));
 const priorSelection=w.selection().length;grid.scrollTop=0;down(grid,110,90,{ctrlKey:true});move(120,100);assert.equal(w.selection().length,priorSelection,'Modifier preserves prior selection');w.dispatchEvent(new w.MouseEvent('pointercancel'));assert.equal(nextFrame,null);
+// Reproduce the desktop layout: the grid extends below the viewport and
+// has no internal overflow, so the document must scroll instead.
+Object.defineProperty(grid,'scrollHeight',{configurable:true,value:2000});
+Object.defineProperty(grid,'clientHeight',{configurable:true,value:2000});
+grid.scrollTop=0;
+grid.getBoundingClientRect=()=>({left:100,top:80-w.scrollY,right:700,bottom:2080-w.scrollY,width:600,height:2000});
+cards.forEach((card,i)=>card.getBoundingClientRect=()=>({left:140,right:240,top:100+i*700-w.scrollY,bottom:200+i*700-w.scrollY,width:100,height:100}));
+w.scrollBy=({top})=>{w.scrollY=Math.max(0,w.scrollY+top);};
+down(grid,110,90);move(270,w.innerHeight-1);
+for(let t=16;t<240;t+=16)nextFrame(t);
+assert.ok(w.scrollY>0,'Desktop drag scrolls the document at the visible bottom edge');
+assert.equal(w.selection().length,2,'Page scrolling adds newly revealed items');
+assert.ok(parseFloat(w.document.querySelector('.selection-box').style.top)<90,'Page scrolling preserves selection origin');
+w.dispatchEvent(new w.MouseEvent('pointerup'));assert.equal(nextFrame,null);
 dom.window.close();
 (async()=>{
  const markup=await ejs.renderFile(path.join(root,'views/partials/modals.ejs'),{});
