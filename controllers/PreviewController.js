@@ -161,6 +161,9 @@ class PreviewController {
       }
     }
 
+    // Anonymous access must have passed the explicit share checks above.
+    if (!userId) return null;
+
     if (await shareRepository.userCanAccessFile(userId, file)) {
       if (recordRecent) {
         await db.insert(recentActivity)

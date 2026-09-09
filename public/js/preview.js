@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fileId = previewDataEl.dataset.fileId;
   const fileType = previewDataEl.dataset.type;
   const fileName = previewDataEl.dataset.name;
+  const streamUrl = previewDataEl.dataset.streamUrl || `/preview/stream/${fileId}`;
 
   // 1. IMAGE PREVIEW (LightGallery)
   if (fileType === 'image') {
@@ -29,7 +30,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (container) {
       container.innerHTML = '<div class="text-center py-8 text-gray-400">Loading spreadsheet data...</div>';
       try {
-        const streamUrl = `/preview/stream/${fileId}`;
         const response = await fetch(streamUrl);
         const arrayBuffer = await response.arrayBuffer();
 
@@ -131,7 +131,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (container && typeof pptxPreview !== 'undefined') {
       container.innerHTML = '<div class="text-center py-8 text-gray-400"><i class="bi bi-arrow-repeat animate-spin text-2xl mr-2"></i>Loading presentation data...</div>';
       try {
-        const streamUrl = `/preview/stream/${fileId}`;
         const response = await fetch(streamUrl);
         const arrayBuffer = await response.arrayBuffer();
 

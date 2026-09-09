@@ -46,7 +46,7 @@
 <div class="flex-1 flex flex-col items-center justify-center p-6 md:p-12 overflow-hidden">
   
   <!-- Hidden Element containing file metadata for client-side JS -->
-  <div id="preview-metadata" class="hidden" data-file-id="<%= file.id %>" data-type="<%= type %>" data-name="<%= file.originalName %>"></div>
+  <div id="preview-metadata" class="hidden" data-file-id="<%= file.id %>" data-type="<%= type %>" data-name="<%= file.originalName %>" data-stream-url="<%= streamUrl %>"></div>
 
   <!-- 1. IMAGE PREVIEW (LightGallery) -->
   <% if (type === 'image') { %>

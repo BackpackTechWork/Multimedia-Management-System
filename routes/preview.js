@@ -3,7 +3,14 @@ const router = express.Router();
 const previewController = require('../controllers/PreviewController');
 const { authGuard } = require('../middleware/auth');
 
-router.use(authGuard);
+router.use((req, res, next) => {
+  // Guests with a link are authorized by checkAccess on every preview request,
+  // including streams and archive entries. Keep normal previews signed in.
+  if (!req.session?.userId && typeof req.query.shareToken === 'string' && req.query.shareToken) {
+    return next();
+  }
+  return authGuard(req, res, next);
+});
 
 router.get('/image/:id', (req, res) => previewController.previewImage(req, res));
 router.get('/pdf/:id', (req, res) => previewController.previewPdf(req, res));
