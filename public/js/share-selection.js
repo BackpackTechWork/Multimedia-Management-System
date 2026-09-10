@@ -1,8 +1,46 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const SHARE_LAYOUT_KEY = 'harbor-drive-layout';
+  const sharePage = document.querySelector('.share-public--folder');
+  const layoutListBtn = document.getElementById('layout-list-btn');
+  const layoutGridBtn = document.getElementById('layout-grid-btn');
+
+  function applyShareLayout(layout) {
+    if (!sharePage) return;
+    const resolvedLayout = layout === 'list' ? 'list' : 'grid';
+    sharePage.classList.toggle('share-layout-list', resolvedLayout === 'list');
+    sharePage.classList.toggle('share-layout-grid', resolvedLayout === 'grid');
+    layoutListBtn?.setAttribute('aria-pressed', String(resolvedLayout === 'list'));
+    layoutGridBtn?.setAttribute('aria-pressed', String(resolvedLayout === 'grid'));
+    try {
+      localStorage.setItem(SHARE_LAYOUT_KEY, resolvedLayout);
+    } catch {
+      // Storage may be unavailable in restricted/private browser contexts.
+    }
+  }
+
+  if (layoutListBtn && layoutGridBtn) {
+    let savedShareLayout = 'grid';
+    try {
+      savedShareLayout = localStorage.getItem(SHARE_LAYOUT_KEY) || 'grid';
+    } catch {
+      savedShareLayout = 'grid';
+    }
+    applyShareLayout(savedShareLayout);
+    layoutListBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      applyShareLayout('list');
+    });
+    layoutGridBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      applyShareLayout('grid');
+    });
+  }
+
   const area = document.querySelector('.share-public--folder .share-main');
   if (!area || !document.getElementById('share-selection-toolbar')) return;
-  const cards = Array.from(area.querySelectorAll('.share-item-card'));
-  const checks = cards.map(card => card.querySelector('input[type="checkbox"]'));
+  const liveCards = () => Array.from(area.querySelectorAll('.share-item-card'));
+  const checkFor = card => card.querySelector('input[type="checkbox"]');
+  const cards = liveCards();
   const all = document.getElementById('share-select-all');
   const count = document.getElementById('share-selection-count');
   const download = document.getElementById('share-download-selected');
@@ -10,26 +48,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // Keep the floating bar outside the animated main element, whose transform
   // would otherwise make a fixed element scroll with the document.
   area.closest('.share-page').append(toolbar);
-  let anchor = 0;
+  let anchorCard = cards[0] || null;
   let suppressClick = false;
   const update = () => {
-    const selected = checks.filter(check => check.checked).length;
+    const selected = cards.filter(card => checkFor(card).checked).length;
     toolbar.hidden = selected === 0;
-    cards.forEach((card, index) => card.classList.toggle('is-selected', checks[index].checked));
-    all.checked = selected === checks.length && selected > 0;
-    all.indeterminate = selected > 0 && selected < checks.length;
+    cards.forEach(card => card.classList.toggle('is-selected', checkFor(card).checked));
+    all.checked = selected === cards.length && selected > 0;
+    all.indeterminate = selected > 0 && selected < cards.length;
     count.textContent = selected ? `${selected} item${selected === 1 ? '' : 's'} selected` : 'No items selected';
     if (selected > 500) count.textContent = `${selected} items selected. Select up to 500 per download.`;
     if (download) download.disabled = selected === 0 || selected > 500;
   };
-  all.addEventListener('change', () => { checks.forEach(check => { check.checked = all.checked; }); update(); });
+  all.addEventListener('change', () => { cards.forEach(card => { checkFor(card).checked = all.checked; }); update(); });
   area.addEventListener('change', update);
   area.closest('.share-page').addEventListener('click', event => {
     if (suppressClick || event.target.closest('.share-item-card, a, button, input, label, form')) return;
-    checks.forEach(check => { check.checked = false; });
+    cards.forEach(card => { checkFor(card).checked = false; });
     update();
   });
-  cards.forEach((card, index) => {
+  cards.forEach(card => {
     card.addEventListener('dblclick', event => {
       if (!suppressClick && card.dataset.openUrl && !event.target.closest('a, button, input, label')) window.location.href = card.dataset.openUrl;
     });
@@ -44,23 +82,28 @@ document.addEventListener('DOMContentLoaded', () => {
     card.addEventListener('click', event => {
       if (suppressClick) { event.preventDefault(); return; }
       if (event.target.closest('a, button, input, label')) return;
+      const ordered = liveCards();
+      const index = ordered.indexOf(card);
       if (event.shiftKey) {
-        checks.forEach((check, i) => { if (i >= Math.min(anchor, index) && i <= Math.max(anchor, index)) check.checked = true; });
+        const anchorIndex = Math.max(0, ordered.indexOf(anchorCard));
+        const start = Math.min(anchorIndex, index);
+        const end = Math.max(anchorIndex, index);
+        ordered.forEach((item, i) => { checkFor(item).checked = i >= start && i <= end; });
       } else if (event.ctrlKey || event.metaKey) {
-        checks[index].checked = !checks[index].checked;
+        checkFor(card).checked = !checkFor(card).checked;
       } else {
-        const next = !checks[index].checked;
-        checks.forEach(check => { check.checked = false; });
-        checks[index].checked = next;
+        const next = !checkFor(card).checked;
+        cards.forEach(item => { checkFor(item).checked = false; });
+        checkFor(card).checked = next;
       }
-      anchor = index;
+      anchorCard = card;
       update();
     });
   });
   area.closest('.share-page').addEventListener('keydown', event => {
-    if (event.key === 'Escape') { checks.forEach(check => { check.checked = false; }); update(); }
+    if (event.key === 'Escape') { cards.forEach(card => { checkFor(card).checked = false; }); update(); }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
-      event.preventDefault(); checks.forEach(check => { check.checked = true; }); update();
+      event.preventDefault(); cards.forEach(card => { checkFor(card).checked = true; }); update();
     }
   });
   area.closest('.share-page').addEventListener('pointerdown', event => {
@@ -71,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.getSelection()?.removeAllRanges();
     const start = { x: event.clientX + window.scrollX, y: event.clientY + window.scrollY };
     const pointer = { x: event.clientX, y: event.clientY };
-    const previous = checks.map(check => check.checked);
+    const previous = new Map(cards.map(card => [card, checkFor(card).checked]));
     const additive = event.ctrlKey || event.metaKey || event.shiftKey;
     let box;
     let frame;
@@ -82,10 +125,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const left = Math.min(anchorX, pointer.x), top = Math.min(anchorY, pointer.y);
       const right = Math.max(anchorX, pointer.x), bottom = Math.max(anchorY, pointer.y);
       Object.assign(box.style, { left: `${left}px`, top: `${top}px`, width: `${right-left}px`, height: `${bottom-top}px` });
-      cards.forEach((card, i) => {
+      liveCards().forEach(card => {
         const rect = card.getBoundingClientRect();
         const hit = rect.left < right && rect.right > left && rect.top < bottom && rect.bottom > top;
-        checks[i].checked = hit || (additive && previous[i]);
+        checkFor(card).checked = hit || (additive && previous.get(card));
       });
       update();
     };
@@ -130,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('scroll', draw, { passive: true });
   });
   document.getElementById('share-selection-toolbar').addEventListener('submit', event => {
-    const selected = checks.filter(check => check.checked).length;
+    const selected = cards.filter(card => checkFor(card).checked).length;
     if (!selected || selected > 500) event.preventDefault();
   });
   update();

@@ -242,11 +242,7 @@
       <!-- Grid of folders -->
       <% if (folders.length > 0) { %>
         <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 select-none">Folders</h4>
-        <div class="drive-list-header" aria-hidden="true">
-          <span>Name</span>
-          <span>Modified</span>
-          <span>Size</span>
-        </div>
+        <%- include('../partials/list-sort-header', { headerClass: 'drive-list-header', columns: ['name', 'modified', 'size'] }) %>
         <div class="responsive-grid drive-items-group mb-8">
           <% folders.forEach(folder => { %>
             <div 
@@ -254,6 +250,8 @@
               data-id="<%= folder.id %>"
               data-type="folder"
               data-name="<%= folder.name %>"
+              data-size="0"
+              data-sort-modified="<%= new Date(folder.createdAt).getTime() %>"
               data-owner-id="<%= folder.userId %>"
               data-parent-id="<%= folder.parentId || '' %>"
               data-path="<%= folder.path || '' %>"
@@ -285,11 +283,7 @@
       <!-- Grid of files -->
       <% if (files.length > 0) { %>
         <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 select-none">Files</h4>
-        <div class="drive-list-header" aria-hidden="true">
-          <span>Name</span>
-          <span>Modified</span>
-          <span>Size</span>
-        </div>
+        <%- include('../partials/list-sort-header', { headerClass: 'drive-list-header', columns: ['name', 'modified', 'size'] }) %>
         <div class="responsive-grid drive-items-group">
           <% files.forEach(file => { %>
             <%
@@ -313,6 +307,7 @@
               data-name="<%= file.originalName %>"
               data-owner-id="<%= file.userId %>"
               data-size="<%= file.size %>"
+              data-sort-modified="<%= new Date(file.createdAt).getTime() %>"
               data-mime="<%= file.mimeType %>"
               data-ext="<%= file.extension %>"
               data-parent-id="<%= file.folderId || '' %>"

@@ -238,9 +238,44 @@ body {
 }
 
 .share-file-card {
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "preview preview" "body actions";
+  align-items: end;
+  column-gap: 0.5rem;
   padding: 1rem;
   min-height: 13.5rem;
+}
+
+.share-file-card .share-item-preview {
+  grid-area: preview;
+}
+
+.share-item-body {
+  grid-area: body;
+  min-width: 0;
+  margin-top: 0.75rem;
+}
+
+.share-item-meta {
+  margin-top: 0.125rem;
+  color: #9CA3AF;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.share-item-size,
+.share-list-header {
+  display: none;
+}
+
+.share-item-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  margin-top: 0.75rem;
 }
 
 .share-file-card .share-item-preview img {

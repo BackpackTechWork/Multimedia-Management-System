@@ -1,0 +1,13 @@
+<%
+  const labels = { name: 'Name', modified: 'Modified', size: 'Size' };
+  const headerClass = locals.headerClass || 'drive-list-header';
+  const columns = locals.columns || ['name', 'modified', 'size'];
+%>
+<div class="<%= headerClass %>" role="row">
+  <% columns.forEach(col => { %>
+    <button type="button" class="list-sort-btn" data-sort="<%= col %>" aria-pressed="false" aria-sort="none">
+      <span><%= labels[col] %></span>
+      <i class="bi bi-arrow-down-up" aria-hidden="true"></i>
+    </button>
+  <% }) %>
+</div>
