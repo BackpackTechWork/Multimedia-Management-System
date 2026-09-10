@@ -237,7 +237,7 @@ async function streamFetch(url, options, active, maxAttempts = 6) {
 }
 
 async function streamUploadInWorker(payload, active) {
-  const { file, uploadId, filename, folderId, fileSize, totalChunks, chunkSize, isNewUpload, csrfToken, deferStats } = payload;
+  const { file, uploadId, filename, folderId, fileSize, totalChunks, chunkSize, isNewUpload, csrfToken, deferStats, replaceFileId } = payload;
   try {
     let status = { completed: false, processing: false, uploadedChunks: [] };
     if (!isNewUpload) {
@@ -312,7 +312,7 @@ async function streamUploadInWorker(payload, active) {
     const completeResponse = await streamFetch('/api/upload/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-      body: JSON.stringify({ uploadId, totalChunks, filename, fileSize, folderId, deferStats })
+      body: JSON.stringify({ uploadId, totalChunks, filename, fileSize, folderId, deferStats, replaceFileId })
     }, active);
     if (!completeResponse.ok) {
       const error = await completeResponse.json().catch(() => ({}));

@@ -1555,6 +1555,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('submit', event => {
     if (!hasRefreshSensitiveUploads()) return;
+    // Dialog submissions only close the dialog; they do not leave the page.
+    const method = event.submitter?.getAttribute('formmethod') ?? event.target.getAttribute('method');
+    if (method?.toLowerCase() === 'dialog' && event.target.closest('dialog')) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     explainBlockedNavigation();
@@ -2924,6 +2927,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function uploadFileInChunks(file, folderId, onProgress, { deferStats = false } = {}) {
     const resolvedFolderId = folderId !== undefined ? folderId : (window.getCurrentFolderId ? window.getCurrentFolderId() : '');
+    const replaceFileId = await window.resolveUploadConflict(file.name, '/api/upload/conflict', resolvedFolderId, csrfToken, file);
     const { uploadId, chunkSize, isNewUpload } = getOrCreateUploadIdentity(file, resolvedFolderId);
     const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
     activeUploadIds.add(uploadId);
@@ -2948,7 +2952,8 @@ document.addEventListener('DOMContentLoaded', () => {
           chunkSize,
           isNewUpload,
           csrfToken,
-          deferStats
+          deferStats,
+          replaceFileId
         }, percent => {
           updatePendingUploadProgress(uploadId, percent);
           if (onProgress) onProgress(percent);
@@ -3042,7 +3047,8 @@ document.addEventListener('DOMContentLoaded', () => {
           filename: file.name,
           fileSize: file.size,
           folderId: resolvedFolderId,
-          deferStats
+          deferStats,
+          replaceFileId
         })
       });
 

@@ -79,7 +79,7 @@
              and paired actions. Preserve Harbor Drive's teal and workhorse typography. */ %>
       <section class="shared-document" aria-labelledby="shared-file-name">
         <p class="shared-document-label">Shared file</p>
-        <i class="bi <%= iconClass %> shared-document-icon" aria-hidden="true"></i>
+        <div class="shared-document-preview" data-preview-source="/preview/stream/<%= file.id %>?shareToken=<%= encodeURIComponent(token) %>" data-preview-name="<%= file.originalName %>" data-preview-mime="<%= file.mimeType %>" data-preview-size="<%= file.size %>"><span class="file-preview-fallback"><%= (file.extension || 'file').toUpperCase() %></span></div>
         <h1 id="shared-file-name"><%= file.originalName %></h1>
         <p class="shared-document-summary"><%= (file.extension || 'file').toUpperCase() %><span aria-hidden="true"> &middot; </span><%= formatBytes(file.size) %></p>
         <div class="shared-document-actions">
@@ -190,12 +190,7 @@
               %>
               <div class="share-item-card share-file-card group cursor-pointer select-none" tabindex="0" role="group" aria-label="<%= f.originalName %>" data-file-id="<%= f.id %>" data-preview-url="/preview/<%= previewRouteFor(f) %>/<%= f.id %>?shareToken=<%= encodeURIComponent(token) %>">
                 <label class="share-file-check"><input type="checkbox" name="fileIds" value="<%= f.id %>" form="share-selection-toolbar" aria-label="Select <%= f.originalName %>"></label>
-                <div class="share-item-preview h-28 w-full overflow-hidden shadow-inner border border-gray-100">
-                  <% if (f.mimeType.startsWith('image/')) { %>
-                    <img src="/share/<%= token %>/download?fileId=<%= f.id %>" alt="<%= f.originalName %>" class="w-full h-full object-cover" loading="lazy">
-                  <% } else { %>
-                    <i class="bi <%= fileIconClass %> text-5xl transition-transform group-hover:scale-105"></i>
-                  <% } %>
+                <div class="share-item-preview h-28 w-full overflow-hidden shadow-inner border border-gray-100" data-preview-source="/preview/stream/<%= f.id %>?shareToken=<%= encodeURIComponent(token) %>" data-preview-name="<%= f.originalName %>" data-preview-mime="<%= f.mimeType %>" data-preview-size="<%= f.size %>"><span class="file-preview-fallback"><%= f.extension.toUpperCase() %></span>
                 </div>
                 <div class="flex items-center justify-between gap-2 min-w-0 mt-3">
                   <div class="min-w-0">
@@ -481,7 +476,10 @@
       }
 
       // XHR upload single file function
-      function uploadSingleFile(file, folderId, onProgress, { deferStats = false, attempt = 1 } = {}) {
+      async function uploadSingleFile(file, folderId, onProgress, { deferStats = false, attempt = 1, replaceFileId } = {}) {
+        if (attempt === 1) {
+          replaceFileId = await window.resolveUploadConflict(file.name, '/share/<%= token %>/upload', folderId, undefined, file);
+        }
         return new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open('POST', '/share/<%= token %>/upload');
@@ -503,7 +501,7 @@
                 ? retryAfter * 1000
                 : Math.min(30000, 1500 * attempt);
               setTimeout(() => {
-                uploadSingleFile(file, folderId, onProgress, { deferStats, attempt: attempt + 1 }).then(resolve, reject);
+                uploadSingleFile(file, folderId, onProgress, { deferStats, attempt: attempt + 1, replaceFileId }).then(resolve, reject);
               }, retryDelay);
             } else {
               reject(new Error(`Upload failed with status ${xhr.status}`));
@@ -518,6 +516,7 @@
           formData.append('file', file);
           formData.append('folderId', folderId || '');
           formData.append('deferStats', deferStats ? 'true' : 'false');
+          if (replaceFileId) formData.append('replaceFileId', replaceFileId);
           
           xhr.send(formData);
         });
@@ -534,7 +533,7 @@
         });
         if (res.status === 429 && attempt < 5) {
           await wait(getRetryDelay(res, attempt));
-          return createFolderOnServer(name, parentId, { deferStats, attempt: attempt + 1 });
+          return createFolderOnServer(name, parentId, { deferStats, attempt: attempt + 1, replaceFileId });
         }
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));

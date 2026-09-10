@@ -1,3 +1,4 @@
+const uploadConflictService = require('../services/UploadConflictService');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
@@ -407,7 +408,7 @@ class ShareController {
       if (share.passwordHash && (!req.session.sharedAccess || !req.session.sharedAccess[token])) {
         return res.status(403).send('Enter the share password before uploading.');
       }
-      if (!req.file) {
+      if (!req.file && req.body.checkOnly !== 'true') {
         return res.status(400).send('Choose a file to upload.');
       }
 
@@ -417,20 +418,21 @@ class ShareController {
         return res.status(400).send('Invalid shared folder destination.');
       }
 
-      const saved = await storageService.saveUploadedBuffer(rootFolder.userId, req.file.originalname, req.file.buffer);
-      const mimeType = req.file.mimetype || require('mime-types').lookup(req.file.originalname) || 'application/octet-stream';
-      const ext = path.extname(req.file.originalname).substring(1).toLowerCase();
-      const fileId = await fileRepository.createFile(
-        rootFolder.userId,
-        targetFolder.id,
-        saved.filename,
-        req.file.originalname,
-        ext,
-        mimeType,
-        saved.size,
-        saved.path,
-        saved.checksum
-      );
+      const name = req.file?.originalname || req.body.filename;
+      if (typeof name !== 'string' || !name || name.length > 255) return res.status(400).json({ error: 'Invalid filename' });
+      if (req.body.checkOnly === 'true') {
+        return res.json(await uploadConflictService.check(rootFolder.userId, targetFolder.id, name));
+      }
+      const saved = await storageService.saveUploadedBuffer(rootFolder.userId, name, req.file.buffer);
+      const mimeType = req.file.mimetype || require('mime-types').lookup(name) || 'application/octet-stream';
+      let fileId;
+      try {
+        fileId = await uploadConflictService.save({ ownerId: rootFolder.userId, folderId: targetFolder.id,
+          name, saved, mimeType, replaceFileId: req.body.replaceFileId, uploadedBy: req.session.userId });
+      } catch (err) {
+        await storageService.deleteDiskFile(saved.path).catch(() => {});
+        throw err;
+      }
 
       if (!deferStats) {
         await driveService.updateStorageStats(rootFolder.userId).catch(err => {

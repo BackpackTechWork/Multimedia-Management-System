@@ -1,3 +1,4 @@
+const uploadConflictService = require('../services/UploadConflictService');
 const fs = require('fs');
 const path = require('path');
 const { db } = require('../config/db');
@@ -60,6 +61,7 @@ class DriveController {
       'checkChunkStatus',
       'uploadChunk',
       'completeUpload',
+      'checkUploadConflict',
       'refreshStorageStats',
       'cancelUpload',
       'listVersions',
@@ -680,8 +682,25 @@ class DriveController {
     }
   }
 
+  async checkUploadConflict(req, res) {
+    try {
+      const { filename, folderId } = req.body;
+      if (typeof filename !== 'string' || !filename || filename.length > 255) {
+        return res.status(400).json({ error: 'Invalid filename' });
+      }
+      let ownerId = req.session.userId;
+      const destination = folderId ? Number(folderId) : null;
+      if (destination) {
+        const folder = await folderRepository.findById(destination);
+        if (!(await this.canEditFolder(req, folder))) return res.status(404).json({ error: 'Destination folder not found' });
+        ownerId = folder.userId;
+      }
+      res.json(await uploadConflictService.check(ownerId, destination, filename));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  }
+
   async completeUpload(req, res) {
-    const { uploadId, totalChunks, filename, fileSize, folderId, deferStats } = req.body;
+    const { uploadId, totalChunks, filename, fileSize, folderId, deferStats, replaceFileId } = req.body;
     const userId = req.session.userId;
 
     if (!uploadId || !totalChunks || !filename) {
@@ -761,6 +780,7 @@ class DriveController {
           filename,
           fileSize: parsedFileSize,
           totalChunks: parsedTotalChunks,
+          replaceFileId: replaceFileId ? Number(replaceFileId) : null,
           deferStats: Boolean(deferStats)
         });
       } catch (err) {

@@ -48,8 +48,9 @@ const helmetConfig = helmet({
       ], // Cloudflare injects its Web Analytics beacon when Browser Insights is enabled.
       connectSrc: ["'self'", "https://cloudflareinsights.com"],
       styleSrc: ["'self'", "'unsafe-inline'"], // unsafe-inline needed for inline styling/attributes
-      imgSrc: ["'self'", "data:"], // data: needed for SVG previews
+      imgSrc: ["'self'", "data:", "blob:"], // data: needed for SVG previews
       fontSrc: ["'self'", "data:"], // data: needed for base64 encoded woff/woff2 fonts
+      mediaSrc: ["'self'", "blob:"],
       objectSrc: ["'self'"], // needed for PDF embed iframe/object
       frameSrc: ["'self'"],
       workerSrc: ["'self'", "blob:"], // blob: needed for web workers (e.g., PDF.js worker)

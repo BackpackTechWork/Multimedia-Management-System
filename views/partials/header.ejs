@@ -28,3 +28,6 @@
 </head>
 <body class="bg-gray-50 text-gray-800 antialiased min-h-screen flex flex-col">
   <%- include('alert-modal') %>
+  <link rel="stylesheet" href="/css/file-previews.css?v=<%= encodeURIComponent(locals.assetVersion || '') %>">
+  <script src="/js/file-previews.js?v=<%= encodeURIComponent(locals.assetVersion || '') %>" defer></script>
+  <%- include('upload-conflict') %>

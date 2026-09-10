@@ -1,0 +1,64 @@
+<dialog id="upload-conflict-dialog" aria-labelledby="upload-conflict-title" aria-describedby="upload-conflict-description" class="rounded-xl p-6 bg-white text-gray-900 shadow-xl">
+  <h2 id="upload-conflict-title" class="text-lg font-semibold mb-2">File already exists</h2>
+  <p id="upload-conflict-description" class="text-sm text-gray-600 mb-6" style="overflow-wrap: anywhere;"></p>
+  <div class="upload-comparison">
+    <section><h3>Current file</h3><div id="upload-current-preview"></div><p id="upload-current-details" class="upload-comparison-details"></p></section>
+    <section><h3>New upload</h3><div id="upload-new-preview"></div><p id="upload-new-details" class="upload-comparison-details"></p></section>
+  </div>
+  <form method="dialog" class="flex flex-wrap justify-end gap-3">
+    <button value="cancel" class="px-4 py-2 rounded-lg border border-gray-300">Cancel</button>
+    <button value="replace" class="px-4 py-2 rounded-lg border border-gray-300">Replace</button>
+    <button value="copy" autofocus class="px-4 py-2 rounded-lg bg-brand-teal text-white">Add as new</button>
+  </form>
+</dialog>
+<script>
+(() => {
+  const dialog = document.getElementById('upload-conflict-dialog');
+  let pending = Promise.resolve();
+  window.resolveUploadConflict = (filename, endpoint, folderId, csrfToken, localFile) => {
+    const task = pending.then(async () => {
+      const body = new FormData();
+      body.append('filename', filename);
+      body.append('folderId', folderId || '');
+      body.append('checkOnly', 'true');
+      const shared = endpoint.startsWith('/share/');
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { Accept: 'application/json', ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+          ...(!shared ? { 'Content-Type': 'application/json' } : {}) },
+        body: shared ? body : JSON.stringify({ filename, folderId })
+      });
+      if (!response.ok) throw new Error('Could not check for an existing file. Please retry the upload.');
+      const result = await response.json();
+      if (!result.conflict) return null;
+      document.getElementById('upload-conflict-description').textContent =
+        `"${filename}" already exists in this folder. Replace it with this upload, or add a new file named as a copy.`;
+      const existing = result.file || { id: result.replaceFileId, name: filename };
+      const shareToken = shared ? endpoint.split('/')[2] : '';
+      const url = `/preview/stream/${existing.id}${shareToken ? `?shareToken=${shareToken}` : ''}`;
+      const previews = [];
+      if (window.renderFilePreview) {
+        previews.push(window.renderFilePreview(document.getElementById('upload-current-preview'), { ...existing, url }, { interactive: true }));
+        previews.push(window.renderFilePreview(document.getElementById('upload-new-preview'), {
+          name: filename, mimeType: localFile?.type, size: localFile?.size, blob: localFile
+        }, { interactive: true }));
+      }
+      const details = (name, size) => `${name} - ${Number.isFinite(size) ? new Intl.NumberFormat().format(size) + ' bytes' : 'Size unavailable'}`;
+      document.getElementById('upload-current-details').textContent = details(filename, existing.size);
+      document.getElementById('upload-new-details').textContent = details(filename, localFile?.size);
+      const previousFocus = document.activeElement;
+      dialog.returnValue = 'cancel';
+      const choice = await new Promise(resolve => {
+        dialog.addEventListener('close', () => resolve(dialog.returnValue), { once: true });
+        dialog.showModal();
+      });
+      previews.forEach(preview => preview.dispose());
+      previousFocus?.focus();
+      if (choice !== 'replace' && choice !== 'copy') throw new Error('Upload cancelled');
+      return choice === 'replace' ? result.replaceFileId : null;
+    });
+    pending = task.catch(() => {});
+    return task;
+  };
+})();
+</script>

@@ -1,3 +1,4 @@
+const uploadConflictService = require('./UploadConflictService');
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
@@ -116,7 +117,7 @@ class QueueService {
     return finalization;
   }
 
-  async performUploadFinalizeJob({ uploadId, userId, ownerId, folderId, filename, fileSize, totalChunks, deferStats }) {
+  async performUploadFinalizeJob({ uploadId, userId, ownerId, folderId, filename, fileSize, totalChunks, deferStats, replaceFileId }) {
     const existing = await storageService.getUploadReceipt(uploadId);
     if (existing?.state === 'complete' && existing.fileId) return;
 
@@ -146,17 +147,9 @@ class QueueService {
 
       const mimeType = require('mime-types').lookup(filename) || 'application/octet-stream';
       const ext = path.extname(filename).substring(1).toLowerCase();
-      const fileId = await fileRepository.createFile(
-        Number(ownerId),
-        folderId ? Number(folderId) : null,
-        result.filename,
-        filename,
-        ext,
-        mimeType,
-        result.size,
-        result.path,
-        result.checksum
-      );
+      const fileId = await uploadConflictService.save({ ownerId: Number(ownerId),
+        folderId: folderId ? Number(folderId) : null, name: filename, saved: result,
+        mimeType, replaceFileId, uploadedBy: Number(userId) });
       fileCreated = true;
 
       if (await this.destinationFolderUnavailable(folderId, ownerId)) {
