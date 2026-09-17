@@ -1,6 +1,7 @@
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+const fs = require('fs');
 const compression = require('compression');
 const dotenv = require('dotenv');
 
@@ -15,13 +16,38 @@ const adminSeedService = require('./services/AdminSeedService');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || 'localhost';
-const assetVersion = process.env.ASSET_VERSION || Date.now().toString(36);
+const isProduction = process.env.NODE_ENV === 'production';
+
+function latestMtimeMs(targetPath) {
+  try {
+    const stats = fs.statSync(targetPath);
+    if (!stats.isDirectory()) return stats.mtimeMs;
+    return fs.readdirSync(targetPath).reduce((latest, name) => {
+      return Math.max(latest, latestMtimeMs(path.join(targetPath, name)));
+    }, 0);
+  } catch {
+    return 0;
+  }
+}
+
+// In development, bust CSS/JS caches whenever public assets change (e.g. after build:css).
+// In production, keep a stable boot-time version unless ASSET_VERSION is set.
+function resolveAssetVersion() {
+  if (process.env.ASSET_VERSION) return process.env.ASSET_VERSION;
+  if (isProduction) return Date.now().toString(36);
+  const latest = Math.max(
+    latestMtimeMs(path.join(__dirname, 'public', 'css')),
+    latestMtimeMs(path.join(__dirname, 'public', 'js')),
+    latestMtimeMs(path.join(__dirname, 'public', 'sw.js'))
+  );
+  return String(Math.floor(latest) || Date.now());
+}
 
 const trustProxy = process.env.TRUST_PROXY || 'loopback';
 app.set('trust proxy', trustProxy);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.locals.assetVersion = assetVersion;
+app.locals.assetVersion = resolveAssetVersion();
 
 app.use(compression({
   filter: (req, res) => {
@@ -77,6 +103,9 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
+  if (!isProduction && !process.env.ASSET_VERSION) {
+    res.locals.assetVersion = resolveAssetVersion();
+  }
   res.locals.userId = req.session?.userId || null;
   res.locals.userName = req.session?.userName || null;
   res.locals.userEmail = req.session?.userEmail || null;

@@ -6,8 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
+    "dev:css": "node scripts/watch-css.js",
     "build:css": "tailwindcss -i src/css/auth.css -o public/css/auth.css --minify && tailwindcss -i src/css/drive.css -o public/css/drive.css --minify && tailwindcss -i src/css/preview.css -o public/css/preview.css --minify",
-    "watch:css": "tailwindcss -i src/css/drive.css -o public/css/drive.css --watch",
+    "watch:css": "node scripts/watch-css.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",

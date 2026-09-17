@@ -629,18 +629,40 @@ document.addEventListener('DOMContentLoaded', () => {
     instantTooltip.classList.add('hidden');
   }
 
-  document.querySelectorAll('.drive-action-bar [data-tooltip]').forEach(button => {
-    button.addEventListener('mouseenter', () => positionInstantTooltip(button));
-    button.addEventListener('focus', () => positionInstantTooltip(button));
-    button.addEventListener('mouseleave', hideInstantTooltip);
-    button.addEventListener('blur', hideInstantTooltip);
-    button.addEventListener('click', hideInstantTooltip);
+  document.addEventListener('pointerover', (e) => {
+    const target = e.target.closest('[data-tooltip]');
+    if (!target) return;
+    if (e.relatedTarget && target.contains(e.relatedTarget)) return;
+    positionInstantTooltip(target);
+  });
+
+  document.addEventListener('pointerout', (e) => {
+    const target = e.target.closest('[data-tooltip]');
+    if (!target) return;
+    if (e.relatedTarget && target.contains(e.relatedTarget)) return;
+    hideInstantTooltip();
+  });
+
+  document.addEventListener('focusin', (e) => {
+    const target = e.target.closest('[data-tooltip]');
+    if (target) positionInstantTooltip(target);
+  });
+
+  document.addEventListener('focusout', (e) => {
+    const target = e.target.closest('[data-tooltip]');
+    if (!target) return;
+    if (e.relatedTarget && target.contains(e.relatedTarget)) return;
+    hideInstantTooltip();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-tooltip]')) hideInstantTooltip();
   });
 
   // Custom Context Menu Overlay
   const contextMenu = document.createElement('div');
   contextMenu.id = 'custom-context-menu';
-  contextMenu.className = 'fixed bg-white border border-gray-200 rounded-xl shadow-xl py-1 w-48 z-[9999] hidden select-none text-gray-700 text-xs font-semibold transition-all duration-100';
+  contextMenu.className = 'fixed bg-white border border-gray-200 rounded-xl shadow-xl py-1 w-56 z-[9999] hidden select-none text-gray-700 text-xs font-semibold transition-all duration-100';
   contextMenu.innerHTML = `
     <button id="context-open" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
       <i class="bi bi-folder2-open text-gray-500 text-sm"></i>
@@ -654,14 +676,17 @@ document.addEventListener('DOMContentLoaded', () => {
     <button id="context-rename" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
       <i class="bi bi-pencil text-gray-500 text-sm"></i>
       <span>Rename</span>
+      <span class="context-shortcut ml-auto">F2</span>
     </button>
     <button id="context-copy-clipboard" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
       <i class="bi bi-copy text-gray-500 text-sm"></i>
       <span>Copy</span>
+      <span class="context-shortcut ml-auto">Ctrl+C</span>
     </button>
     <button id="context-cut-clipboard" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
       <i class="bi bi-scissors text-gray-500 text-sm"></i>
       <span>Cut</span>
+      <span class="context-shortcut ml-auto">Ctrl+X</span>
     </button>
     <button id="context-copy" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
       <i class="bi bi-file-earmark-medical text-gray-500 text-sm"></i>
@@ -671,19 +696,32 @@ document.addEventListener('DOMContentLoaded', () => {
     <button id="context-share" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
       <i class="bi bi-share text-gray-500 text-sm"></i>
       <span>Share</span>
+      <span class="context-shortcut ml-auto">Ctrl+Alt+A</span>
+    </button>
+    <button id="context-copy-link" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150 hidden">
+      <i class="bi bi-link-45deg text-gray-500 text-sm"></i>
+      <span>Copy link</span>
     </button>
     <button id="context-move" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
       <i class="bi bi-folder-symlink text-gray-500 text-sm"></i>
       <span>Move to</span>
+      <span class="context-shortcut ml-auto">Ctrl+Alt+M</span>
     </button>
     <button id="context-properties" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150">
       <i class="bi bi-info-circle text-gray-500 text-sm"></i>
-      <span>Properties</span>
+      <span>Details</span>
+      <span class="context-shortcut ml-auto">Alt+V D</span>
+    </button>
+    <button id="context-versions" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 flex items-center gap-2 transition duration-150 hidden">
+      <i class="bi bi-clock-history text-gray-500 text-sm"></i>
+      <span>Version history</span>
+      <span class="context-shortcut ml-auto">Alt+V A</span>
     </button>
     <div class="h-px bg-gray-200 my-1"></div>
     <button id="context-delete" class="w-full text-left px-3 py-1.5 hover:bg-gray-100 text-red-600 flex items-center gap-2 transition duration-150">
       <i class="bi bi-trash text-red-500 text-sm"></i>
       <span>${isTrashTab ? 'Delete permanently' : 'Move to bin'}</span>
+      <span class="context-shortcut ml-auto text-red-400">Del</span>
     </button>
   `;
   document.body.appendChild(contextMenu);
@@ -889,6 +927,13 @@ document.addEventListener('DOMContentLoaded', () => {
         selectItem(item, false);
       }
 
+      const copyLinkBtn = document.getElementById('context-copy-link');
+      const versionsBtn = document.getElementById('context-versions');
+      const shareToken = selectedItems.length === 1 ? (selectedItems[0].dataset.shareToken || '') : '';
+      const isSingleFile = selectedItems.length === 1 && selectedItems[0].dataset.type === 'file';
+      if (copyLinkBtn) copyLinkBtn.classList.toggle('hidden', !shareToken);
+      if (versionsBtn) versionsBtn.classList.toggle('hidden', !isSingleFile);
+
       positionContextMenu(contextMenu, e.clientX, e.clientY);
     });
 
@@ -1062,6 +1107,34 @@ document.addEventListener('DOMContentLoaded', () => {
     contextMenu.classList.add('hidden');
   });
 
+  document.getElementById('context-copy-link')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    contextMenu.classList.add('hidden');
+    const item = selectedItems.length === 1 ? selectedItems[0] : null;
+    const token = item?.dataset.shareToken;
+    if (!token) {
+      showDriveToast?.('No share link for this item', 'warning');
+      return;
+    }
+
+    const link = `${window.location.origin}/share/${token}`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link);
+      } else {
+        const input = document.createElement('input');
+        input.value = link;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        input.remove();
+      }
+      showDriveToast?.('Link copied', 'success');
+    } catch {
+      showDriveToast?.('Unable to copy link', 'error');
+    }
+  });
+
   document.getElementById('context-move').addEventListener('click', (e) => {
     e.stopPropagation();
     const btn = document.getElementById('detail-move-btn');
@@ -1075,6 +1148,12 @@ document.addEventListener('DOMContentLoaded', () => {
       detailsAside.classList.remove('details-aside--hidden');
     }
     contextMenu.classList.add('hidden');
+  });
+
+  document.getElementById('context-versions')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    contextMenu.classList.add('hidden');
+    document.getElementById('detail-versions-btn')?.click();
   });
 
   document.getElementById('context-delete').addEventListener('click', (e) => {

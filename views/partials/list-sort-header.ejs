@@ -6,7 +6,7 @@
 <div class="<%= headerClass %>" role="row">
   <% columns.forEach(col => { %>
     <button type="button" class="list-sort-btn" data-sort="<%= col %>" aria-pressed="false" aria-sort="none">
-      <span><%= labels[col] %></span>
+      <span class="normal-case"><%= labels[col] %></span>
       <i class="bi bi-arrow-down-up" aria-hidden="true"></i>
     </button>
   <% }) %>

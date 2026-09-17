@@ -82,8 +82,9 @@
       </div>
     </div>
 
-    <!-- Scrollable content area -->
-    <div id="items-grid-container" class="flex-1 min-h-0 overflow-y-auto p-6 relative">
+    <!-- Scrollable content area: padding lives on the inner wrap so sticky headers sit flush under the toolbar -->
+    <div id="items-grid-container" class="flex-1 min-h-0 overflow-y-auto relative">
+      <div class="p-6">
       
       <!-- Trash selection actions -->
       <% if (tab === 'trash') { %>
@@ -147,8 +148,10 @@
                     data-path="<%= folder.path || '' %>"
                     data-shared-scope="<%= folder.shareMeta.scope %>"
                     data-shared-role="<%= folder.shareMeta.linkRole || 'viewer' %>"
+                    data-share-token="<%= folder.shareMeta.token || '' %>"
                     data-updated="<%= new Date(folder.shareMeta.sharedAt || folder.createdAt).toLocaleDateString() %>"
                   >
+                    <% if (folder.shareMeta.token) { %><span class="share-indicator" data-tooltip="This item is shared" aria-label="This item is shared"></span><% } %>
                     <a
                       href="/folders/<%= folder.id %>"
                       class="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/95 text-gray-600 shadow-sm border border-gray-200 hover:text-brand-teal hover:border-brand-teal transition"
@@ -201,8 +204,10 @@
                     data-parent-id="<%= file.folderId || '' %>"
                     data-shared-scope="<%= file.shareMeta.scope %>"
                     data-shared-role="<%= file.shareMeta.linkRole || 'viewer' %>"
+                    data-share-token="<%= file.shareMeta.token || '' %>"
                     data-updated="<%= new Date(file.shareMeta.sharedAt || file.createdAt).toLocaleDateString() %>"
                   >
+                    <% if (file.shareMeta.token) { %><span class="share-indicator" data-tooltip="This item is shared" aria-label="This item is shared"></span><% } %>
                     <a
                       href="/preview/<%= sharedPreviewRoute %>/<%= file.id %>"
                       target="_blank"
@@ -242,8 +247,9 @@
       <!-- Grid of folders -->
       <% if (folders.length > 0) { %>
         <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 select-none">Folders</h4>
+        <div class="drive-list-stack mb-8">
         <%- include('../partials/list-sort-header', { headerClass: 'drive-list-header', columns: ['name', 'modified', 'size'] }) %>
-        <div class="responsive-grid drive-items-group mb-8">
+        <div class="responsive-grid drive-items-group">
           <% folders.forEach(folder => { %>
             <div 
               class="grid-item file-card folder-card flex items-center gap-3 p-3.5 cursor-pointer relative"
@@ -255,8 +261,10 @@
               data-owner-id="<%= folder.userId %>"
               data-parent-id="<%= folder.parentId || '' %>"
               data-path="<%= folder.path || '' %>"
+              data-share-token="<%= folder.shareToken || '' %>"
               data-updated="<%= new Date(folder.createdAt).toLocaleDateString() %>"
             >
+              <% if (folder.shareToken) { %><span class="share-indicator" data-tooltip="This item is shared" aria-label="This item is shared"></span><% } %>
               <a
                 href="/folders/<%= folder.id %>"
                 class="absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/95 text-gray-600 shadow-sm border border-gray-200 hover:text-brand-teal hover:border-brand-teal transition"
@@ -278,11 +286,13 @@
             </div>
           <% }) %>
         </div>
+        </div>
       <% } %>
 
       <!-- Grid of files -->
       <% if (files.length > 0) { %>
         <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 select-none">Files</h4>
+        <div class="drive-list-stack">
         <%- include('../partials/list-sort-header', { headerClass: 'drive-list-header', columns: ['name', 'modified', 'size'] }) %>
         <div class="responsive-grid drive-items-group">
           <% files.forEach(file => { %>
@@ -311,8 +321,10 @@
               data-mime="<%= file.mimeType %>"
               data-ext="<%= file.extension %>"
               data-parent-id="<%= file.folderId || '' %>"
+              data-share-token="<%= file.shareToken || '' %>"
               data-updated="<%= new Date(file.createdAt).toLocaleDateString() %>"
             >
+              <% if (file.shareToken) { %><span class="share-indicator" data-tooltip="This item is shared" aria-label="This item is shared"></span><% } %>
               <a
                 href="/preview/<%= previewRoute %>/<%= file.id %>"
                 target="_blank"
@@ -337,9 +349,11 @@
             </div>
           <% }) %>
         </div>
+        </div>
       <% } %>
       <% } %>
 
+      </div>
     </div>
   </main>
 

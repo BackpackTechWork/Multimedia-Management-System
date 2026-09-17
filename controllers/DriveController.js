@@ -343,6 +343,21 @@ class DriveController {
         itemsList.files = filesJoin.map(r => r.files);
       }
 
+      if (tab !== 'shared' && tab !== 'trash') {
+        const { fileTokenById, folderTokenById } = await shareRepository.findShareTokensByItemIds(
+          (itemsList.files || []).map(file => file.id),
+          (itemsList.folders || []).map(folder => folder.id)
+        );
+        itemsList.files = (itemsList.files || []).map(file => ({
+          ...file,
+          shareToken: fileTokenById.get(Number(file.id)) || null
+        }));
+        itemsList.folders = (itemsList.folders || []).map(folder => ({
+          ...folder,
+          shareToken: folderTokenById.get(Number(folder.id)) || null
+        }));
+      }
+
       const [stats, userStarred, userRootFolders, allUserFolders, shareUsers] = await Promise.all([
         statsPromise,
         db.select().from(favorites).where(eq(favorites.userId, userId)),

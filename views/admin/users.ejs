@@ -2,10 +2,10 @@
 
 <%- include('../partials/navbar') %>
 
-<div class="flex-1 flex overflow-hidden">
+<div class="flex-1 flex min-h-0 overflow-hidden">
   <%- include('../partials/sidebar') %>
 
-  <main class="flex-1 bg-[#F8F9FA] overflow-y-auto p-6">
+  <main class="flex-1 min-h-0 bg-[#F8F9FA] overflow-y-auto p-6">
     <div class="max-w-6xl mx-auto flex flex-col gap-6">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -25,49 +25,48 @@
         <div class="bg-green-50 border border-brand-teal text-green-700 px-4 py-3 rounded-lg text-sm"><%= success %></div>
       <% } %>
 
-      <section class="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+      <section class="bg-white border border-gray-200 rounded-lg">
+        <!-- border-separate is required: Tailwind's border-collapse breaks position:sticky on <th> -->
+        <table class="w-full text-sm border-separate border-spacing-0">
+          <thead class="bg-gray-50 text-gray-500 text-xs">
+            <tr>
+              <th class="text-left px-4 py-3 sticky top-0 z-20 bg-gray-50 border-b border-gray-200">Name</th>
+              <th class="text-left px-4 py-3 sticky top-0 z-20 bg-gray-50 border-b border-gray-200">Email</th>
+              <th class="text-left px-4 py-3 sticky top-0 z-20 bg-gray-50 border-b border-gray-200">Role</th>
+              <th class="text-left px-4 py-3 sticky top-0 z-20 bg-gray-50 border-b border-gray-200">Created</th>
+              <th class="text-right px-4 py-3 sticky top-0 z-20 bg-gray-50 border-b border-gray-200">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <% users.forEach(user => { %>
               <tr>
-                <th class="text-left px-4 py-3">Name</th>
-                <th class="text-left px-4 py-3">Email</th>
-                <th class="text-left px-4 py-3">Role</th>
-                <th class="text-left px-4 py-3">Created</th>
-                <th class="text-right px-4 py-3">Actions</th>
+                <td class="px-4 py-3 font-semibold text-gray-800"><%= user.name %></td>
+                <td class="px-4 py-3 text-gray-600"><%= user.email %></td>
+                <td class="px-4 py-3">
+                  <span class="inline-flex px-2 py-1 rounded-md text-xs font-semibold <%= user.role === 'super_admin' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600' %>">
+                    <%= user.role === 'super_admin' ? 'Super Admin' : 'User' %>
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-gray-500"><%= new Date(user.createdAt).toLocaleDateString() %></td>
+                <td class="px-4 py-3 text-right">
+                  <a href="/admin/users/<%= user.id %>/edit" class="inline-flex items-center gap-1 text-brand-teal hover:text-brand-teal-dark font-semibold mr-3">
+                    <i class="bi bi-pencil-square"></i>
+                    <span>Edit</span>
+                  </a>
+                  <% if (user.id !== locals.userId) { %>
+                    <form action="/admin/users/delete" method="POST" class="inline" onsubmit="return confirm('Delete this user account? Files owned by this user may become orphaned unless they are deleted separately.');">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <input type="hidden" name="userId" value="<%= user.id %>">
+                      <button type="submit" class="text-red-600 hover:text-red-700 font-semibold">Delete</button>
+                    </form>
+                  <% } else { %>
+                    <span class="text-gray-400">Current user</span>
+                  <% } %>
+                </td>
               </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-              <% users.forEach(user => { %>
-                <tr>
-                  <td class="px-4 py-3 font-semibold text-gray-800"><%= user.name %></td>
-                  <td class="px-4 py-3 text-gray-600"><%= user.email %></td>
-                  <td class="px-4 py-3">
-                    <span class="inline-flex px-2 py-1 rounded-md text-xs font-semibold <%= user.role === 'super_admin' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600' %>">
-                      <%= user.role === 'super_admin' ? 'Super Admin' : 'User' %>
-                    </span>
-                  </td>
-                  <td class="px-4 py-3 text-gray-500"><%= new Date(user.createdAt).toLocaleDateString() %></td>
-                  <td class="px-4 py-3 text-right">
-                    <a href="/admin/users/<%= user.id %>/edit" class="inline-flex items-center gap-1 text-brand-teal hover:text-brand-teal-dark font-semibold mr-3">
-                      <i class="bi bi-pencil-square"></i>
-                      <span>Edit</span>
-                    </a>
-                    <% if (user.id !== locals.userId) { %>
-                      <form action="/admin/users/delete" method="POST" class="inline" onsubmit="return confirm('Delete this user account? Files owned by this user may become orphaned unless they are deleted separately.');">
-                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                        <input type="hidden" name="userId" value="<%= user.id %>">
-                        <button type="submit" class="text-red-600 hover:text-red-700 font-semibold">Delete</button>
-                      </form>
-                    <% } else { %>
-                      <span class="text-gray-400">Current user</span>
-                    <% } %>
-                  </td>
-                </tr>
-              <% }) %>
-            </tbody>
-          </table>
-        </div>
+            <% }) %>
+          </tbody>
+        </table>
       </section>
     </div>
   </main>

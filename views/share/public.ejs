@@ -185,6 +185,7 @@
             <h2 class="text-sm font-bold text-gray-700">Folders</h2>
             <span class="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full"><%= contents.folders.length %> total</span>
           </div>
+          <div class="share-list-stack">
           <%- include('../partials/list-sort-header', { headerClass: 'share-list-header', columns: ['name', 'size'] }) %>
           <div class="share-card-grid">
             <% contents.folders.forEach(sub => { %>
@@ -199,6 +200,7 @@
               </div>
             <% }) %>
           </div>
+          </div>
         </section>
       <% } %>
 
@@ -208,6 +210,7 @@
             <h2 class="text-sm font-bold text-gray-700">Files</h2>
             <span class="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full"><%= contents.files.length %> total</span>
           </div>
+          <div class="share-list-stack">
           <%- include('../partials/list-sort-header', { headerClass: 'share-list-header', columns: ['name', 'size'] }) %>
           <div class="share-card-grid">
             <% contents.files.forEach(f => { %>
@@ -246,6 +249,7 @@
                 </div>
               </div>
             <% }) %>
+          </div>
           </div>
         </section>
       <% } %>

@@ -69,6 +69,35 @@ class ShareRepository {
     return results[0] || null;
   }
 
+  async findShareTokensByItemIds(fileIds = [], folderIds = []) {
+    const fileTokenById = new Map();
+    const folderTokenById = new Map();
+    const uniqueFileIds = [...new Set(fileIds.map(Number).filter(Number.isInteger))];
+    const uniqueFolderIds = [...new Set(folderIds.map(Number).filter(Number.isInteger))];
+
+    if (uniqueFileIds.length > 0) {
+      const rows = await db.select({
+        fileId: shares.fileId,
+        token: shares.token
+      }).from(shares).where(inArray(shares.fileId, uniqueFileIds));
+      rows.forEach(row => {
+        if (row.fileId != null) fileTokenById.set(Number(row.fileId), row.token);
+      });
+    }
+
+    if (uniqueFolderIds.length > 0) {
+      const rows = await db.select({
+        folderId: shares.folderId,
+        token: shares.token
+      }).from(shares).where(inArray(shares.folderId, uniqueFolderIds));
+      rows.forEach(row => {
+        if (row.folderId != null) folderTokenById.set(Number(row.folderId), row.token);
+      });
+    }
+
+    return { fileTokenById, folderTokenById };
+  }
+
   async findShareRecipients(shareId) {
     const [rows] = await pool.query(`
       SELECT u.id, u.name, u.email

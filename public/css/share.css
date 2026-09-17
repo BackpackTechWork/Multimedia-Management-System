@@ -115,14 +115,25 @@
   font-weight: 600;
 }
 
+.share-layout-list .share-list-stack {
+  position: relative;
+}
+
 .share-layout-list .share-list-header {
   display: grid;
   grid-template-columns: minmax(12rem, 1fr) 7rem;
   gap: 1rem;
-  padding: 0 5.25rem .5rem 4.25rem;
+  padding: .5rem 5.25rem .5rem 4.25rem;
+  margin: 0 0 -1px;
   color: #6b7280;
   font-size: .75rem;
   font-weight: 600;
+  text-transform: none;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .share-public .list-sort-btn {
@@ -223,7 +234,7 @@
 @media (max-width: 720px) {
   .share-layout-list .share-list-header {
     grid-template-columns: minmax(0, 1fr);
-    padding: 0 4.5rem .5rem 4.25rem;
+    padding: .5rem 4.5rem .5rem 4.25rem;
   }
   .share-layout-list .share-list-header [data-sort="size"] { display: none; }
   .share-layout-list .share-item-card,

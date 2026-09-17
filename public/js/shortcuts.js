@@ -53,13 +53,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  let awaitingSequenceKey = false;
+  let sequencePrefix = null;
   let sequenceTimeoutId = null;
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       e.preventDefault();
-      awaitingSequenceKey = false;
+      sequencePrefix = null;
       clearTimeout(sequenceTimeoutId);
 
       const openModals = document.querySelectorAll('.fixed.inset-0:not(.hidden)');
@@ -87,13 +87,15 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (awaitingSequenceKey) {
+    if (sequencePrefix) {
       const key = e.key.toLowerCase();
-      if (['f', 'u', 'i'].includes(key)) {
+      const prefix = sequencePrefix;
+      sequencePrefix = null;
+      clearTimeout(sequenceTimeoutId);
+
+      if (prefix === 'c' && ['f', 'u', 'i'].includes(key)) {
         e.preventDefault();
         e.stopPropagation();
-        awaitingSequenceKey = false;
-        clearTimeout(sequenceTimeoutId);
 
         if (key === 'f') {
           const openModalBtn = document.getElementById('new-folder-modal-btn');
@@ -106,24 +108,61 @@ document.addEventListener('DOMContentLoaded', () => {
           if (folderUploadInput) folderUploadInput.click();
         }
         return;
-      } else {
-        awaitingSequenceKey = false;
-        clearTimeout(sequenceTimeoutId);
+      }
+
+      if (prefix === 'v' && key === 'd') {
+        e.preventDefault();
+        e.stopPropagation();
+        const detailsAside = document.getElementById('details-aside');
+        if (detailsAside) detailsAside.classList.remove('details-aside--hidden');
+        return;
+      }
+
+      if (prefix === 'v' && key === 'a') {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('detail-versions-btn')?.click();
+        return;
       }
     }
 
-    if (e.altKey && e.key.toLowerCase() === 'c') {
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'c') {
       e.preventDefault();
       e.stopPropagation();
-      awaitingSequenceKey = true;
+      sequencePrefix = 'c';
       clearTimeout(sequenceTimeoutId);
       sequenceTimeoutId = setTimeout(() => {
-        awaitingSequenceKey = false;
+        sequencePrefix = null;
+      }, 2000);
+      return;
+    }
+
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'v') {
+      e.preventDefault();
+      e.stopPropagation();
+      sequencePrefix = 'v';
+      clearTimeout(sequenceTimeoutId);
+      sequenceTimeoutId = setTimeout(() => {
+        sequencePrefix = null;
       }, 2000);
       return;
     }
 
     const selected = window.selectedItems ? window.selectedItems() : [];
+
+    if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('detail-share-btn')?.click();
+      return;
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'm') {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('detail-move-btn')?.click();
+      return;
+    }
 
     if (e.shiftKey && e.key.toUpperCase() === 'U') {
       e.preventDefault();
@@ -151,28 +190,28 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'a') {
       e.preventDefault();
       if (window.selectAllDriveItems) {
         window.selectAllDriveItems();
       }
     }
 
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'c') {
       if (selected.length > 0) {
         e.preventDefault();
         copySelection();
       }
     }
 
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'x') {
       if (selected.length > 0) {
         e.preventDefault();
         cutSelection();
       }
     }
 
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'v') {
       e.preventDefault();
       handlePaste();
     }
