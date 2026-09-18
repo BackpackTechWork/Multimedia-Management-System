@@ -18,6 +18,10 @@
   const streamUrl = `/preview/stream/${file.id}${previewAccessQuery || ''}`;
   const encodedStreamUrl = encodeURIComponent(streamUrl);
   const previewExt = (file.extension || '').toLowerCase();
+  const fileDownloadUrl = typeof downloadUrl === 'string' && downloadUrl
+    ? downloadUrl
+    : `/api/files/download/${file.id}`;
+  const canDownload = allowDownload !== false;
 %>
 
 <!-- Preview Header -->
@@ -33,12 +37,18 @@
     </div>
   </div>
   <div class="flex items-center gap-2">
-    <a 
-      href="/api/files/download/<%= file.id %>" 
-      class="bg-brand-teal text-white py-2 px-4 rounded-lg text-xs font-semibold hover:bg-brand-teal-dark shadow-sm transition flex items-center gap-1.5"
-    >
-      <i class="bi bi-download"></i> Download File
-    </a>
+    <% if (canDownload) { %>
+      <a 
+        href="<%= fileDownloadUrl %>" 
+        class="bg-brand-teal text-white py-2 px-4 rounded-lg text-xs font-semibold hover:bg-brand-teal-dark shadow-sm transition flex items-center gap-1.5"
+      >
+        <i class="bi bi-download"></i> Download File
+      </a>
+    <% } else { %>
+      <span class="bg-gray-100 text-gray-400 py-2 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-not-allowed" title="Downloads disabled by the owner">
+        <i class="bi bi-lock"></i> Download disabled
+      </span>
+    <% } %>
   </div>
 </header>
 
@@ -125,12 +135,18 @@
         <p class="text-xs text-gray-500 text-center mb-6 leading-relaxed">
           Legacy Word documents (.doc) cannot be previewed directly in the browser. Please download the file to view it.
         </p>
-        <a 
-          href="/api/files/download/<%= file.id %>" 
-          class="w-full bg-brand-teal text-white py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-brand-teal-dark shadow-sm transition flex items-center justify-center gap-1.5"
-        >
-          <i class="bi bi-download"></i> Download File
-        </a>
+        <% if (canDownload) { %>
+          <a 
+            href="<%= fileDownloadUrl %>" 
+            class="w-full bg-brand-teal text-white py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-brand-teal-dark shadow-sm transition flex items-center justify-center gap-1.5"
+          >
+            <i class="bi bi-download"></i> Download File
+          </a>
+        <% } else { %>
+          <span class="w-full bg-gray-100 text-gray-400 py-2.5 px-4 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 cursor-not-allowed" title="Downloads disabled by the owner">
+            <i class="bi bi-lock"></i> Download disabled
+          </span>
+        <% } %>
       </div>
     <% } %>
 
@@ -220,12 +236,18 @@
         Adobe design files are not safe to render directly in the browser. Download the original file to open it in the correct design application.
       </p>
       <div class="flex flex-col sm:flex-row gap-3 w-full">
-        <a 
-          href="/api/files/download/<%= file.id %>" 
-          class="flex-1 bg-brand-teal text-white py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-brand-teal-dark shadow-sm transition flex items-center justify-center gap-1.5"
-        >
-          <i class="bi bi-download"></i> Download File
-        </a>
+        <% if (canDownload) { %>
+          <a 
+            href="<%= fileDownloadUrl %>" 
+            class="flex-1 bg-brand-teal text-white py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-brand-teal-dark shadow-sm transition flex items-center justify-center gap-1.5"
+          >
+            <i class="bi bi-download"></i> Download File
+          </a>
+        <% } else { %>
+          <span class="flex-1 bg-gray-100 text-gray-400 py-2.5 px-4 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 cursor-not-allowed" title="Downloads disabled by the owner">
+            <i class="bi bi-lock"></i> Download disabled
+          </span>
+        <% } %>
         <% if (['ai', 'eps'].includes(previewExt)) { %>
           <button
             id="try-design-pdf-preview"
@@ -263,12 +285,18 @@
       <p class="text-xs text-gray-500 text-center mb-6 leading-relaxed">
         This file type is not previewed in the browser. Download the file to open it with a compatible application.
       </p>
-      <a 
-        href="/api/files/download/<%= file.id %>" 
-        class="w-full bg-brand-teal text-white py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-brand-teal-dark shadow-sm transition flex items-center justify-center gap-1.5"
-      >
-        <i class="bi bi-download"></i> Download File
-      </a>
+      <% if (canDownload) { %>
+        <a 
+          href="<%= fileDownloadUrl %>" 
+          class="w-full bg-brand-teal text-white py-2.5 px-4 rounded-lg text-sm font-semibold hover:bg-brand-teal-dark shadow-sm transition flex items-center justify-center gap-1.5"
+        >
+          <i class="bi bi-download"></i> Download File
+        </a>
+      <% } else { %>
+        <span class="w-full bg-gray-100 text-gray-400 py-2.5 px-4 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 cursor-not-allowed" title="Downloads disabled by the owner">
+          <i class="bi bi-lock"></i> Download disabled
+        </span>
+      <% } %>
     </div>
   <% } else if (type === 'zip') { %>
     <script src="/vendor/jszip/jszip.min.js"></script>

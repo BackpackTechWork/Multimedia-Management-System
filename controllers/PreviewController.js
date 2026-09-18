@@ -194,46 +194,66 @@ class PreviewController {
     return null;
   }
 
-  async getShareBackUrl(req, file) {
+  async resolveShareContext(req, file) {
     const token = req.query.shareToken;
-    if (!token) return '/';
+    const defaults = {
+      backUrl: '/',
+      downloadUrl: `/api/files/download/${file.id}`,
+      allowDownload: true,
+      shareToken: ''
+    };
+    if (!token) return defaults;
 
     const share = await shareRepository.findByToken(token);
     if (!share || (share.expiresAt && new Date(share.expiresAt) <= new Date())) {
-      return '/';
+      return defaults;
     }
+
+    const encodedToken = encodeURIComponent(token);
+    let backUrl = null;
 
     if (share.fileId && Number(share.fileId) === Number(file.id)) {
-      return `/share/${encodeURIComponent(token)}`;
-    }
-
-    if (share.folderId && file.folderId) {
+      backUrl = `/share/${encodedToken}`;
+    } else if (share.folderId && file.folderId) {
       const [sharedRoot, fileFolder] = await Promise.all([
         folderRepository.findById(share.folderId),
         folderRepository.findById(file.folderId)
       ]);
 
       if (sharedRoot && fileFolder && fileFolder.path.startsWith(sharedRoot.path)) {
-        return fileFolder.id === sharedRoot.id
-          ? `/share/${encodeURIComponent(token)}`
-          : `/share/${encodeURIComponent(token)}/folders/${fileFolder.id}`;
+        backUrl = fileFolder.id === sharedRoot.id
+          ? `/share/${encodedToken}`
+          : `/share/${encodedToken}/folders/${fileFolder.id}`;
       }
     }
 
-    return '/';
+    if (!backUrl) return defaults;
+
+    const downloadUrl = share.folderId
+      ? `/share/${encodedToken}/download?fileId=${file.id}`
+      : `/share/${encodedToken}/download`;
+
+    return {
+      backUrl,
+      downloadUrl,
+      allowDownload: share.allowDownload !== false,
+      shareToken: token
+    };
   }
 
   async renderPreview(req, res, type, file, content = null) {
-    const shareToken = req.query.shareToken || '';
+    const shareContext = await this.resolveShareContext(req, file);
+    const shareToken = shareContext.shareToken || req.query.shareToken || '';
     const previewAccessQuery = shareToken ? `?shareToken=${encodeURIComponent(shareToken)}` : '';
     const previewAccessParam = shareToken ? `shareToken=${encodeURIComponent(shareToken)}` : '';
-    const backUrl = await this.getShareBackUrl(req, file);
 
     return res.render('preview/index', {
       type,
       file,
       content,
-      backUrl,
+      backUrl: shareContext.backUrl,
+      downloadUrl: shareContext.downloadUrl,
+      allowDownload: shareContext.allowDownload,
       previewAccessQuery,
       previewAccessParam
     });

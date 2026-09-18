@@ -68,14 +68,22 @@ document.addEventListener('DOMContentLoaded', () => {
     update();
   });
   cards.forEach(card => {
+    const openTarget = () => card.dataset.openUrl || card.dataset.previewUrl || '';
     card.addEventListener('dblclick', event => {
-      if (!suppressClick && card.dataset.openUrl && !event.target.closest('a, button, input, label')) window.location.href = card.dataset.openUrl;
+      const targetUrl = openTarget();
+      if (!suppressClick && targetUrl && !event.target.closest('a, button, input, label')) {
+        window.location.href = targetUrl;
+      }
     });
     card.addEventListener('keydown', event => {
       if (event.target === card && (event.key === ' ' || event.key === 'Enter')) {
         event.preventDefault();
-        if (event.key === 'Enter' && card.dataset.openUrl) window.location.href = card.dataset.openUrl;
-        else card.click();
+        if (event.key === 'Enter') {
+          const targetUrl = openTarget();
+          if (targetUrl) window.location.href = targetUrl;
+        } else {
+          card.click();
+        }
       }
     });
     card.addEventListener('dragstart', event => event.preventDefault());

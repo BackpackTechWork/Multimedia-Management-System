@@ -20,7 +20,9 @@
     if (['xls', 'xlsx', 'csv', 'ods'].includes(extension)) return 'excel';
     if (['ppt', 'pptx'].includes(extension) || mimeType === 'application/vnd.ms-powerpoint' || mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') return 'presentation';
     if (extension === 'zip' || mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed') return 'zip';
-    return 'code';
+    if (['ai', 'eps', 'psd', 'psb', 'indd'].includes(extension)) return 'design';
+    if (['js', 'ts', 'tsx', 'jsx', 'html', 'htm', 'css', 'scss', 'less', 'json', 'xml', 'yaml', 'yml', 'ini', 'conf', 'sql', 'py', 'sh', 'bat', 'cmd', 'ps1', 'cpp', 'h', 'c', 'cs', 'java', 'go', 'rs', 'rb', 'php', 'txt', 'log'].includes(extension)) return 'code';
+    return 'unsupported';
   }
 %>
 

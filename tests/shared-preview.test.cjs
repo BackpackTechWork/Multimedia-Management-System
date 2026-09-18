@@ -57,7 +57,10 @@ test('shared previews and streams authorize guests using the link', async () => 
     for (const type of ['image', 'pdf', 'excel', 'word', 'presentation', 'video', 'audio', 'unsupported']) {
       const response = await get(`${type}/1?shareToken=valid`);
       assert.equal(response.status, 200, type);
-      assert.match(await response.text(), /data-stream-url="\/preview\/stream\/1\?shareToken=valid"/);
+      const html = await response.text();
+      assert.match(html, /data-stream-url="\/preview\/stream\/1\?shareToken=valid"/);
+      assert.match(html, /href="\/share\/valid\/download"/);
+      assert.doesNotMatch(html, /href="\/api\/files\/download\/1"/);
     }
     const stream = await get('stream/1?shareToken=valid');
     assert.equal(stream.status, 200);
@@ -66,7 +69,16 @@ test('shared previews and streams authorize guests using the link', async () => 
     assert.equal(range.status, 206);
     assert.equal((await range.arrayBuffer()).byteLength, 4);
     share = { ...baseShare, fileId: null, folderId: 10 };
-    assert.equal((await get('image/1?shareToken=valid')).status, 200, 'nested shared folder');
+    const folderPreview = await get('image/1?shareToken=valid');
+    assert.equal(folderPreview.status, 200, 'nested shared folder');
+    assert.match(await folderPreview.text(), /href="\/share\/valid\/download\?fileId=1"/);
+
+    share = { ...baseShare, allowDownload: false };
+    const downloadDisabled = await get('image/1?shareToken=valid');
+    assert.equal(downloadDisabled.status, 200);
+    const disabledHtml = await downloadDisabled.text();
+    assert.match(disabledHtml, /Download disabled/);
+    assert.doesNotMatch(disabledHtml, /href="\/share\/valid\/download"/);
     for (const deniedShare of [null, { ...baseShare, expiresAt: new Date(0) },
       { ...baseShare, linkAccess: 'restricted' }, { ...baseShare, passwordHash: 'locked' },
       { ...baseShare, fileId: 2 }]) {
