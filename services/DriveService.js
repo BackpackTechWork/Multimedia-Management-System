@@ -9,6 +9,7 @@ const folderRepository = require('../repositories/FolderRepository');
 const storageService = require('./StorageService');
 const jobRepository = require('../repositories/JobRepository');
 const shareRepository = require('../repositories/ShareRepository');
+const { buildContentDisposition, ensureExtension } = require('../utils/contentDisposition');
 
 class DriveService {
   async updateStorageStats(userId) {
@@ -254,7 +255,7 @@ class DriveService {
     }
 
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${folder.name}.zip"`);
+    res.setHeader('Content-Disposition', buildContentDisposition('attachment', `${folder.name}.zip`, 'zip'));
 
     const archive = archiver('zip', { zlib: { level: 9 } });
     archive.pipe(res);
@@ -277,7 +278,8 @@ class DriveService {
     );
 
     for (let file of folderFiles) {
-      let zipFilePath = file.originalName;
+      const fileName = ensureExtension(file.originalName, file.extension);
+      let zipFilePath = fileName;
       let currFolderId = file.folderId;
       const paths = [];
 
@@ -288,7 +290,7 @@ class DriveService {
         currFolderId = f.parentId;
       }
 
-      paths.push(file.originalName);
+      paths.push(fileName);
       zipFilePath = paths.join('/');
 
       const diskPath = path.join(storageService.storageRoot, file.path);

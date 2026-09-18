@@ -14,6 +14,7 @@ const storageService = require('../services/StorageService');
 const driveService = require('../services/DriveService');
 const jobRepository = require('../repositories/JobRepository');
 const fileChecksumService = require('../services/FileChecksumService');
+const { buildContentDisposition, ensureExtension } = require('../utils/contentDisposition');
 
 async function handleFileStreamError(res, err, stream = null) {
   if (['UNKNOWN', 'ENOENT', 'EBUSY', 'EPERM', 'EACCES'].includes(err?.code) && stream?.retryAfterHydration) {
@@ -579,7 +580,10 @@ class ShareController {
           throw error;
         }
         seenFiles.add(file.id);
-        selected.push({ diskPath, name: allocateName(file.originalName, file.id, parentName) });
+        selected.push({
+          diskPath,
+          name: allocateName(ensureExtension(file.originalName, file.extension), file.id, parentName)
+        });
       };
       // Validate every explicitly selected item before building the archive.
       const selectedFolders = [];
@@ -688,7 +692,10 @@ class ShareController {
       }
 
       res.setHeader('Content-Type', file.mimeType);
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.originalName)}"`);
+      res.setHeader(
+        'Content-Disposition',
+        buildContentDisposition('attachment', file.originalName, file.extension)
+      );
 
       const readStream = fileChecksumService.createReadStreamWithHydration(file, fullPath, fs);
       readStream.on('error', err => handleFileStreamError(res, err, readStream));

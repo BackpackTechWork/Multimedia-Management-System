@@ -9,6 +9,7 @@ const folderRepository = require('../repositories/FolderRepository');
 const shareRepository = require('../repositories/ShareRepository');
 const storageService = require('../services/StorageService');
 const fileChecksumService = require('../services/FileChecksumService');
+const { buildContentDisposition } = require('../utils/contentDisposition');
 
 function parseByteRange(rangeHeader, fileSize) {
   if (!rangeHeader || !Number.isSafeInteger(fileSize) || fileSize < 0) return null;
@@ -375,8 +376,7 @@ class PreviewController {
     
     let contentDisposition = '';
     if (!req.query.thumbnail) {
-      const encodedFilename = encodeURIComponent(file.originalName);
-      contentDisposition = `inline; filename="${encodedFilename}"; filename*=UTF-8''${encodedFilename}`;
+      contentDisposition = buildContentDisposition('inline', file.originalName, file.extension);
       res.setHeader('Content-Disposition', contentDisposition);
     }
     
@@ -500,11 +500,15 @@ class PreviewController {
               const contentType = mime.lookup(filename) || 'application/octet-stream';
               res.setHeader('Content-Type', contentType);
 
-              if (req.query.download === 'true') {
-                res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
-              } else {
-                res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
-              }
+              const zipEntryExt = path.extname(filename).slice(1);
+              res.setHeader(
+                'Content-Disposition',
+                buildContentDisposition(
+                  req.query.download === 'true' ? 'attachment' : 'inline',
+                  filename,
+                  zipEntryExt
+                )
+              );
 
               readStream.on('end', () => zipfile.close());
               readStream.on('error', (err) => {

@@ -13,6 +13,7 @@ const driveService = require('../services/DriveService');
 const shareRepository = require('../repositories/ShareRepository');
 const userRepository = require('../repositories/UserRepository');
 const fileChecksumService = require('../services/FileChecksumService');
+const { buildContentDisposition, ensureExtension } = require('../utils/contentDisposition');
 
 async function handleFileStreamError(res, err, stream = null) {
   if (['UNKNOWN', 'ENOENT', 'EBUSY', 'EPERM', 'EACCES'].includes(err?.code) && stream?.retryAfterHydration) {
@@ -996,13 +997,13 @@ class DriveController {
       }
 
       let filePath = file.path;
-      let downloadName = file.originalName;
+      let downloadName = ensureExtension(file.originalName, file.extension);
 
       if (versionId) {
         const ver = await fileRepository.findVersionById(versionId);
         if (ver && ver.fileId === file.id) {
           filePath = ver.storagePath;
-          downloadName = `V${ver.versionNumber}_${file.originalName}`;
+          downloadName = `V${ver.versionNumber}_${downloadName}`;
         }
       }
 
@@ -1012,7 +1013,7 @@ class DriveController {
       }
 
       res.setHeader('Content-Type', file.mimeType);
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
+      res.setHeader('Content-Disposition', buildContentDisposition('attachment', downloadName, file.extension));
       
       const readStream = versionId
         ? fs.createReadStream(fullPath)
