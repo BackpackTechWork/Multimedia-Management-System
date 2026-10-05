@@ -29,6 +29,29 @@ body > .flex-1.flex.overflow-hidden {
   min-height: 0;
 }
 
+.profile-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .profile-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .profile-user-card {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 1.5rem;
+    align-self: start;
+    height: fit-content;
+    z-index: 10;
+  }
+}
+
 .file-card {
   background: var(--white);
   border: 1px solid #E2E8F0;

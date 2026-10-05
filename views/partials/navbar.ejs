@@ -14,6 +14,8 @@
   <% if (locals.tab === 'my-drive' || locals.tab === 'starred' || locals.tab === 'recent' || locals.tab === 'trash') { %>
     <%
       const searchFiltersActive = (locals.fileType && locals.fileType !== 'all') || (locals.sortBy && locals.sortBy !== 'date');
+      const availableFileTypes = new Set(locals.availableFileTypes || []);
+      const activeFileType = locals.fileType || 'all';
       const searchTypeOptions = [
         { val: 'all', label: 'All Types', icon: 'bi-grid-fill' },
         { val: 'image', label: 'Images', icon: 'bi-image' },
@@ -24,13 +26,12 @@
         { val: 'code', label: 'Code', icon: 'bi-code-slash' },
         { val: 'audio', label: 'Audio', icon: 'bi-music-note-beamed' },
         { val: 'video', label: 'Video', icon: 'bi-film' }
-      ];
+      ].filter(item => item.val === 'all' || item.val === activeFileType || availableFileTypes.has(item.val));
       const searchSortOptions = [
         { val: 'date', label: 'Sort by Date', icon: 'bi-calendar-event' },
         { val: 'name', label: 'Sort by Name', icon: 'bi-sort-alpha-down' },
         { val: 'size', label: 'Sort by Size', icon: 'bi-database' }
       ];
-      const activeFileType = locals.fileType || 'all';
       const activeSortBy = locals.sortBy || 'date';
     %>
     <div id="drive-search-shell" class="drive-search-shell">
@@ -252,16 +253,215 @@
         } catch (e) {}
       })();
     </script>
+  <% } else if (locals.tab === 'admin') { %>
+    <%
+      const searchFiltersActive = (locals.roleFilter && locals.roleFilter !== 'all') || (locals.sortBy && locals.sortBy !== 'name');
+      const activeRoleFilter = locals.roleFilter || 'all';
+      const activeSortBy = locals.sortBy || 'name';
+      const adminRoleOptions = [
+        { val: 'all', label: 'All Roles', icon: 'bi-people-fill' },
+        { val: 'user', label: 'Users', icon: 'bi-person' },
+        { val: 'super_admin', label: 'Super Admins', icon: 'bi-shield-lock' }
+      ];
+      const adminSortOptions = [
+        { val: 'name', label: 'Sort by Name', icon: 'bi-sort-alpha-down' },
+        { val: 'email', label: 'Sort by Email', icon: 'bi-envelope' },
+        { val: 'date', label: 'Sort by Date', icon: 'bi-calendar-event' }
+      ];
+      const adminRoleLabels = { all: 'All Roles', user: 'Users', super_admin: 'Super Admins' };
+      const adminRoleIcons = { all: 'bi-people-fill', user: 'bi-person', super_admin: 'bi-shield-lock' };
+      const adminSortLabels = { name: 'Sort by Name', email: 'Sort by Email', date: 'Sort by Date' };
+      const adminSortIcons = { name: 'bi-sort-alpha-down', email: 'bi-envelope', date: 'bi-calendar-event' };
+    %>
+    <div id="drive-search-shell" class="drive-search-shell">
+      <form id="drive-search-form" action="/admin/users" method="GET" class="drive-search-form">
+        <input type="hidden" name="role" id="search-type-input" value="<%= activeRoleFilter %>">
+        <input type="hidden" name="sortBy" id="search-sortBy-input" value="<%= activeSortBy %>">
+
+        <i class="bi bi-search text-gray-400 text-lg shrink-0" aria-hidden="true"></i>
+        <input
+          type="text"
+          name="search"
+          placeholder="Search users by name or email..."
+          value="<%= locals.searchQuery || '' %>"
+          class="bg-transparent border-none outline-none w-full min-w-0 text-sm text-gray-700 placeholder-gray-400"
+        >
+
+        <div class="drive-search-inline-filters">
+          <div class="relative shrink-0" id="search-type-dropdown-desktop">
+            <button type="button" class="dropdown-trigger flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-500 hover:text-brand-teal font-semibold rounded-lg hover:bg-gray-200/50 transition cursor-pointer select-none">
+              <i class="bi <%= adminRoleIcons[activeRoleFilter] || 'bi-people-fill' %> text-gray-400 text-sm"></i>
+              <span class="selected-text"><%= adminRoleLabels[activeRoleFilter] || 'All Roles' %></span>
+              <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
+            </button>
+            <div class="dropdown-menu absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50">
+              <% adminRoleOptions.forEach(item => { %>
+                <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= activeRoleFilter === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
+                  <span class="flex items-center gap-2">
+                    <i class="bi <%= item.icon %> <%= activeRoleFilter === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
+                    <%= item.label %>
+                  </span>
+                  <% if (activeRoleFilter === item.val) { %>
+                    <i class="bi bi-check-lg text-brand-teal text-sm"></i>
+                  <% } %>
+                </button>
+              <% }) %>
+            </div>
+          </div>
+
+          <div class="w-px h-5 bg-gray-300 mx-1 shrink-0" aria-hidden="true"></div>
+
+          <div class="relative shrink-0" id="search-sortBy-dropdown-desktop">
+            <button type="button" class="dropdown-trigger flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-500 hover:text-brand-teal font-semibold rounded-lg hover:bg-gray-200/50 transition cursor-pointer select-none">
+              <i class="bi <%= adminSortIcons[activeSortBy] || 'bi-sort-alpha-down' %> text-gray-400 text-sm"></i>
+              <span class="selected-text"><%= adminSortLabels[activeSortBy] || 'Sort by Name' %></span>
+              <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
+            </button>
+            <div class="dropdown-menu absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50">
+              <% adminSortOptions.forEach(item => { %>
+                <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= activeSortBy === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
+                  <span class="flex items-center gap-2">
+                    <i class="bi <%= item.icon %> <%= activeSortBy === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
+                    <%= item.label %>
+                  </span>
+                  <% if (activeSortBy === item.val) { %>
+                    <i class="bi bi-check-lg text-brand-teal text-sm"></i>
+                  <% } %>
+                </button>
+              <% }) %>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="hidden"></button>
+      </form>
+
+      <div class="drive-search-filters" id="drive-search-filters">
+        <button
+          type="button"
+          id="search-filters-toggle"
+          class="search-filters-toggle<%= searchFiltersActive ? ' has-active-filters' : '' %>"
+          aria-controls="search-filters-panel"
+          aria-expanded="false"
+          aria-haspopup="true"
+          title="Search filters"
+          aria-label="Search filters"
+        >
+          <i class="bi bi-sliders" aria-hidden="true"></i>
+          <span class="search-filters-toggle__label">Filters</span>
+          <span id="search-filters-active-dot" class="search-filters-active-dot<%= searchFiltersActive ? '' : ' hidden' %>" aria-hidden="true"></span>
+        </button>
+
+        <div id="search-filters-panel" class="search-filters-panel hidden" role="dialog" aria-label="Search filters" hidden>
+          <div class="search-filters-section" data-filter-section="type">
+            <button
+              type="button"
+              class="search-filters-section__toggle"
+              aria-expanded="false"
+              aria-controls="search-type-dropdown"
+            >
+              <span>Role</span>
+              <i class="bi bi-chevron-down search-filters-section__chevron" aria-hidden="true"></i>
+            </button>
+            <div class="search-filters-section__body">
+              <div class="search-filters-section__body-inner">
+                <div id="search-type-dropdown" class="search-filters-options">
+                  <% adminRoleOptions.forEach(item => { %>
+                    <button
+                      type="button"
+                      data-value="<%= item.val %>"
+                      class="dropdown-item search-filters-option <%= activeRoleFilter === item.val ? 'is-selected' : '' %>"
+                    >
+                      <span class="flex items-center gap-2 min-w-0">
+                        <i class="bi <%= item.icon %>" aria-hidden="true"></i>
+                        <span class="truncate"><%= item.label %></span>
+                      </span>
+                      <% if (activeRoleFilter === item.val) { %>
+                        <i class="bi bi-check-lg" aria-hidden="true"></i>
+                      <% } %>
+                    </button>
+                  <% }) %>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="search-filters-divider" aria-hidden="true"></div>
+
+          <div class="search-filters-section" data-filter-section="sort">
+            <button
+              type="button"
+              class="search-filters-section__toggle"
+              aria-expanded="false"
+              aria-controls="search-sortBy-dropdown"
+            >
+              <span>Sort</span>
+              <i class="bi bi-chevron-down search-filters-section__chevron" aria-hidden="true"></i>
+            </button>
+            <div class="search-filters-section__body">
+              <div class="search-filters-section__body-inner">
+                <div id="search-sortBy-dropdown" class="search-filters-options">
+                  <% adminSortOptions.forEach(item => { %>
+                    <button
+                      type="button"
+                      data-value="<%= item.val %>"
+                      class="dropdown-item search-filters-option <%= activeSortBy === item.val ? 'is-selected' : '' %>"
+                    >
+                      <span class="flex items-center gap-2 min-w-0">
+                        <i class="bi <%= item.icon %>" aria-hidden="true"></i>
+                        <span class="truncate"><%= item.label %></span>
+                      </span>
+                      <% if (activeSortBy === item.val) { %>
+                        <i class="bi bi-check-lg" aria-hidden="true"></i>
+                      <% } %>
+                    </button>
+                  <% }) %>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function () {
+        try {
+          if (window.matchMedia('(min-width: 1024px)').matches) return;
+          var panel = document.getElementById('search-filters-panel');
+          var toggle = document.getElementById('search-filters-toggle');
+          if (!panel || !toggle) return;
+
+          if (localStorage.getItem('harbor-drive-search-filters-expanded') === '1') {
+            var shell = document.getElementById('drive-search-shell');
+            if (shell) {
+              var top = Math.max(shell.getBoundingClientRect().bottom + 10, 72);
+              panel.style.setProperty('--search-filters-top', top + 'px');
+            }
+            panel.hidden = false;
+            panel.classList.remove('hidden');
+            panel.classList.add('is-open');
+            toggle.setAttribute('aria-expanded', 'true');
+            toggle.classList.add('is-active');
+          }
+
+          var sections = {};
+          try { sections = JSON.parse(localStorage.getItem('harbor-drive-search-filter-sections') || '{}'); } catch (e) {}
+          panel.querySelectorAll('[data-filter-section]').forEach(function (section) {
+            var key = section.getAttribute('data-filter-section');
+            if (!sections[key]) return;
+            section.classList.add('is-open');
+            var sectionToggle = section.querySelector('.search-filters-section__toggle');
+            if (sectionToggle) sectionToggle.setAttribute('aria-expanded', 'true');
+          });
+        } catch (e) {}
+      })();
+    </script>
   <% } else { %>
     <div></div>
   <% } %>
 
   <% if (locals.userId) { %>
     <div class="flex items-center gap-4">
-      <div class="text-right hidden sm:block">
-        <div class="text-sm font-semibold text-gray-700 leading-4"><%= locals.userName %></div>
-        <div class="text-xs text-gray-400"><%= locals.userEmail %></div>
-      </div>
       <div class="relative">
         <button id="profile-dropdown-btn" class="bg-brand-teal text-white w-9 h-9 rounded-full flex items-center justify-center font-bold shadow-sm focus:outline-none hover:bg-brand-teal-dark transition">
           <%= locals.userName.charAt(0).toUpperCase() %>

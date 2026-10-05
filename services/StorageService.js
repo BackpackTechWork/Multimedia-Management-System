@@ -1,7 +1,34 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { Readable, Transform } = require('stream');
+const { pipeline } = require('stream/promises');
 require('dotenv').config();
+
+function batchUploadWrites() {
+  let blocks = [];
+  let bufferedBytes = 0;
+  return new Transform({
+    transform(block, encoding, callback) {
+      if (bufferedBytes === 0 && block.length >= 512 * 1024) return callback(null, block);
+      blocks.push(block);
+      bufferedBytes += block.length;
+      // Batch small socket buffers into bounded 512 KiB disk writes. Without
+      // this, a fast disk pays for a filesystem operation per network packet.
+      if (bufferedBytes < 512 * 1024) return callback();
+      const batch = Buffer.concat(blocks, bufferedBytes);
+      blocks = [];
+      bufferedBytes = 0;
+      callback(null, batch);
+    },
+    flush(callback) {
+      if (bufferedBytes) this.push(Buffer.concat(blocks, bufferedBytes));
+      blocks = [];
+      bufferedBytes = 0;
+      callback();
+    }
+  });
+}
 
 class StorageService {
   constructor() {
@@ -21,6 +48,11 @@ class StorageService {
     this.legacyUploadReceiptsDir = path.join(this.storageRoot, '.upload-receipts');
     this.legacyUploadReceiptNames = new Set();
     this.cancelledUploadIds = new Map();
+    this.activeChunkWrites = new Map();
+    this.activeOwnerChecks = new Map();
+    this.activeCopies = 0;
+    this.copyWaiters = [];
+    this.copyConcurrency = Math.max(1, Math.min(8, Number.parseInt(process.env.STORAGE_COPY_CONCURRENCY || '2', 10) || 2));
     
     fs.mkdirSync(this.storageRoot, { recursive: true });
     fs.mkdirSync(this.chunksDir, { recursive: true });
@@ -50,9 +82,9 @@ class StorageService {
   }
 
   getChunkUploadDir(uploadId) {
-    const safeUploadId = String(uploadId || '').replace(/[^a-zA-Z0-9._-]/g, '');
-    if (!safeUploadId) {
-      throw new Error('Invalid upload id');
+    const safeUploadId = String(uploadId || '');
+    if (!/^[a-zA-Z0-9_-][a-zA-Z0-9._-]{0,199}$/.test(safeUploadId)) {
+      throw Object.assign(new Error('Invalid upload id'), { status: 400 });
     }
     return path.join(this.chunksDir, safeUploadId);
   }
@@ -62,6 +94,18 @@ class StorageService {
   }
 
   async assertUploadOwner(uploadId, userId, { create = false } = {}) {
+    const key = this.getUploadOwnerPath(uploadId);
+    const previous = this.activeOwnerChecks.get(key) || Promise.resolve();
+    const checking = previous.catch(() => {}).then(() => this.checkUploadOwner(uploadId, userId, create));
+    this.activeOwnerChecks.set(key, checking);
+    try {
+      return await checking;
+    } finally {
+      if (this.activeOwnerChecks.get(key) === checking) this.activeOwnerChecks.delete(key);
+    }
+  }
+
+  async checkUploadOwner(uploadId, userId, create) {
     const dir = this.getChunkUploadDir(uploadId);
     if (create) await fs.promises.mkdir(dir, { recursive: true });
 
@@ -80,7 +124,7 @@ class StorageService {
         await fs.promises.writeFile(ownerPath, JSON.stringify({ userId: Number(userId) }), { flag: 'wx' });
       } catch (writeErr) {
         if (writeErr.code !== 'EEXIST') throw writeErr;
-        return this.assertUploadOwner(uploadId, userId);
+        return this.checkUploadOwner(uploadId, userId, false);
       }
     }
     return true;
@@ -194,6 +238,29 @@ class StorageService {
   }
 
   async saveChunk(uploadId, chunkIndex, chunkBuffer, chunkOffset = null, userId = null) {
+    return this.saveChunkStream(uploadId, chunkIndex, Readable.from([chunkBuffer]), chunkOffset, userId);
+  }
+
+  async removeChunk(uploadId, chunkIndex) {
+    await fs.promises.rm(path.join(this.getChunkUploadDir(uploadId), `chunk_${chunkIndex}`), { force: true });
+  }
+
+  async saveChunkStream(uploadId, chunkIndex, stream, chunkOffset = null, userId = null, fileSize = null) {
+    const key = `${path.basename(this.getChunkUploadDir(uploadId))}:${chunkIndex}`;
+    // A timed-out request may still be writing when its retry arrives. Serialize
+    // that chunk only; other offsets and users continue transferring in parallel.
+    const previous = this.activeChunkWrites.get(key) || Promise.resolve();
+    const writing = previous.catch(() => {}).then(() =>
+      this.writeChunkStream(uploadId, chunkIndex, stream, chunkOffset, userId, fileSize));
+    this.activeChunkWrites.set(key, writing);
+    try {
+      return await writing;
+    } finally {
+      if (this.activeChunkWrites.get(key) === writing) this.activeChunkWrites.delete(key);
+    }
+  }
+
+  async writeChunkStream(uploadId, chunkIndex, stream, chunkOffset, userId, fileSize) {
     if (this.isUploadCancelled(uploadId)) {
       const err = new Error('Upload was cancelled');
       err.code = 'UPLOAD_CANCELLED';
@@ -202,52 +269,126 @@ class StorageService {
     const dir = this.getChunkUploadDir(uploadId);
     await fs.promises.mkdir(dir, { recursive: true });
     if (userId !== null) await this.assertUploadOwner(uploadId, userId, { create: true });
-
+    const receipt = await this.getUploadReceipt(uploadId);
+    if (receipt && receipt.state !== 'failed') {
+      throw Object.assign(new Error('Upload is already being finalized'), { status: 400 });
+    }
     const chunkPath = path.join(dir, `chunk_${chunkIndex}`);
-    if (Number.isSafeInteger(chunkOffset) && chunkOffset >= 0) {
+    const positioned = Number.isSafeInteger(chunkOffset) && chunkOffset >= 0;
+    let targetPath = chunkPath;
+    if (positioned) {
       const stagedPath = this.getStagedUploadPath(uploadId);
       await this.ensureStagedUploadFile(stagedPath);
-
-      const handle = await fs.promises.open(stagedPath, 'r+');
-      try {
-        let written = 0;
-        while (written < chunkBuffer.length) {
-          const result = await handle.write(
-            chunkBuffer,
-            written,
-            chunkBuffer.length - written,
-            chunkOffset + written
-          );
-          written += result.bytesWritten;
-        }
-      } finally {
-        await handle.close();
-      }
-
-      if (this.isUploadCancelled(uploadId)) {
-        await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
-        const err = new Error('Upload was cancelled');
-        err.code = 'UPLOAD_CANCELLED';
-        throw err;
-      }
-
-      const chunkDigest = crypto.createHash('sha256').update(chunkBuffer).digest('hex');
-      await fs.promises.writeFile(chunkPath, JSON.stringify({
-        offset: chunkOffset,
-        length: chunkBuffer.length,
-        digest: chunkDigest
-      }));
-      return;
+      targetPath = stagedPath;
     }
-
-    // Legacy chunks are retained for uploads started by an older browser tab.
-    await fs.promises.writeFile(chunkPath, chunkBuffer);
-    if (this.isUploadCancelled(uploadId)) {
-      await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
-      const err = new Error('Upload was cancelled');
-      err.code = 'UPLOAD_CANCELLED';
+    await this.removeChunk(uploadId, chunkIndex);
+    const hasher = crypto.createHash('sha256');
+    let size = 0;
+    const service = this;
+    const hashingStream = new Transform({
+      transform(chunk, encoding, callback) {
+        size += chunk.length;
+        if (service.isUploadCancelled(uploadId)) {
+          return callback(Object.assign(new Error('Upload was cancelled'), { code: 'UPLOAD_CANCELLED' }));
+        }
+        if (positioned && fileSize !== null && chunkOffset + size > fileSize) {
+          return callback(Object.assign(new Error('Chunk exceeds declared file size'), { status: 400 }));
+        }
+        hasher.update(chunk);
+        callback(null, chunk);
+      }
+    });
+    try {
+      await pipeline(stream, batchUploadWrites(), hashingStream, fs.createWriteStream(targetPath, positioned
+        ? { flags: 'r+', start: chunkOffset, highWaterMark: 1024 * 1024 }
+        : { flags: 'w', highWaterMark: 1024 * 1024 }));
+      if (stream.truncated) throw Object.assign(new Error('Chunk exceeds upload limit'), { code: 'LIMIT_FILE_SIZE' });
+      if (this.isUploadCancelled(uploadId)) {
+        throw Object.assign(new Error('Upload was cancelled'), { code: 'UPLOAD_CANCELLED' });
+      }
+      const digest = hasher.digest('hex');
+      if (positioned) {
+        await fs.promises.writeFile(chunkPath, JSON.stringify({ offset: chunkOffset, length: size, digest }));
+      }
+      return { size, digest, uploadId, chunkIndex };
+    } catch (err) {
+      await this.removeChunk(uploadId, chunkIndex).catch(() => {});
       throw err;
     }
+  }
+
+  async stageIncomingFile(stream) {
+    const incomingDir = path.join(this.chunksDir, '.incoming');
+    await fs.promises.mkdir(incomingDir, { recursive: true });
+    const incomingPath = path.join(incomingDir, crypto.randomUUID());
+    const hasher = crypto.createHash('sha256');
+    let size = 0;
+    const hashingStream = new Transform({
+      transform(chunk, encoding, callback) {
+        size += chunk.length;
+        hasher.update(chunk);
+        callback(null, chunk);
+      }
+    });
+    try {
+      await pipeline(stream, batchUploadWrites(), hashingStream,
+        fs.createWriteStream(incomingPath, { flags: 'wx', highWaterMark: 1024 * 1024 }));
+      if (stream.truncated) throw Object.assign(new Error('File exceeds upload limit'), { code: 'LIMIT_FILE_SIZE' });
+      return { path: incomingPath, size, checksum: hasher.digest('hex') };
+    } catch (err) {
+      await fs.promises.rm(incomingPath, { force: true }).catch(() => {});
+      throw err;
+    }
+  }
+
+  async copyFileStreaming(sourcePath, destinationPath) {
+    // A single fs.copyFile holds a libuv worker for the entire multi-GB copy.
+    // Bounded streams yield between reads/writes so new chunks and status I/O
+    // can use the same pool even while final storage is slow.
+    if (this.activeCopies >= this.copyConcurrency) {
+      await new Promise(resolve => this.copyWaiters.push(resolve));
+    } else {
+      this.activeCopies += 1;
+    }
+    try {
+      await pipeline(
+        fs.createReadStream(sourcePath, { highWaterMark: 1024 * 1024 }),
+        fs.createWriteStream(destinationPath, { flags: 'wx', highWaterMark: 1024 * 1024 })
+      );
+    } catch (err) {
+      if (err.code !== 'EEXIST') await fs.promises.rm(destinationPath, { force: true }).catch(() => {});
+      throw err;
+    } finally {
+      const next = this.copyWaiters.shift();
+      if (next) next();
+      else this.activeCopies -= 1;
+    }
+  }
+
+  async moveStagedFile(sourcePath, destinationPath) {
+    try {
+      await fs.promises.rename(sourcePath, destinationPath);
+    } catch (err) {
+      if (err.code !== 'EXDEV') throw err;
+      await this.copyFileStreaming(sourcePath, destinationPath);
+      try {
+        await fs.promises.unlink(sourcePath);
+      } catch (unlinkErr) {
+        await fs.promises.rm(destinationPath, { force: true }).catch(() => {});
+        throw unlinkErr;
+      }
+    }
+  }
+
+  async saveUploadedFile(userId, originalFilename, staged) {
+    const uniqueFilename = `${crypto.randomUUID()}${path.extname(originalFilename)}`;
+    const userDir = path.join(this.storageRoot, `user_${userId}`);
+    await fs.promises.mkdir(userDir, { recursive: true });
+    const destinationPath = path.join(userDir, uniqueFilename);
+    await this.moveStagedFile(staged.path, destinationPath);
+    return { filename: uniqueFilename,
+      path: path.relative(this.storageRoot, destinationPath).replace(/\\/g, '/'),
+      size: staged.size, checksum: staged.checksum };
   }
 
   async getUploadedChunks(uploadId, userId = null) {
@@ -343,27 +484,29 @@ class StorageService {
     const manifestHasher = crypto.createHash('sha256');
     manifestHasher.update(`harbor-drive-chunks-v1:${totalChunks}:${expectedFileSize ?? ''}:`);
 
-    for (let i = 0; i < totalChunks; i++) {
-      const markerPath = path.join(chunkDir, `chunk_${i}`);
-      let marker;
+    let nextOffset = 0;
+    for (let start = 0; start < totalChunks; start += 16) {
+      let markers;
       try {
-        marker = JSON.parse(await fs.promises.readFile(markerPath, 'utf8'));
+        markers = await Promise.all(Array.from({ length: Math.min(16, totalChunks - start) },
+          (_, offset) => fs.promises.readFile(path.join(chunkDir, `chunk_${start + offset}`), 'utf8')
+            .then(contents => JSON.parse(contents))));
       } catch {
         return null;
       }
-
-      if (
-        !Number.isSafeInteger(marker.offset) ||
-        !Number.isSafeInteger(marker.length) ||
-        typeof marker.digest !== 'string' ||
-        !/^[a-f0-9]{64}$/.test(marker.digest)
-      ) {
-        return null;
+      for (let offset = 0; offset < markers.length; offset++) {
+        const marker = markers[offset];
+        if (!marker || marker.offset !== nextOffset || !Number.isSafeInteger(marker.length) ||
+            marker.length < 0 || (marker.length === 0 && totalChunks !== 1) ||
+            typeof marker.digest !== 'string' || !/^[a-f0-9]{64}$/.test(marker.digest)) {
+          return null;
+        }
+        nextOffset += marker.length;
+        if (!Number.isSafeInteger(nextOffset)) return null;
+        manifestHasher.update(`${start + offset}:${marker.offset}:${marker.length}:${marker.digest};`);
       }
-
-      manifestHasher.update(`${i}:${marker.offset}:${marker.length}:${marker.digest};`);
     }
-
+    if (Number.isSafeInteger(expectedFileSize) && nextOffset !== expectedFileSize) return null;
     return manifestHasher.digest('hex');
   }
 
@@ -387,7 +530,8 @@ class StorageService {
 
     const ext = path.extname(originalFilename);
     const uniqueFilename = `${crypto.randomUUID()}${ext}`;
-    const userDir = this.getUserStorageDir(userId);
+    const userDir = path.join(this.storageRoot, `user_${userId}`);
+    await fs.promises.mkdir(userDir, { recursive: true });
     const destinationPath = path.join(userDir, uniqueFilename);
 
     if (hasStagedUpload) {
@@ -396,24 +540,11 @@ class StorageService {
         throw new Error(`Uploaded file size mismatch. Expected ${expectedFileSize} bytes, received ${stagedStats.size} bytes.`);
       }
 
-      // New uploads hash each chunk while it is already in memory. The manifest
+      // New uploads hash each chunk while streaming to disk. The manifest
       // checksum avoids rereading very large files solely during finalization.
-      const checksum = await this.getManifestChecksum(uploadId, totalChunks, expectedFileSize)
-        || await this.hashFile(stagedPath);
-      try {
-        await fs.promises.rename(stagedPath, destinationPath);
-      } catch (err) {
-        if (err.code !== 'EXDEV') throw err;
-        // A separate fast temp disk needs a copy. This runs in the background
-        // finalize worker, so the browser is no longer held open by the sync.
-        try {
-          await fs.promises.copyFile(stagedPath, destinationPath);
-        } catch (copyErr) {
-          await fs.promises.rm(destinationPath, { force: true }).catch(() => {});
-          throw copyErr;
-        }
-        await fs.promises.unlink(stagedPath);
-      }
+      const checksum = await this.getManifestChecksum(uploadId, totalChunks, expectedFileSize);
+      if (!checksum) throw new Error('Staged upload verification failed; retry the selected file');
+      await this.moveStagedFile(stagedPath, destinationPath);
       await fs.promises.rm(chunkDir, { recursive: true, force: true });
 
       return {
@@ -499,7 +630,7 @@ class StorageService {
     const userDir = this.getUserStorageDir(userId);
     const destinationPath = path.join(userDir, uniqueFilename);
 
-    await fs.promises.copyFile(fullSrcPath, destinationPath);
+    await this.copyFileStreaming(fullSrcPath, destinationPath);
     
     const stats = await fs.promises.stat(destinationPath);
     

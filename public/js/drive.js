@@ -353,7 +353,9 @@ document.addEventListener('DOMContentLoaded', () => {
     { id: 'search-sortBy-dropdown-desktop', inputId: 'search-sortBy-input' },
     { id: 'storage-type-dropdown', inputId: 'storage-type-input' },
     { id: 'storage-modified-dropdown', inputId: 'storage-modified-input' },
-    { id: 'storage-source-dropdown', inputId: 'storage-source-input' }
+    { id: 'storage-source-dropdown', inputId: 'storage-source-input' },
+    { id: 'devices-type-dropdown', inputId: 'devices-type-input' },
+    { id: 'devices-activity-dropdown', inputId: 'devices-activity-input' }
   ];
   const filterDropdowns = filterDropdownConfigs
     .map(({ id, inputId }) => {

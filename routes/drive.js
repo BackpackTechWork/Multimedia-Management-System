@@ -1,14 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
+const { chunkUpload: upload } = require('../middleware/upload');
 const driveController = require('../controllers/DriveController');
 const { authGuard } = require('../middleware/auth');
 const { csrfProtection } = require('../middleware/security');
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }
-});
 
 router.use(authGuard);
 

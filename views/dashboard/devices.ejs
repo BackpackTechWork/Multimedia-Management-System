@@ -19,63 +19,158 @@
     <div class="w-full">
       
       <!-- Page title -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 select-none">
-        <div>
-          <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <i class="bi bi-laptop text-brand-teal"></i> Active Devices
-          </h2>
-          <p class="text-xs text-gray-400 mt-1">Review and manage the devices currently logged into your account.</p>
+      <div class="flex flex-col gap-5 border-b border-gray-200 pb-6 mb-8">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+              <i class="bi bi-laptop text-brand-teal"></i> Active Devices
+            </h2>
+            <p class="text-xs text-gray-400 mt-1">Review and manage the devices currently logged into your account.</p>
+          </div>
+          <button id="revoke-others-btn" type="button" class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg text-xs font-semibold border border-red-200 transition self-start sm:self-auto shrink-0">
+            Sign Out of Other Devices
+          </button>
         </div>
-        <button id="revoke-others-btn" type="button" class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg text-xs font-semibold border border-red-200 transition self-start sm:self-auto shrink-0">
-          Sign Out of Other Devices
-        </button>
+
+        <form method="GET" action="/auth/devices" class="relative z-20 flex flex-wrap items-center gap-3">
+          <input type="hidden" name="type" id="devices-type-input" value="<%= typeFilter || 'all' %>">
+          <input type="hidden" name="activity" id="devices-activity-input" value="<%= activityFilter || 'all' %>">
+
+          <%
+            const deviceTypeOptions = [
+              { val: 'all', label: 'All', icon: 'bi-grid-fill' },
+              { val: 'desktop', label: 'Desktop', icon: 'bi-display' },
+              { val: 'mobile', label: 'Mobile', icon: 'bi-phone' },
+              { val: 'current', label: 'This device', icon: 'bi-laptop' }
+            ];
+            const deviceActivityOptions = [
+              { val: 'all', label: 'Any time', icon: 'bi-calendar3' },
+              { val: 'today', label: 'Today', icon: 'bi-calendar-event' },
+              { val: 'week', label: 'Last 7 days', icon: 'bi-calendar-week' },
+              { val: 'month', label: 'Last 30 days', icon: 'bi-calendar-month' }
+            ];
+            const selectedType = deviceTypeOptions.find(o => o.val === (typeFilter || 'all')) || deviceTypeOptions[0];
+            const selectedActivity = deviceActivityOptions.find(o => o.val === (activityFilter || 'all')) || deviceActivityOptions[0];
+          %>
+
+          <div class="relative flex-1 min-w-[220px] max-w-md">
+            <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" aria-hidden="true"></i>
+            <input
+              type="text"
+              name="search"
+              value="<%= searchQuery || '' %>"
+              placeholder="Search by browser or IP..."
+              class="w-full border border-gray-300 bg-white hover:bg-gray-50 focus:bg-white focus:border-brand-teal focus:ring-1 focus:ring-brand-teal rounded-lg pl-9 pr-3 py-2 text-sm text-gray-700 placeholder-gray-400 outline-none transition"
+            >
+          </div>
+
+          <div class="relative" id="devices-type-dropdown">
+            <button type="button" class="dropdown-trigger inline-flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 transition cursor-pointer select-none">
+              <span class="text-gray-500">Type</span>
+              <span class="selected-text flex items-center gap-1.5">
+                <i class="bi <%= selectedType.icon %> text-gray-400"></i>
+                <%= selectedType.label %>
+              </span>
+              <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
+            </button>
+            <div class="dropdown-menu absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50 animate-in fade-in-50 slide-in-from-top-1 duration-100">
+              <% deviceTypeOptions.forEach(item => { %>
+                <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= (typeFilter || 'all') === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
+                  <span class="flex items-center gap-2">
+                    <i class="bi <%= item.icon %> <%= (typeFilter || 'all') === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
+                    <%= item.label %>
+                  </span>
+                  <% if ((typeFilter || 'all') === item.val) { %>
+                    <i class="bi bi-check-lg text-brand-teal text-sm"></i>
+                  <% } %>
+                </button>
+              <% }) %>
+            </div>
+          </div>
+
+          <div class="relative" id="devices-activity-dropdown">
+            <button type="button" class="dropdown-trigger inline-flex items-center gap-2 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 transition cursor-pointer select-none">
+              <span class="text-gray-500">Active</span>
+              <span class="selected-text flex items-center gap-1.5">
+                <i class="bi <%= selectedActivity.icon %> text-gray-400"></i>
+                <%= selectedActivity.label %>
+              </span>
+              <i class="bi bi-chevron-down text-[10px] text-gray-400"></i>
+            </button>
+            <div class="dropdown-menu absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg p-1 hidden z-50 animate-in fade-in-50 slide-in-from-top-1 duration-100">
+              <% deviceActivityOptions.forEach(item => { %>
+                <button type="button" data-value="<%= item.val %>" class="dropdown-item w-full text-left px-3 py-2 text-xs font-semibold rounded-lg flex items-center justify-between transition gap-2 <%= (activityFilter || 'all') === item.val ? 'bg-brand-teal/5 text-brand-teal' : 'text-gray-700 hover:bg-gray-100 hover:text-brand-teal' %>">
+                  <span class="flex items-center gap-2">
+                    <i class="bi <%= item.icon %> <%= (activityFilter || 'all') === item.val ? 'text-brand-teal' : 'text-gray-400' %> text-sm"></i>
+                    <%= item.label %>
+                  </span>
+                  <% if ((activityFilter || 'all') === item.val) { %>
+                    <i class="bi bi-check-lg text-brand-teal text-sm"></i>
+                  <% } %>
+                </button>
+              <% }) %>
+            </div>
+          </div>
+        </form>
       </div>
 
       <!-- Devices Grid list -->
       <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden select-none">
         <div class="p-6 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
           <span class="font-bold text-sm text-gray-500 uppercase tracking-wider">Device List</span>
-          <span class="text-xs font-semibold text-brand-teal bg-teal-50 px-2 py-1 rounded-md"><%= sessions.length %> Logged in</span>
+          <span class="text-xs font-semibold text-brand-teal bg-teal-50 px-2 py-1 rounded-md">
+            <%= sessions.length %><% if (typeof totalSessionCount !== 'undefined' && totalSessionCount !== sessions.length) { %> of <%= totalSessionCount %><% } %> Logged in
+          </span>
         </div>
 
-        <div class="divide-y divide-gray-100">
-          <% sessions.forEach(sess => { %>
-            <div class="p-6 flex items-center justify-between gap-4 hover:bg-gray-50 transition">
-              <div class="flex items-center gap-4 min-w-0 flex-1">
-                <div class="bg-gray-100 text-gray-500 w-11 h-11 rounded-xl flex items-center justify-center shadow-inner shrink-0">
-                  <% if (sess.userAgent && (sess.userAgent.includes('Mobi') || sess.userAgent.includes('Android') || sess.userAgent.includes('iPhone'))) { %>
-                    <i class="bi bi-phone text-xl"></i>
-                  <% } else { %>
-                    <i class="bi bi-display text-xl"></i>
-                  <% } %>
-                </div>
-                <div class="min-w-0 flex-1">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span class="font-semibold text-sm text-gray-800 break-all sm:truncate max-w-xs sm:max-w-md" title="<%= sess.userAgent %>"><%= sess.userAgent || 'Unknown Browser' %></span>
-                    <% if (sess.sessionId === currentSessionId) { %>
-                      <span class="bg-teal-50 text-brand-teal text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">This Device</span>
+        <% if (sessions.length === 0) { %>
+          <div class="px-4 py-16 text-center">
+            <div class="mx-auto mb-4 h-14 w-14 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center">
+              <i class="bi bi-laptop text-2xl"></i>
+            </div>
+            <h3 class="text-base font-bold text-gray-800">No devices match these filters</h3>
+            <p class="text-sm text-gray-500 mt-1">Change the search or filters to see active sessions.</p>
+          </div>
+        <% } else { %>
+          <div class="divide-y divide-gray-100">
+            <% sessions.forEach(sess => { %>
+              <div class="p-6 flex items-center justify-between gap-4 hover:bg-gray-50 transition">
+                <div class="flex items-center gap-4 min-w-0 flex-1">
+                  <div class="bg-gray-100 text-gray-500 w-11 h-11 rounded-xl flex items-center justify-center shadow-inner shrink-0">
+                    <% if (sess.userAgent && (sess.userAgent.includes('Mobi') || sess.userAgent.includes('Android') || sess.userAgent.includes('iPhone'))) { %>
+                      <i class="bi bi-phone text-xl"></i>
+                    <% } else { %>
+                      <i class="bi bi-display text-xl"></i>
                     <% } %>
                   </div>
-                  <div class="text-xs text-gray-400 mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-                    <span>IP: <%= sess.ipAddress || 'Unknown IP' %></span>
-                    <span class="hidden sm:inline text-gray-300">•</span>
-                    <span>Last active: <%= new Date(sess.lastActivityAt).toLocaleString() %></span>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="font-semibold text-sm text-gray-800 break-all sm:truncate max-w-xs sm:max-w-md" title="<%= sess.userAgent %>"><%= sess.userAgent || 'Unknown Browser' %></span>
+                      <% if (sess.sessionId === currentSessionId) { %>
+                        <span class="bg-teal-50 text-brand-teal text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">This Device</span>
+                      <% } %>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                      <span>IP: <%= sess.ipAddress || 'Unknown IP' %></span>
+                      <span class="hidden sm:inline text-gray-300">•</span>
+                      <span>Last active: <%= new Date(sess.lastActivityAt).toLocaleString() %></span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <% if (sess.sessionId !== currentSessionId) { %>
-                <button 
-                  type="button"
-                  data-revoke-session-id="<%= sess.id %>"
-                  class="text-red-500 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-100 p-2 rounded-lg text-xs font-semibold transition shrink-0"
-                >
-                  Revoke
-                </button>
-              <% } %>
-            </div>
-          <% }) %>
-        </div>
+                <% if (sess.sessionId !== currentSessionId) { %>
+                  <button 
+                    type="button"
+                    data-revoke-session-id="<%= sess.id %>"
+                    class="text-red-500 hover:text-red-700 hover:bg-red-50 border border-transparent hover:border-red-100 p-2 rounded-lg text-xs font-semibold transition shrink-0"
+                  >
+                    Revoke
+                  </button>
+                <% } %>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
       </div>
 
     </div>

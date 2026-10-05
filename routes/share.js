@@ -1,14 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
+const { sharedUpload: upload } = require('../middleware/upload');
 const shareController = require('../controllers/ShareController');
 const { authGuard } = require('../middleware/auth');
 const { csrfProtection } = require('../middleware/security');
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }
-});
 
 router.post('/api/create', authGuard, csrfProtection, shareController.createShare);
 router.post('/api/revoke', authGuard, csrfProtection, shareController.deleteShare);

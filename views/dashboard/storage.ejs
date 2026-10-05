@@ -40,6 +40,10 @@
             <input type="hidden" name="sortOrder" value="<%= sortOrder || 'desc' %>">
 
             <% 
+              const presentStorageTypes = new Set(
+                (typeof categoryTotals !== 'undefined' ? categoryTotals : [])
+                  .map(category => String(category.name || '').toLowerCase())
+              );
               const storageTypeOptions = [
                 { val: 'all', label: 'All', icon: 'bi-grid-fill' },
                 { val: 'videos', label: 'Videos', icon: 'bi-film' },
@@ -50,7 +54,7 @@
                 { val: 'archives', label: 'Archives', icon: 'bi-file-zip' },
                 { val: 'code', label: 'Code', icon: 'bi-code-slash' },
                 { val: 'other', label: 'Other', icon: 'bi-file-earmark' }
-              ];
+              ].filter(item => item.val === 'all' || item.val === (typeFilter || 'all') || presentStorageTypes.has(item.val));
               const storageModifiedOptions = [
                 { val: 'all', label: 'Any time', icon: 'bi-calendar3' },
                 { val: 'today', label: 'Today', icon: 'bi-calendar-event' },

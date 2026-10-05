@@ -424,7 +424,7 @@ class ShareController {
       if (req.body.checkOnly === 'true') {
         return res.json(await uploadConflictService.check(rootFolder.userId, targetFolder.id, name));
       }
-      const saved = await storageService.saveUploadedBuffer(rootFolder.userId, name, req.file.buffer);
+      const saved = await storageService.saveUploadedFile(rootFolder.userId, name, req.file);
       const mimeType = req.file.mimetype || require('mime-types').lookup(name) || 'application/octet-stream';
       let fileId;
       try {
@@ -456,6 +456,9 @@ class ShareController {
     } catch (err) {
       console.error(err);
       res.status(500).send('Upload failed.');
+    } finally {
+      // Includes rejected destinations, expired links and failed database writes.
+      if (req.file?.path) await fs.promises.rm(req.file.path, { force: true }).catch(() => {});
     }
   }
 

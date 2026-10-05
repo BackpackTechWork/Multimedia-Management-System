@@ -108,13 +108,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // Add line numbers manually for a clean pretty read-only layout
       const lines = formatted.split('\n');
-      let lineNumberedHtml = '<table class="w-full text-left font-mono text-sm">';
+      let lineNumberedHtml = '<table class="w-full text-left font-mono text-sm text-gray-800">';
       lines.forEach((line, index) => {
         const escaped = escapeHtml(line);
         lineNumberedHtml += `
-          <tr class="hover:bg-gray-800">
-            <td class="text-gray-500 pr-4 border-r border-gray-700 text-right select-none w-10 vertical-top">${index + 1}</td>
-            <td class="pl-4 whitespace-pre font-mono">${escaped || ' '}</td>
+          <tr class="hover:bg-gray-100">
+            <td class="text-gray-400 pr-4 border-r border-gray-200 text-right select-none w-10 align-top">${index + 1}</td>
+            <td class="pl-4 whitespace-pre font-mono text-gray-800">${escaped || ' '}</td>
           </tr>
         `;
       });

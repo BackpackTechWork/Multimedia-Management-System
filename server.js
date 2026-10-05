@@ -103,7 +103,8 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-  if (!isProduction && !process.env.ASSET_VERSION) {
+  if (!isProduction && !process.env.ASSET_VERSION && req.method === 'GET' &&
+      req.headers.accept?.includes('text/html') && !req.path.startsWith('/api/')) {
     res.locals.assetVersion = resolveAssetVersion();
   }
   res.locals.userId = req.session?.userId || null;
@@ -139,6 +140,13 @@ app.get('/drive', (req, res) => {
 app.use((err, req, res, next) => {
   if (err.code === 'EBADCSRFTOKEN') {
     return res.status(403).json({ error: 'CSRF token verification failed. Please reload the page.' });
+  }
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'Upload exceeds the size limit for this endpoint.' });
+  }
+  if (err.code === 'UPLOAD_FORBIDDEN') return res.status(403).json({ error: err.message });
+  if (err.status === 400 || err.code?.startsWith('LIMIT_')) {
+    return res.status(400).json({ error: err.message });
   }
   console.error('Unhandled server error:', err.stack);
   res.status(500).send('Internal Server Error');

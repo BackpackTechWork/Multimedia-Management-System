@@ -9,11 +9,54 @@ function getSafeReturnTo(value) {
   return value;
 }
 
+function isMobileUserAgent(userAgent) {
+  if (!userAgent) return false;
+  return userAgent.includes('Mobi') || userAgent.includes('Android') || userAgent.includes('iPhone');
+}
+
+function matchesDeviceType(session, type, currentSessionId) {
+  if (!type || type === 'all') return true;
+  if (type === 'current') return session.sessionId === currentSessionId;
+  if (type === 'mobile') return isMobileUserAgent(session.userAgent);
+  if (type === 'desktop') return !isMobileUserAgent(session.userAgent);
+  return true;
+}
+
+function matchesDeviceActivity(session, activity) {
+  if (!activity || activity === 'all') return true;
+
+  const lastActive = session.lastActivityAt ? new Date(session.lastActivityAt) : null;
+  if (!lastActive || Number.isNaN(lastActive.getTime())) return false;
+
+  const now = new Date();
+  const ageMs = now.getTime() - lastActive.getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  if (activity === 'today') return lastActive.toDateString() === now.toDateString();
+  if (activity === 'week') return ageMs <= 7 * dayMs;
+  if (activity === 'month') return ageMs <= 30 * dayMs;
+  return true;
+}
+
+function matchesDeviceSearch(session, searchQuery) {
+  if (!searchQuery) return true;
+  const query = String(searchQuery).trim().toLowerCase();
+  if (!query) return true;
+
+  const haystack = [
+    session.userAgent || '',
+    session.ipAddress || ''
+  ].join(' ').toLowerCase();
+
+  return haystack.includes(query);
+}
+
 class AuthController {
   renderLogin(req, res) {
     res.render('auth/login', {
       error: null,
       success: null,
+      email: '',
       returnTo: getSafeReturnTo(req.query.returnTo)
     });
   }
@@ -21,17 +64,28 @@ class AuthController {
   async handleLogin(req, res) {
     const { email, password, rememberMe } = req.body;
     const returnTo = getSafeReturnTo(req.body.returnTo);
+    const submittedEmail = typeof email === 'string' ? email.trim() : '';
 
-    if (!email || !password) {
-      return res.render('auth/login', { error: 'Email and password are required', success: null, returnTo });
+    if (!submittedEmail || !password) {
+      return res.render('auth/login', {
+        error: 'Email and password are required',
+        success: null,
+        email: submittedEmail,
+        returnTo
+      });
     }
 
     try {
-      const user = await authService.login(email, password);
+      const user = await authService.login(submittedEmail, password);
       
       req.session.regenerate(async (err) => {
         if (err) {
-          return res.render('auth/login', { error: 'Session regeneration failed', success: null, returnTo });
+          return res.render('auth/login', {
+            error: 'Session regeneration failed',
+            success: null,
+            email: submittedEmail,
+            returnTo
+          });
         }
 
         req.session.userId = user.id;
@@ -61,7 +115,12 @@ class AuthController {
         res.redirect(returnTo || '/');
       });
     } catch (err) {
-      res.render('auth/login', { error: err.message, success: null, returnTo });
+      res.render('auth/login', {
+        error: err.message,
+        success: null,
+        email: submittedEmail,
+        returnTo
+      });
     }
   }
 
@@ -84,14 +143,30 @@ class AuthController {
 
   async renderDevices(req, res) {
     try {
+      const searchQuery = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+      const typeFilter = req.query.type || 'all';
+      const activityFilter = req.query.activity || 'all';
+      const currentSessionId = req.sessionID;
       const activeSessions = await sessionRepository.findUserSessions(req.session.userId);
+
+      const filteredSessions = activeSessions
+        .filter(session => matchesDeviceType(session, typeFilter, currentSessionId))
+        .filter(session => matchesDeviceActivity(session, activityFilter))
+        .filter(session => matchesDeviceSearch(session, searchQuery));
+
       res.render('dashboard/devices', {
-        sessions: activeSessions,
-        currentSessionId: req.sessionID,
+        tab: 'devices',
+        sessions: filteredSessions,
+        totalSessionCount: activeSessions.length,
+        currentSessionId,
+        searchQuery,
+        typeFilter,
+        activityFilter,
         error: null,
         success: null
       });
     } catch (err) {
+      console.error('Failed to render devices:', err);
       res.redirect('/');
     }
   }

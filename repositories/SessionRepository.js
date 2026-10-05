@@ -41,11 +41,10 @@ class SessionRepository {
       });
   }
 
-  async touchSession(sessionId, userId, sessionData, lastActivityAt, expiresAt) {
+  async touchSession(sessionId, lastActivityAt, expiresAt) {
     await db.update(sessions)
       .set({
-        userId: userId == null ? sql`${sessions.userId}` : userId,
-        data: sessionData,
+        // A touch must not overwrite data saved by a concurrent request.
         lastActivityAt,
         expiresAt
       })

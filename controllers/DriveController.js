@@ -143,6 +143,30 @@ class DriveController {
     return 'unsupported';
   }
 
+  collectAvailableSearchTypes(fileMetaList) {
+    const types = new Set();
+    const codeExtensions = ['js', 'ts', 'html', 'css', 'json', 'xml', 'sql', 'php', 'py', 'go', 'rs', 'cpp', 'c', 'cs'];
+
+    for (const file of fileMetaList) {
+      const mimeType = file.mimeType || '';
+      const extension = (file.extension || '').toLowerCase();
+
+      if (mimeType.startsWith('image/')) types.add('image');
+      if (extension === 'pdf') {
+        types.add('pdf');
+        types.add('document');
+      }
+      if (mimeType.startsWith('audio/')) types.add('audio');
+      if (mimeType.startsWith('video/')) types.add('video');
+      if (['doc', 'docx', 'txt', 'rtf', 'odt'].includes(extension)) types.add('document');
+      if (['xls', 'xlsx', 'csv', 'ods'].includes(extension)) types.add('excel');
+      if (extension === 'md') types.add('markdown');
+      if (codeExtensions.includes(extension)) types.add('code');
+    }
+
+    return Array.from(types);
+  }
+
   matchesStorageType(file, type) {
     if (!type || type === 'all') return true;
     const category = this.getStorageCategory(file).toLowerCase();
@@ -359,16 +383,29 @@ class DriveController {
         }));
       }
 
-      const [stats, userStarred, userRootFolders, allUserFolders, shareUsers] = await Promise.all([
+      const availableFileTypesPromise = db.select({
+        mimeType: files.mimeType,
+        extension: files.extension
+      })
+        .from(files)
+        .leftJoin(trashItems, and(eq(trashItems.entityId, files.id), eq(trashItems.entityType, 'file')))
+        .where(and(
+          includeAll ? sql`1 = 1` : eq(files.userId, userId),
+          sql`${trashItems.id} IS NULL`
+        ));
+
+      const [stats, userStarred, userRootFolders, allUserFolders, shareUsers, fileTypeMeta] = await Promise.all([
         statsPromise,
         db.select().from(favorites).where(eq(favorites.userId, userId)),
         folderRepository.findUserRootFolders(userId, includeAll),
         includeAll ? db.select().from(folders) : db.select().from(folders).where(eq(folders.userId, userId)),
-        userRepository.listShareCandidates(userId)
+        userRepository.listShareCandidates(userId),
+        availableFileTypesPromise
       ]);
       storageStats = stats[0] || storageStats;
       const starredFolderIds = new Set(userStarred.filter(f => f.folderId).map(f => f.folderId));
       const starredFileIds = new Set(userStarred.filter(f => f.fileId).map(f => f.fileId));
+      const availableFileTypes = this.collectAvailableSearchTypes(fileTypeMeta);
 
       res.render('dashboard/index', {
         tab,
@@ -384,6 +421,7 @@ class DriveController {
         starredFileIds,
         searchQuery,
         fileType,
+        availableFileTypes,
         sortBy,
         sortOrder,
         allUserFolders,
@@ -667,35 +705,11 @@ class DriveController {
   }
 
   async uploadChunk(req, res) {
-    const { uploadId, chunkIndex, chunkOffset, fileSize } = req.body;
-    if (!uploadId || chunkIndex === undefined || !req.file) {
+    if (!req.file) {
       return res.status(400).json({ error: 'Missing chunk upload arguments' });
     }
-
-    try {
-      const parsedChunkIndex = Number.parseInt(chunkIndex, 10);
-      const parsedChunkOffset = chunkOffset === undefined ? null : Number(chunkOffset);
-      const parsedFileSize = fileSize === undefined ? null : Number(fileSize);
-      if (!Number.isSafeInteger(parsedChunkIndex) || parsedChunkIndex < 0) {
-        return res.status(400).json({ error: 'Invalid chunk index' });
-      }
-      if (parsedChunkOffset !== null && (!Number.isSafeInteger(parsedChunkOffset) || parsedChunkOffset < 0)) {
-        return res.status(400).json({ error: 'Invalid chunk offset' });
-      }
-      if (parsedChunkOffset !== null) {
-        if (!Number.isSafeInteger(parsedFileSize) || parsedFileSize < 0) {
-          return res.status(400).json({ error: 'Invalid file size' });
-        }
-        if (parsedChunkOffset + req.file.size > parsedFileSize) {
-          return res.status(400).json({ error: 'Chunk exceeds declared file size' });
-        }
-      }
-
-      await storageService.saveChunk(uploadId, parsedChunkIndex, req.file.buffer, parsedChunkOffset, req.session.userId);
-      res.status(200).json({ success: true });
-    } catch (err) {
-      res.status(err.code === 'UPLOAD_FORBIDDEN' ? 403 : 500).json({ error: err.message });
-    }
+    // The upload middleware has already streamed, validated and saved this chunk.
+    res.status(200).json({ success: true });
   }
 
   async checkUploadConflict(req, res) {

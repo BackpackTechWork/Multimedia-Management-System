@@ -20,6 +20,37 @@ class AdminController {
     });
   }
 
+  parseUserListFilters(req) {
+    const searchQuery = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    const roleRaw = typeof req.query.role === 'string' ? req.query.role : 'all';
+    const sortRaw = typeof req.query.sortBy === 'string' ? req.query.sortBy : 'name';
+    const roleFilter = ['all', 'user', 'super_admin'].includes(roleRaw) ? roleRaw : 'all';
+    const sortBy = ['name', 'email', 'date'].includes(sortRaw) ? sortRaw : 'name';
+    return { searchQuery, roleFilter, sortBy };
+  }
+
+  filterAndSortUsers(users, { searchQuery, roleFilter, sortBy }) {
+    const query = searchQuery.toLowerCase();
+    const filtered = users.filter(user => {
+      if (roleFilter !== 'all' && user.role !== roleFilter) return false;
+      if (!query) return true;
+      const haystack = `${user.name || ''} ${user.email || ''}`.toLowerCase();
+      return haystack.includes(query);
+    });
+
+    filtered.sort((a, b) => {
+      if (sortBy === 'email') {
+        return String(a.email || '').localeCompare(String(b.email || ''), undefined, { sensitivity: 'base' });
+      }
+      if (sortBy === 'date') {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+    });
+
+    return filtered;
+  }
+
   async viewData(req, overrides = {}) {
     const userId = req.session.userId;
     const includeAll = req.session.userRole === 'super_admin';
@@ -60,10 +91,17 @@ class AdminController {
 
   async renderUsers(req, res) {
     try {
-      const users = await userRepository.listUsers();
+      const filters = this.parseUserListFilters(req);
+      const allUsers = await userRepository.listUsers();
+      const users = this.filterAndSortUsers(allUsers, filters);
       const success = req.session.adminFlash || null;
       delete req.session.adminFlash;
-      res.render('admin/users', await this.viewData(req, { users, success }));
+      res.render('admin/users', await this.viewData(req, {
+        users,
+        totalUserCount: allUsers.length,
+        success,
+        ...filters
+      }));
     } catch (err) {
       res.status(500).send('Failed to load users');
     }
@@ -190,8 +228,15 @@ class AdminController {
       req.session.adminFlash = 'Account deleted.';
       res.redirect('/admin/users');
     } catch (err) {
-      const users = await userRepository.listUsers();
-      res.status(400).render('admin/users', await this.viewData(req, { users, error: err.message }));
+      const filters = this.parseUserListFilters(req);
+      const allUsers = await userRepository.listUsers();
+      const users = this.filterAndSortUsers(allUsers, filters);
+      res.status(400).render('admin/users', await this.viewData(req, {
+        users,
+        totalUserCount: allUsers.length,
+        error: err.message,
+        ...filters
+      }));
     }
   }
 }

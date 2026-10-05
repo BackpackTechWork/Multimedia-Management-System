@@ -50,6 +50,23 @@ under `public/`, because Express serves that directory without file-level
 authorization. `JOB_CONCURRENCY` controls how many users' finalize and media
 jobs can run together (the default is 4).
 
+Uploads stream directly into private staging rather than buffering each chunk
+in server memory. Cross-disk finalization and file copies use bounded streams;
+`STORAGE_COPY_CONCURRENCY` limits simultaneous copies to final storage (default
+2). Start with 1 or 2 for HDD/NAS storage: adding more jobs cannot increase the
+disk's or network's bandwidth. Shared-link uploads also stream to staging, with
+their existing 50 MB per-file limit; signed-in Drive uploads use resumable chunks
+for larger files.
+
+To compare buffered and streamed intake on your server, run
+`node scripts/benchmark-uploads.js 8 128` (8 simulated users, 128 MiB each).
+It creates and removes isolated temporary files, without using the database or
+live storage. Results include throughput, peak memory and the longest event-loop
+stall. This is a local intake benchmark; actual upload speed also depends on
+network bandwidth, database latency and final storage. Streaming prioritizes
+bounded memory and responsiveness under load; buffered intake can be faster on
+an otherwise idle, fast local disk.
+
 ### 4. Fetch Local Vendor Assets
 Run the setup script to download and structure the self-hosted assets (fonts, icons, viewers) from `node_modules` into the `public/vendor/` folder:
 ```bash

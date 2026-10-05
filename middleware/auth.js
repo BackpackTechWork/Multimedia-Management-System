@@ -1,4 +1,3 @@
-const sessionRepository = require('../repositories/SessionRepository');
 const userRepository = require('../repositories/UserRepository');
 
 async function authGuard(req, res, next) {
@@ -8,10 +7,6 @@ async function authGuard(req, res, next) {
     }
     return res.redirect('/auth/login');
   }
-
-  const now = new Date();
-  const maxAge = 7 * 24 * 60 * 60 * 1000;
-  const expiresAt = new Date(now.getTime() + maxAge);
 
   try {
     const user = await userRepository.findById(req.session.userId);
@@ -27,18 +22,12 @@ async function authGuard(req, res, next) {
     req.session.userEmail = user.email;
     req.session.userRole = user.role || 'user';
 
-    const sessionData = JSON.stringify(req.session);
-    await sessionRepository.createOrUpdateSession(
-      req.sessionID,
-      req.session.userId,
-      req.ip,
-      req.headers['user-agent'],
-      sessionData,
-      now,
-      expiresAt
-    );
+    // express-session persists changed data or touches an unchanged session at
+    // response completion. A second upsert here doubles writes for every chunk.
+    req.session.ipAddress = req.ip;
+    req.session.userAgent = req.headers['user-agent'];
   } catch (err) {
-    console.error('Failed to extend database session:', err.message);
+    console.error('Failed to refresh session user:', err.message);
   }
 
   res.locals.userId = req.session.userId;
