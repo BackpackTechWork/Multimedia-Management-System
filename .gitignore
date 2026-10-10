@@ -1,3 +1,9 @@
 node_modules
 .env
 PRODUCT.md
+
+# Server-local uploads, versions, thumbnails, and upload staging data.
+/storage/
+/.upload-temp/
+# Legacy upload staging location.
+/public/temp/

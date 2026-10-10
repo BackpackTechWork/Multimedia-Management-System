@@ -92,6 +92,40 @@ npm run dev
 ```
 Open [http://127.0.0.1:3000](http://127.0.0.1:3000) in your browser!
 
+### Updating the Server Without Replacing Uploads
+
+`storage/`, `.upload-temp/`, and the legacy `public/temp/` directory are ignored
+by Git. This keeps uploaded photos, files, saved versions, thumbnails, and staged
+uploads out of code commits. The application creates its storage directories
+automatically. With these directories untracked, normal `git pull` updates leave
+their contents in place. Keep your existing server `.env`, which is also ignored.
+
+Before the first update, back up your upload directories and MySQL database.
+Check whether any upload files are already tracked on the server:
+
+```bash
+git ls-files -- storage .upload-temp public/temp
+```
+
+If this prints files, `.gitignore` alone does not protect them. Stop the app,
+copy those directories outside the checkout, and remove them from Git tracking
+in the source repository using `git rm -r --cached --ignore-unmatch -- storage
+.upload-temp public/temp` (this leaves that source checkout's local files on
+disk). Commit and push that removal together with the ignore rules. Pull the
+change on the server, then restore the backed-up directories before restarting
+the app: pulling a commit that removes tracked files can delete the server's
+copies. This checkout currently has no tracked files in those directories.
+
+For custom `STORAGE_ROOT` or `UPLOAD_TEMP_ROOT` settings, use absolute paths
+outside the repository, such as `/srv/harbor-drive-data/storage` and
+`/srv/harbor-drive-data/staging`. If moving existing storage, stop the app, copy
+the existing contents to the new directories, update the server `.env`, and
+restart. Keep staging private and outside `public/`.
+
+Avoid `git clean -fdx` in the server checkout: it deletes ignored files,
+including local storage and `.env`. Continue backing up storage and MySQL;
+Git does not back up your uploads or database.
+
 ---
 
 ## Folder Structure
