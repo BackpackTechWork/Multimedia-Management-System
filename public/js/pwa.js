@@ -3,6 +3,24 @@
 
   let registrationPromise = null;
   let deferredInstallPrompt = null;
+  const pageUploads = new Map();
+
+  function queryWorker(worker, message, timeoutMs = 5000) {
+    return new Promise(resolve => {
+      const channel = new MessageChannel();
+      let finished = false;
+      const finish = value => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        channel.port1.close();
+        resolve(value);
+      };
+      const timer = setTimeout(() => finish(null), timeoutMs);
+      channel.port1.onmessage = event => finish(event.data);
+      try { worker.postMessage(message, [channel.port2]); } catch { finish(null); }
+    });
+  }
 
   function isInstalledPwa() {
     return window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
@@ -58,7 +76,15 @@
           registration.update().catch(err => {
             console.warn('Harbor Drive update check failed:', err);
           });
-          return navigator.serviceWorker.ready;
+          if (registration.active) return registration;
+          // A broken/blocked worker must not leave uploads waiting forever.
+          return new Promise(resolve => {
+            const timer = setTimeout(() => resolve(registration), 10000);
+            navigator.serviceWorker.ready.then(ready => {
+              clearTimeout(timer);
+              resolve(ready);
+            });
+          });
         })
         .catch(err => {
           console.warn('Harbor Drive service worker could not start:', err);
@@ -95,33 +121,73 @@
 
   async function streamUpload(payload, onProgress) {
     const registration = await getRegistration();
-    const worker = navigator.serviceWorker.controller || registration?.active;
+    let worker = navigator.serviceWorker.controller || registration?.active;
     if (!worker || typeof MessageChannel === 'undefined') return { handled: false };
 
-    const channel = new MessageChannel();
     return await new Promise((resolve, reject) => {
-      channel.port1.onmessage = event => {
-        const message = event.data || {};
-        if (message.type === 'PROGRESS') onProgress?.(message.percent);
-        if (message.type === 'STAGED') {
-          channel.port1.close();
-          resolve({ handled: true });
-        }
-        if (message.type === 'ERROR') {
-          channel.port1.close();
-          reject(new Error(message.error || 'Upload failed'));
-        }
-        if (message.type === 'CANCELLED') {
-          channel.port1.close();
-          reject(new DOMException('Upload cancelled', 'AbortError'));
+      let channel;
+      let generation = 0;
+      let settled = false;
+      let checking = false;
+      let timer;
+      const session = { paused: false, check: null, cancel: null };
+      const finish = (value, error) => {
+        if (settled) return;
+        settled = true;
+        generation += 1;
+        clearInterval(timer);
+        channel?.port1.close();
+        pageUploads.delete(payload.uploadId);
+        if (error) reject(error);
+        else resolve(value);
+      };
+      const attach = (target, resuming) => {
+        channel?.port1.close();
+        channel = new MessageChannel();
+        worker = target;
+        const currentGeneration = ++generation;
+        channel.port1.onmessage = event => {
+          if (settled || generation !== currentGeneration) return;
+          const message = event.data || {};
+          if (message.type === 'PROGRESS') onProgress?.(message.percent);
+          if (message.type === 'STAGED') finish({ handled: true });
+          if (message.type === 'ERROR') finish(null, new Error(message.error || 'Upload failed'));
+          if (message.type === 'CANCELLED') finish(null, new DOMException('Upload cancelled', 'AbortError'));
+        };
+        try {
+          // Keep the File in the page. If the worker was killed, its replacement
+          // resumes from server markers rather than deleting/reuploading chunks.
+          worker.postMessage({ type: 'START_STREAM_UPLOAD', payload: {
+            ...payload, isNewUpload: resuming ? false : payload.isNewUpload
+          } }, [channel.port2]);
+        } catch (error) {
+          if (!resuming) finish({ handled: false, error });
         }
       };
-      try {
-        worker.postMessage({ type: 'START_STREAM_UPLOAD', payload }, [channel.port2]);
-      } catch (err) {
-        channel.port1.close();
-        resolve({ handled: false, error: err });
-      }
+      session.check = async () => {
+        if (settled || checking || session.paused) return;
+        checking = true;
+        const checkedGeneration = generation;
+        try {
+          const state = await queryWorker(worker, { type: 'LIST_STREAM_UPLOADS' });
+          if (settled || session.paused || generation !== checkedGeneration) return;
+          const active = state?.uploads?.find(upload => upload.uploadId === payload.uploadId);
+          if (active) {
+            onProgress?.(active.percent);
+            return;
+          }
+          // Controller replacement, worker termination, or a lost terminal
+          // message: reattach idempotently, checking server state first.
+          const nextWorker = navigator.serviceWorker.controller || registration?.active;
+          if (nextWorker && navigator.onLine !== false) attach(nextWorker, true);
+        } finally {
+          checking = false;
+        }
+      };
+      session.cancel = () => finish(null, new DOMException('Upload cancelled', 'AbortError'));
+      pageUploads.set(payload.uploadId, session);
+      timer = setInterval(session.check, 15000);
+      attach(worker, false);
     });
   }
 
@@ -162,14 +228,20 @@
   }
 
   function pauseUploads(uploadIds) {
+    uploadIds.forEach(id => { const session = pageUploads.get(id); if (session) session.paused = true; });
     postToWorker({ type: 'PAUSE_STREAM_UPLOADS', uploadIds });
   }
 
   function resumeUploads(uploadIds) {
+    uploadIds.forEach(id => {
+      const session = pageUploads.get(id);
+      if (session) { session.paused = false; session.check(); }
+    });
     postToWorker({ type: 'RESUME_STREAM_UPLOADS', uploadIds });
   }
 
   async function cancelUploads(uploadIds) {
+    uploadIds.forEach(id => pageUploads.get(id)?.cancel());
     const registration = await getRegistration();
     const worker = navigator.serviceWorker.controller || registration?.active;
     if (!worker || typeof MessageChannel === 'undefined') return;
@@ -205,6 +277,16 @@
       window.dispatchEvent(new CustomEvent('harbor:upload-progress', { detail: event.data }));
     }
   });
+
+  function checkPageUploads() {
+    pageUploads.forEach(session => session.check());
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkPageUploads();
+  });
+  window.addEventListener('pageshow', checkPageUploads);
+  window.addEventListener('online', checkPageUploads);
+  navigator.serviceWorker?.addEventListener('controllerchange', checkPageUploads);
 
   window.harborPwa = {
     prepareUploadNotifications,

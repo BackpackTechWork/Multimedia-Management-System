@@ -555,27 +555,31 @@ class StorageService {
       };
     }
 
-    const writeStream = fs.createWriteStream(destinationPath);
     const sha256Hasher = crypto.createHash('sha256');
-
-    for (let i = 0; i < totalChunks; i++) {
-      const chunkPath = path.join(chunkDir, `chunk_${i}`);
-      const chunkBuffer = await fs.promises.readFile(chunkPath);
-      
-      sha256Hasher.update(chunkBuffer);
-      
-      const isWritable = writeStream.write(chunkBuffer);
-      if (!isWritable) {
-        await new Promise((resolve) => writeStream.once('drain', resolve));
+    const chunks = Readable.from((async function* () {
+      for (let i = 0; i < totalChunks; i++) {
+        const chunkPath = path.join(chunkDir, `chunk_${i}`);
+        for await (const block of fs.createReadStream(chunkPath)) yield block;
       }
-    }
-    
-    writeStream.end();
-    
-    await new Promise((resolve, reject) => {
-      writeStream.on('finish', resolve);
-      writeStream.on('error', reject);
+    })());
+    const hashingStream = new Transform({
+      transform(block, encoding, callback) {
+        sha256Hasher.update(block);
+        callback(null, block);
+      }
     });
+    // Handle disk/SMB failures from the first write, including while waiting
+    // for backpressure. Preserve staging so the upload can be retried.
+    try {
+      await pipeline(chunks, hashingStream, fs.createWriteStream(destinationPath, { flags: 'wx' }));
+      const stats = await fs.promises.stat(destinationPath);
+      if (Number.isSafeInteger(expectedFileSize) && stats.size !== expectedFileSize) {
+        throw new Error(`Uploaded file size mismatch. Expected ${expectedFileSize} bytes, received ${stats.size} bytes.`);
+      }
+    } catch (error) {
+      await fs.promises.rm(destinationPath, { force: true }).catch(() => {});
+      throw error;
+    }
 
     const checksum = sha256Hasher.digest('hex');
     const stats = await fs.promises.stat(destinationPath);

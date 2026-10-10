@@ -4,7 +4,7 @@ const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
 const Module = require('node:module');
-const { Readable } = require('node:stream');
+const { Readable, Writable } = require('node:stream');
 const { test } = require('node:test');
 const express = require('express');
 
@@ -49,6 +49,28 @@ function dataStream(size, value) {
     }
   })());
 }
+
+test('legacy assembly streams chunks and preserves them after a destination failure', async t => {
+  let failWrites = true;
+  const filesystem = { ...fs, createWriteStream(...args) {
+    if (!failWrites) return fs.createWriteStream(...args);
+    return new Writable({ write(block, encoding, callback) {
+      callback(Object.assign(new Error('SMB destination disconnected'), { code: 'EIO' }));
+    } });
+  } };
+  const { storage } = setup(t, filesystem);
+  await storage.assertUploadOwner('legacy-retry', 1, { create: true });
+  const chunkDir = storage.getChunkUploadDir('legacy-retry');
+  await fs.promises.writeFile(path.join(chunkDir, 'chunk_0'), Buffer.alloc(128 * 1024, 1));
+  await fs.promises.writeFile(path.join(chunkDir, 'chunk_1'), Buffer.alloc(128 * 1024, 2));
+  await assert.rejects(storage.assembleChunks('legacy-retry', 2, 1, 'legacy.bin', 256 * 1024, 1), /disconnected/);
+  assert.deepEqual(await storage.getUploadedChunks('legacy-retry', 1), [0, 1]);
+  failWrites = false;
+  const saved = await storage.assembleChunks('legacy-retry', 2, 1, 'legacy.bin', 256 * 1024, 1);
+  assert.equal(saved.size, 256 * 1024);
+  assert.equal(saved.checksum, crypto.createHash('sha256')
+    .update(Buffer.alloc(128 * 1024, 1)).update(Buffer.alloc(128 * 1024, 2)).digest('hex'));
+});
 
 test('eight simultaneous 32 MiB uploads preserve every byte with out-of-order chunks', async t => {
   const { storage } = setup(t);
