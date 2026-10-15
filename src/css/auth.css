@@ -32,6 +32,37 @@ body {
   width: min(100%, 28rem);
 }
 
+.ums-sign-in {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: 48px;
+  padding: 0.75rem 1rem;
+  border: 1px solid #6a56d6;
+  border-radius: var(--radius-sm);
+  background: #f4f1ff;
+  color: #3f2f92;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ums-sign-in__icon {
+  width: 1.375rem;
+  height: 1.375rem;
+  flex: none;
+  object-fit: contain;
+  display: block;
+}
+
+.ums-sign-in:hover { background: #e9e2ff; }
+.ums-sign-in:focus-visible { outline: 2px solid #3f2f92; outline-offset: 3px; }
+.ums-sign-in-help { margin-top: 0.5rem; text-align: center; font-size: 0.75rem; color: #4b5563; }
+.ums-sign-in-divider { display: flex; align-items: center; gap: 0.75rem; margin: 1.25rem 0; font-size: 0.75rem; color: #4b5563; }
+.ums-sign-in-divider::before, .ums-sign-in-divider::after { content: ''; height: 1px; flex: 1; background: #d1d5db; }
+
 .share-page {
   background: radial-gradient(circle at 10% 20%, rgba(243, 244, 246, 1) 0%, rgba(229, 231, 235, 0.4) 90.1%);
   min-height: 100vh;

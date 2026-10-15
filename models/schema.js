@@ -5,11 +5,13 @@ const users = mysqlTable('users', {
   id: int('id').primaryKey().autoincrement(),
   name: varchar('name', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull(),
+  umsUserId: varchar('ums_user_id', { length: 20 }),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   role: varchar('role', { length: 50 }).default('user').notNull(),
   createdAt: datetime('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => ({
   emailIdx: uniqueIndex('email_idx').on(table.email),
+  umsUserIdIdx: uniqueIndex('users_ums_user_id_idx').on(table.umsUserId),
 }));
 
 const folders = mysqlTable('folders', {

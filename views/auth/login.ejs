@@ -24,6 +24,15 @@
       <% } %>
     </div>
 
+    <% if (locals.umsEnabled) { %>
+      <a class="ums-sign-in" href="/auth/ums/redirect<%= locals.returnTo ? '?returnTo=' + encodeURIComponent(returnTo) : '' %>">
+        <img class="ums-sign-in__icon" src="/ums-icon.png" alt="" width="22" height="22" aria-hidden="true">
+        <span>Sign in with UMS</span>
+      </a>
+      <p class="ums-sign-in-help">Use your UMS account to access Harbor Drive.</p>
+      <div class="ums-sign-in-divider"><span>or sign in with email</span></div>
+    <% } %>
+
     <form action="/auth/login" method="POST" class="flex flex-col gap-5 text-sm">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <% if (locals.returnTo) { %>

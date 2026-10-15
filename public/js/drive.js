@@ -1559,7 +1559,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let uploadPauseReason = null;
   let uploadResumeWaiters = [];
   let reconnectTimer = null;
-  let uploadStartedAt = 0;
+  const uploadRateTracker = createRecentUploadRateTracker();
+  let uploadSummaryTimer = null;
   let uploadQueue = [];
   const uploadQueueByFile = new Map();
   const activeUploadIds = new Set();
@@ -1764,6 +1765,35 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function createRecentUploadRateTracker(windowMs = 30000) {
+    let samples = [];
+    return {
+      reset() { samples = []; },
+      sample(bytes, now = Date.now()) {
+        const last = samples[samples.length - 1];
+        // Resuming/reconciling server markers can move the byte count backwards.
+        // Never include that correction or a prior session in the new rate.
+        if (last && (bytes < last.bytes || now < last.time)) samples = [];
+        if (samples.length && now === samples[samples.length - 1].time) {
+          samples[samples.length - 1].bytes = bytes;
+        } else {
+          samples.push({ time: now, bytes });
+        }
+        const cutoff = now - windowMs;
+        while (samples.length > 2 && samples[1].time <= cutoff) samples.shift();
+        let baseline = samples[0];
+        if (baseline.time < cutoff && samples.length > 1) {
+          const next = samples[1];
+          const fraction = (cutoff - baseline.time) / (next.time - baseline.time);
+          baseline = { time: cutoff, bytes: baseline.bytes + fraction * (next.bytes - baseline.bytes) };
+        }
+        const elapsed = now - baseline.time;
+        if (elapsed < 3000) return null;
+        return Math.max(0, bytes - baseline.bytes) / (elapsed / 1000);
+      }
+    };
+  }
+
   function startUploadSession() {
     restoredUploadPollGeneration += 1;
     clearTimeout(restoredUploadPollTimer);
@@ -1776,7 +1806,11 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadPaused = false;
     uploadPauseReason = null;
     uploadResumeWaiters = [];
-    uploadStartedAt = 0;
+    uploadRateTracker.reset();
+    clearInterval(uploadSummaryTimer);
+    // Sample idle periods too: a stalled request must not retain its last fast
+    // rate indefinitely just because it stops emitting progress messages.
+    uploadSummaryTimer = setInterval(() => updateUploadSummary(), 1000);
     uploadQueue = [];
     uploadQueueByFile.clear();
     activeUploadIds.clear();
@@ -1801,7 +1835,9 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadPaused = false;
     uploadPauseReason = null;
     uploadResumeWaiters.splice(0).forEach(resolve => resolve());
-    uploadStartedAt = 0;
+    uploadRateTracker.reset();
+    clearInterval(uploadSummaryTimer);
+    uploadSummaryTimer = null;
     activeUploadIds.clear();
     activeUploadRequestControllers.forEach(controller => controller.abort());
     activeUploadRequestControllers.clear();
@@ -1846,6 +1882,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!uploadInProgress || uploadCancelled) return;
     uploadPaused = true;
     uploadPauseReason = reason;
+    uploadRateTracker.reset();
     activeUploadRequestControllers.forEach(controller => controller.abort());
     window.harborPwa?.pauseUploads(Array.from(activeUploadIds));
     clearTimeout(reconnectTimer);
@@ -1877,6 +1914,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reconnectTimer = null;
     uploadPaused = false;
     uploadPauseReason = null;
+    uploadRateTracker.reset();
     window.harborPwa?.resumeUploads(Array.from(activeUploadIds));
 
     uploadQueue.forEach(item => {
@@ -2148,6 +2186,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const paused = uploadQueue.filter(item => item.status === 'paused').length;
     const percent = totalBytes > 0 ? roundUploadPercent((uploadedBytes / totalBytes) * 100) : 100;
 
+    const bytesPerSecond = uploadPaused || paused > 0
+      ? null
+      : uploadRateTracker.sample(uploadedBytes);
+
     if (uploadProgressText) {
       if (uploadPaused || paused > 0) {
         uploadProgressText.textContent = 'Upload paused';
@@ -2169,10 +2211,10 @@ document.addEventListener('DOMContentLoaded', () => {
         : 'Select Resume to continue';
     } else if (finalizing > 0 && completed + finalizing === uploadQueue.length) {
       detailText = 'Completing upload';
-    } else if (uploadStartedAt > 0 && uploadedBytes > 0 && uploadedBytes < totalBytes) {
-      const elapsedSeconds = Math.max((Date.now() - uploadStartedAt) / 1000, 0.1);
-      const bytesPerSecond = uploadedBytes / elapsedSeconds;
+    } else if (uploadedBytes < totalBytes && bytesPerSecond > 0) {
       detailText = `${formatUploadDuration((totalBytes - uploadedBytes) / bytesPerSecond)} - ${formatBytes(bytesPerSecond)}/s`;
+    } else if (uploadedBytes < totalBytes && bytesPerSecond === 0) {
+      detailText = 'Waiting for upload progress - 0 B/s';
     } else if (completed === uploadQueue.length) {
       detailText = 'All uploads finished';
     }
@@ -3015,7 +3057,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let uploadCompleted = false;
 
     try {
-      if (uploadStartedAt === 0) uploadStartedAt = Date.now();
       setUploadItemState(file, 'uploading', 0);
 
       // Hand the File to the service worker before the page performs any

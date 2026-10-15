@@ -7,6 +7,7 @@ const Module = require('node:module');
 const { Readable, Writable } = require('node:stream');
 const { test } = require('node:test');
 const express = require('express');
+const http = require('node:http');
 
 function load(relative, mocks = {}) {
   const filename = path.resolve(__dirname, '..', relative);
@@ -232,6 +233,55 @@ test('multipart routes stream without buffers and clean up truncated or rejected
   form.append('file', new Blob(['private file']), 'small.txt');
   assert.equal((await fetch(`${base}/shared`, { method: 'POST', body: form })).status, 403);
   assert.deepEqual(await fs.promises.readdir(path.join(storage.chunksDir, '.incoming')), []);
+});
+
+test('disconnecting a multipart request releases its chunk lock so the same chunk can retry', async t => {
+  const { storage } = setup(t);
+  const streams = [];
+  let started;
+  const writingStarted = new Promise(resolve => { started = resolve; });
+  const original = storage.writeChunkStream.bind(storage);
+  storage.writeChunkStream = (...args) => {
+    streams.push(args[2]);
+    started();
+    return original(...args);
+  };
+  const { chunkUpload } = load('middleware/upload.js', { '../services/StorageService': storage });
+  const app = express();
+  app.use((req, res, next) => { req.session = { userId: 1 }; next(); });
+  app.post('/chunk', chunkUpload.single('chunk'), (req, res) => res.json({ size: req.file.size }));
+  app.use((err, req, res, next) => { if (!res.destroyed) res.status(400).end(); });
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  t.after(async () => {
+    streams.forEach(stream => stream.destroy());
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+  });
+  const boundary = 'harbor-abort-test';
+  const field = (name, value) => `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`;
+  const prefix = ['uploadId', 'chunkIndex', 'chunkOffset', 'fileSize']
+    .map((name, i) => field(name, ['disconnect-retry', '0', '0', '1048576'][i])).join('') +
+    `--${boundary}\r\nContent-Disposition: form-data; name="chunk"; filename="chunk_0"\r\nContent-Type: application/octet-stream\r\n\r\n`;
+  const request = http.request({ host: '127.0.0.1', port: server.address().port, path: '/chunk', method: 'POST',
+    headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` } });
+  request.on('error', () => {});
+  request.write(prefix);
+  request.write(Buffer.alloc(64 * 1024));
+  await writingStarted;
+  request.destroy(); // No closing multipart boundary: emulate a browser timeout/pause.
+  const deadline = Date.now() + 1500;
+  while (storage.activeChunkWrites.size && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(storage.activeChunkWrites.size, 0, 'aborted request must not hold the chunk lock forever');
+  assert.deepEqual(await storage.getUploadedChunks('disconnect-retry', 1), []);
+  const form = new FormData();
+  for (const [name, value] of Object.entries({ uploadId: 'disconnect-retry', chunkIndex: '0', chunkOffset: '0', fileSize: '1048576' })) form.append(name, value);
+  form.append('chunk', new Blob([Buffer.alloc(1024 * 1024, 7)]), 'chunk_0');
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/chunk`, {
+    method: 'POST', body: form, signal: AbortSignal.timeout(5000)
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await storage.getUploadedChunks('disconnect-retry', 1), [0]);
 });
 
 test('session bursts coalesce activity writes while still reading revocations and persisting changes', async () => {

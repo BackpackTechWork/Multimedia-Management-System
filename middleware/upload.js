@@ -6,6 +6,25 @@ function uploadError(message) {
   return Object.assign(new Error(message), { status: 400 });
 }
 
+function writeRequestStream(req, stream, write) {
+  // Multer/Busboy's file stream does not automatically close when the HTTP
+  // request disconnects. A pending write would otherwise retain its chunk lock
+  // forever, blocking every subsequent retry of the same chunk.
+  const abort = () => stream.destroy();
+  const close = () => { if (!req.complete) abort(); };
+  req.once('aborted', abort);
+  req.once('error', abort);
+  req.once('close', close);
+  return Promise.resolve().then(() => {
+    if (req.aborted || (req.destroyed && !req.complete)) abort();
+    return write();
+  }).finally(() => {
+    req.removeListener('aborted', abort);
+    req.removeListener('error', abort);
+    req.removeListener('close', close);
+  });
+}
+
 // Chunk metadata must precede the file part, as it does in both upload clients.
 // Multer passes a stream here, so concurrent requests never retain whole chunks.
 const chunkStorage = {
@@ -21,7 +40,8 @@ const chunkStorage = {
         !Number.isSafeInteger(size) || size < 0 || offset > size)) {
       return callback(uploadError('Invalid chunk offset or file size'));
     }
-    storageService.saveChunkStream(uploadId, index, file.stream, offset, req.session.userId, size)
+    writeRequestStream(req, file.stream, () =>
+      storageService.saveChunkStream(uploadId, index, file.stream, offset, req.session.userId, size))
       .then(result => callback(null, result), callback);
   },
   _removeFile(req, file, callback) {
@@ -33,7 +53,7 @@ const chunkStorage = {
 
 const sharedStorage = {
   _handleFile(req, file, callback) {
-    storageService.stageIncomingFile(file.stream)
+    writeRequestStream(req, file.stream, () => storageService.stageIncomingFile(file.stream))
       .then(result => callback(null, result), callback);
   },
   _removeFile(req, file, callback) {

@@ -3,11 +3,7 @@ const sessionRepository = require('../repositories/SessionRepository');
 const userRepository = require('../repositories/UserRepository');
 const bcrypt = require('bcrypt');
 
-function getSafeReturnTo(value) {
-  if (!value || typeof value !== 'string') return null;
-  if (!value.startsWith('/') || value.startsWith('//')) return null;
-  return value;
-}
+const getSafeReturnTo = require('../utils/safeReturnTo');
 
 function isMobileUserAgent(userAgent) {
   if (!userAgent) return false;

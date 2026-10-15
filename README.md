@@ -3,6 +3,7 @@
 A self-hosted file management application built with Node.js, Express.js, EJS, Tailwind CSS, MySQL, and Drizzle ORM.
 
 ## Features
+- **UMS Sign-in**: One-button SSO for users assigned to MMS in UMS, with stable account linking and existing MMS roles. See [setup](Documentation/ums-sign-in.md).
 - **Materialized Path Folders**: Efficient, recursive-free folder structures for rapid deep nesting lookups.
 - **Sliding-Window Session Store**: Session verification tracked inside MySQL with sliding 7-day expirations and remote multi-device session revocations.
 - **Resumable Staged Uploads**: Concurrent chunk transfer with request timeouts, automatic recovery, private fast-disk staging, and server-side finalization that continues after the browser closes.
