@@ -370,6 +370,19 @@ class ShareController {
       const share = await shareRepository.findByToken(token);
       if (!share) return res.status(404).send('Share link not found.');
 
+      if (share.expiresAt && new Date(share.expiresAt) < new Date()) {
+        return res.status(410).send('This sharing link has expired.');
+      }
+      if (!(await this.canOpenShare(req, share))) {
+        return this.renderRestrictedShare(
+          req,
+          res,
+          token,
+          'Sign in with an account this item was shared with to open this restricted link.'
+        );
+      }
+      if (!share.passwordHash) return res.redirect(`/share/${token}`);
+
       const isMatch = await bcrypt.compare(password || '', share.passwordHash);
       if (!isMatch) {
         return res.render('share/password', { token, error: 'Incorrect password' });
