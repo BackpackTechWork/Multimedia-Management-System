@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+.everyone-files .drive-action-bar__btn:not(#detail-download-btn),
+.everyone-files .drive-action-bar__divider,
+.everyone-directory .drive-toolbar-controls,
+.everyone-directory .layout-toggle {
+  display: none;
+}
+
 :root {
   --yellow: #E9D758;
   --teal: #297373;

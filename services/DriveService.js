@@ -249,7 +249,8 @@ class DriveService {
 
   async packageFolderToZip(folderId, userId, res, { isSuperAdmin = false } = {}) {
     const folder = await folderRepository.findById(folderId);
-    if (!folder || (!this.canAccess(folder.userId, userId, isSuperAdmin) && !(await shareRepository.userCanAccessFolder(userId, folder)))) {
+    const everyoneRead = userId && await require('./EveryoneFilesService').canRead(folder, 'folder');
+    if (!folder || (!this.canAccess(folder.userId, userId, isSuperAdmin) && !everyoneRead && !(await shareRepository.userCanAccessFolder(userId, folder)))) {
       res.status(404).send('Folder not found');
       return;
     }
@@ -278,6 +279,7 @@ class DriveService {
     );
 
     for (let file of folderFiles) {
+      if (everyoneRead && !await require('./EveryoneFilesService').canRead(file, 'file')) continue;
       const fileName = ensureExtension(file.originalName, file.extension);
       let zipFilePath = fileName;
       let currFolderId = file.folderId;

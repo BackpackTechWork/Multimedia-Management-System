@@ -164,6 +164,7 @@ class PreviewController {
 
     // Anonymous access must have passed the explicit share checks above.
     if (!userId) return null;
+    if (await require('../services/EveryoneFilesService').canRead(file, 'file')) return file;
 
     if (await shareRepository.userCanAccessFile(userId, file)) {
       if (recordRecent) {

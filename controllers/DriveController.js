@@ -1,4 +1,5 @@
 const uploadConflictService = require('../services/UploadConflictService');
+const everyoneFiles = require('../services/EveryoneFilesService');
 const fs = require('fs');
 const path = require('path');
 const { db } = require('../config/db');
@@ -91,11 +92,13 @@ class DriveController {
 
   async canAccessFolder(req, folder) {
     if (this.canAccessItem(req, folder)) return true;
+    if (req.session.userId && await everyoneFiles.canRead(folder, 'folder')) return true;
     return await shareRepository.userCanAccessFolder(req.session.userId, folder);
   }
 
   async canAccessFile(req, file) {
     if (this.canAccessItem(req, file)) return true;
+    if (req.session.userId && await everyoneFiles.canRead(file, 'file')) return true;
     return await shareRepository.userCanAccessFile(req.session.userId, file);
   }
 
@@ -195,6 +198,7 @@ class DriveController {
   }
 
   getDashboardRouteState(req) {
+    if (req.path.startsWith('/everyone')) return { tab: 'everyone', currentFolderId: req.params.folderId ? Number(req.params.folderId) : null };
     if (req.path === '/recent') return { tab: 'recent', currentFolderId: null };
     if (req.path === '/starred') return { tab: 'starred', currentFolderId: null };
     if (req.path === '/shared') return { tab: 'shared', currentFolderId: null };
@@ -238,7 +242,9 @@ class DriveController {
 
   async renderDashboard(req, res) {
     const userId = req.session.userId;
-    const includeAll = this.isSuperAdmin(req);
+    const everyoneTab = req.path.startsWith('/everyone');
+    if (everyoneTab && !everyoneFiles.isEnabled()) return res.sendStatus(404);
+    const includeAll = !everyoneTab && this.isSuperAdmin(req);
     if (this.redirectLegacyDashboardQuery(req, res)) return;
 
     const { tab, currentFolderId } = this.getDashboardRouteState(req);
@@ -252,12 +258,19 @@ class DriveController {
       let currentFolderCanEdit = ['my-drive', 'recent', 'starred'].includes(tab) && !currentFolderId;
       let breadcrumbs = [];
       let folderScopeUserId = userId;
-      if (currentFolderId && tab === 'my-drive') {
+      let everyoneOwner = null;
+      if (everyoneTab && req.params.ownerId) {
+        everyoneOwner = await userRepository.findById(Number(req.params.ownerId));
+        if (!everyoneFiles.isVisibleOwner(everyoneOwner, userId)) return res.sendStatus(404);
+        folderScopeUserId = everyoneOwner.id;
+      }
+      if (currentFolderId && ['my-drive', 'everyone'].includes(tab)) {
         currentFolder = await folderRepository.findById(currentFolderId);
+        if (everyoneTab && (!currentFolder || currentFolder.userId !== folderScopeUserId || !await everyoneFiles.canRead(currentFolder, 'folder'))) return res.sendStatus(404);
         if (!(await this.canAccessFolder(req, currentFolder))) {
           return res.redirect('/');
         }
-        currentFolderCanEdit = await this.canEditFolder(req, currentFolder);
+        currentFolderCanEdit = !everyoneTab && await this.canEditFolder(req, currentFolder);
         folderScopeUserId = currentFolder.userId;
 
         const pathIds = currentFolder.path.split('/').filter(id => id !== '');
@@ -289,8 +302,11 @@ class DriveController {
 
       let itemsList = { folders: [], files: [] };
 
-      if (searchQuery.trim() !== '') {
-        const searchResultsPromise = fileRepository.searchFiles(userId, {
+      if (everyoneTab && !everyoneOwner) {
+        itemsList.people = (await userRepository.listUsers())
+          .filter(person => everyoneFiles.isVisibleOwner(person, userId));
+      } else if (searchQuery.trim() !== '') {
+        const searchResultsPromise = fileRepository.searchFiles(folderScopeUserId, {
           query: searchQuery,
           type: fileType,
           sortBy,
@@ -304,7 +320,7 @@ class DriveController {
           .from(folders)
           .leftJoin(trashItems, and(eq(trashItems.entityId, folders.id), eq(trashItems.entityType, 'folder')))
           .where(and(
-            includeAll ? sql`1 = 1` : eq(folders.userId, userId),
+            includeAll ? sql`1 = 1` : eq(folders.userId, folderScopeUserId),
             like(folders.name, `%${searchQuery}%`),
             sql`${trashItems.id} IS NULL`
           ))
@@ -368,18 +384,26 @@ class DriveController {
         itemsList.files = filesJoin.map(r => r.files);
       }
 
-      if (tab !== 'shared' && tab !== 'trash') {
+      if (everyoneTab) {
+        const [readableFiles, readableFolders] = await Promise.all([
+          Promise.all(itemsList.files.map(file => everyoneFiles.canRead(file, 'file'))),
+          Promise.all(itemsList.folders.map(folder => everyoneFiles.canRead(folder, 'folder')))
+        ]);
+        itemsList.files = itemsList.files.filter((_, i) => readableFiles[i]);
+        itemsList.folders = itemsList.folders.filter((_, i) => readableFolders[i]);
+      }
+      if (tab !== 'shared' && tab !== 'trash' && !everyoneTab) {
         const { fileTokenById, folderTokenById } = await shareRepository.findShareTokensByItemIds(
           (itemsList.files || []).map(file => file.id),
           (itemsList.folders || []).map(folder => folder.id)
         );
         itemsList.files = (itemsList.files || []).map(file => ({
           ...file,
-          shareToken: fileTokenById.get(Number(file.id)) || null
+          shareToken: this.canAccessItem(req, file) ? fileTokenById.get(Number(file.id)) || null : null
         }));
         itemsList.folders = (itemsList.folders || []).map(folder => ({
           ...folder,
-          shareToken: folderTokenById.get(Number(folder.id)) || null
+          shareToken: this.canAccessItem(req, folder) ? folderTokenById.get(Number(folder.id)) || null : null
         }));
       }
 
@@ -408,6 +432,8 @@ class DriveController {
       const availableFileTypes = this.collectAvailableSearchTypes(fileTypeMeta);
 
       res.render('dashboard/index', {
+        everyoneOwner,
+        people: itemsList.people || null,
         tab,
         currentFolderId,
         currentFolder,

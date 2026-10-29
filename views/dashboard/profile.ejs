@@ -49,8 +49,9 @@
 
           <!-- Left Column: User Card -->
           <aside class="profile-user-card bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col items-center text-center select-none">
-            <div class="bg-brand-teal/10 text-brand-teal w-20 h-20 rounded-full flex items-center justify-center font-bold text-3xl mb-4 shadow-sm border border-brand-teal/20">
+            <div class="relative overflow-hidden bg-brand-teal/10 text-brand-teal w-20 h-20 rounded-full flex items-center justify-center font-bold text-3xl mb-4 shadow-sm border border-brand-teal/20">
               <%= (locals.userName || 'U').charAt(0).toUpperCase() %>
+              <img data-blobatar-gaze src="/auth/avatars/<%= locals.userId %>" alt="Your profile picture" class="absolute inset-0 w-full h-full object-cover" onerror="this.remove()">
             </div>
             <h3 class="font-bold text-gray-800 text-lg break-all"><%= locals.userName %></h3>
             <span class="text-xs text-gray-400 mt-0.5 break-all"><%= locals.userEmail %></span>
@@ -65,6 +66,19 @@
 
           <!-- Right Column: Settings Forms -->
           <div class="profile-forms flex flex-col gap-6">
+            <section class="bg-white border border-gray-200 rounded-2xl p-6">
+              <h3 class="font-bold text-sm text-gray-700 mb-4">Profile picture</h3>
+              <form action="/auth/profile/avatar?_csrf=<%= encodeURIComponent(csrfToken) %>" method="POST" enctype="multipart/form-data" class="flex flex-col gap-3">
+                <label for="avatar" class="text-sm font-semibold text-gray-700">Choose a picture</label>
+                <input id="avatar" name="avatar" type="file" accept="image/jpeg,image/png,image/webp" required aria-describedby="avatar-help" class="text-sm w-full">
+                <p id="avatar-help" class="text-sm text-gray-600">JPEG, PNG, or WebP. Maximum 5 MB.</p>
+                <button type="submit" class="self-start bg-brand-teal hover:bg-brand-teal-dark text-white px-4 py-2 rounded-lg text-sm font-semibold">Save picture</button>
+              </form>
+              <form action="/auth/profile/avatar/remove" method="POST" class="mt-3">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="text-sm font-semibold text-gray-600 hover:text-red-700">Remove picture</button>
+              </form>
+            </section>
 
             <!-- General Profile Settings -->
             <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">

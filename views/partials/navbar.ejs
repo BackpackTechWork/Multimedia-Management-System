@@ -463,8 +463,9 @@
   <% if (locals.userId) { %>
     <div class="flex items-center gap-4">
       <div class="relative">
-        <button id="profile-dropdown-btn" class="bg-brand-teal text-white w-9 h-9 rounded-full flex items-center justify-center font-bold shadow-sm focus:outline-none hover:bg-brand-teal-dark transition">
+        <button id="profile-dropdown-btn" aria-label="Open profile menu" class="relative overflow-hidden bg-brand-teal text-white w-9 h-9 rounded-full flex items-center justify-center font-bold shadow-sm focus:outline-none hover:bg-brand-teal-dark transition">
           <%= locals.userName.charAt(0).toUpperCase() %>
+          <img data-blobatar-gaze src="/auth/avatars/<%= locals.userId %>" alt="" class="absolute inset-0 w-full h-full object-cover" onerror="this.remove()">
         </button>
         <div id="profile-dropdown-menu" class="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg py-1 hidden z-50">
           <a href="/" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2">

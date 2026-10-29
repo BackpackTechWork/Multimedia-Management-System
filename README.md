@@ -51,6 +51,20 @@ under `public/`, because Express serves that directory without file-level
 authorization. `JOB_CONCURRENCY` controls how many users' finalize and media
 jobs can run together (the default is 4).
 
+Set `EVERYONE_FILES_ENABLED=true` to show **Everyone’s files** to all signed-in
+users after restarting the server. Each person appears as a folder containing
+their drive. Super admin accounts and the signed-in user's own drive are excluded.
+Users can browse, preview, and download each other's files,
+including private files; this setting does not grant edit access. Trashed items
+and items beneath trashed folders are excluded. The default is `false`.
+
+Users can upload or remove their profile picture from **Profile**. Pictures
+default to a stable, locally generated Blobatar when no upload is set. Uploaded pictures
+accept JPEG, PNG, and WebP up to 5 MB and are saved as 256×256 WebP images in
+`UPLOAD_TEMP_ROOT/.profile-pictures` (or the default staging directory when
+`UPLOAD_TEMP_ROOT` is empty). This directory is permanent: include it in backups
+and preserve it when cleaning upload staging or changing `UPLOAD_TEMP_ROOT`.
+
 Uploads stream directly into private staging rather than buffering each chunk
 in server memory. Cross-disk finalization and file copies use bounded streams;
 `STORAGE_COPY_CONCURRENCY` limits simultaneous copies to final storage (default
@@ -85,6 +99,23 @@ Sync the Drizzle schema structure directly into your MySQL database:
 ```bash
 npm run db:push
 ```
+
+If an existing database was created with `db:push`, it may have application
+tables but no Drizzle migration history. In that case `db:migrate` can fail with
+`Table 'users' already exists`. Once the schema is synchronized, check and
+record its baseline before switching to migrations:
+
+```bash
+npm run db:baseline
+npm run db:baseline -- --apply
+npm run db:migrate
+```
+
+The baseline command checks the latest committed migration snapshot, including
+column definitions and required indexes. It refuses mismatched schemas or
+already populated migration histories. Without `--apply` it only checks; with
+`--apply` it records existing migrations without changing application data.
+Additional columns and indexes from schema pushes are preserved.
 
 ### 7. Run the Application
 Start the development server with automatic file watchers:

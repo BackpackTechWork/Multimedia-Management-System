@@ -105,6 +105,12 @@
         <i class="bi bi-star-fill text-lg"></i>
         <span>Starred</span>
       </a>
+      <% if (locals.everyoneFilesEnabled) { %>
+        <a href="/everyone" class="sidebar-link <%= locals.tab === 'everyone' ? 'active' : '' %>">
+          <i class="bi bi-folder-symlink text-lg" aria-hidden="true"></i>
+          <span>Everyone’s files</span>
+        </a>
+      <% } %>
       <a href="/shared" class="sidebar-link <%= locals.tab === 'shared' ? 'active' : '' %>">
         <i class="bi bi-people text-lg"></i>
         <span>Shared</span>

@@ -35,6 +35,7 @@ async function authGuard(req, res, next) {
   res.locals.userEmail = req.session.userEmail;
   res.locals.userRole = req.session.userRole || 'user';
   res.locals.isSuperAdmin = req.session.userRole === 'super_admin';
+  res.locals.everyoneFilesEnabled = require('../services/EveryoneFilesService').isEnabled();
 
   next();
 }

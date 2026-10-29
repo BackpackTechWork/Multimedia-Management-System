@@ -6,6 +6,7 @@
   window.driveContext = {
     currentFolderId: '<%= currentFolderId || "" %>',
     tab: '<%= tab %>',
+    everyoneOwnerId: '<%= locals.everyoneOwner ? everyoneOwner.id : "" %>',
     currentFolderCanEdit: <%= locals.currentFolderCanEdit ? 'true' : 'false' %>
   };
 </script>
@@ -27,7 +28,7 @@
   <%- include('../partials/sidebar') %>
 
   <!-- Main Drive Panel -->
-  <main class="flex-1 flex flex-col min-h-0 min-w-0 bg-[#F8F9FA] overflow-hidden">
+  <main class="flex-1 flex flex-col min-h-0 min-w-0 bg-[#F8F9FA] overflow-hidden <%= tab === 'everyone' ? 'everyone-files' : '' %> <%= locals.people ? 'everyone-directory' : '' %>">
     
     <!-- Action Toolbar & Breadcrumbs -->
     <div class="drive-toolbar bg-white border-b border-gray-200 px-6 py-3 shrink-0 select-none">
@@ -48,6 +49,13 @@
         </div>
       </div>
 
+      <script>
+        try {
+          var listLayout = localStorage.getItem('harbor-drive-layout') === 'list';
+          document.getElementById('layout-list-btn').setAttribute('aria-pressed', String(listLayout));
+          document.getElementById('layout-grid-btn').setAttribute('aria-pressed', String(!listLayout));
+        } catch (_) {}
+      </script>
       <!-- Contextual Action Bar (Toggled based on selection) -->
       <div class="drive-toolbar-controls">
         <div class="drive-action-bar-scroll">
@@ -84,7 +92,30 @@
 
     <!-- Scrollable content area: padding lives on the inner wrap so sticky headers sit flush under the toolbar -->
     <div id="items-grid-container" class="flex-1 min-h-0 overflow-y-auto relative">
+      <script>
+        // Restore the layout before the parser adds any visible file cards.
+        try {
+          document.getElementById('items-grid-container').classList.add(
+            localStorage.getItem('harbor-drive-layout') === 'list' ? 'drive-layout-list' : 'drive-layout-grid'
+          );
+        } catch (_) {
+          document.getElementById('items-grid-container').classList.add('drive-layout-grid');
+        }
+      </script>
       <div class="p-6">
+      <% if (tab === 'everyone') { %>
+        <p class="text-sm text-gray-600 mb-5">Browse <%= locals.everyoneOwner ? everyoneOwner.name + '’s files' : 'files by person' %>. Files in this tab are read-only.</p>
+        <% if (locals.people) { %>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <% people.forEach(person => { %>
+              <a href="/everyone/<%= person.id %>" class="flex items-center gap-3 bg-white border border-gray-200 rounded-xl p-4 hover:border-brand-teal focus:outline-none focus:ring-2 focus:ring-brand-teal">
+                <i class="bi bi-folder-fill text-brand-teal text-3xl" aria-hidden="true"></i>
+                <span class="min-w-0"><span class="block text-sm font-semibold break-words"><%= person.name %></span><span class="block text-xs text-gray-600">View files</span></span>
+              </a>
+            <% }) %>
+          </div>
+        <% } %>
+      <% } %>
       
       <!-- Trash selection actions -->
       <% if (tab === 'trash') { %>
@@ -234,13 +265,13 @@
         <% }) %>
       <% } else { %>
       <!-- Empty state illustration -->
-      <% if (folders.length === 0 && files.length === 0) { %>
+      <% if (folders.length === 0 && files.length === 0 && !locals.people) { %>
         <div class="flex flex-col items-center justify-center py-24 text-center select-none">
           <div class="bg-gray-100 text-gray-300 w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-inner">
             <i class="bi bi-folder2-open text-5xl"></i>
           </div>
           <h3 class="text-lg font-bold text-gray-700 mb-1">This directory is empty</h3>
-          <p class="text-sm text-gray-400 max-w-sm">Drag and drop files here to upload or click the "New" button to start.</p>
+          <p class="text-sm text-gray-400 max-w-sm"><%= tab === 'everyone' ? 'This person has no files in this directory.' : 'Drag and drop files here to upload or click the "New" button to start.' %></p>
         </div>
       <% } %>
 

@@ -70,6 +70,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const layoutGridBtn = document.getElementById('layout-grid-btn');
   const DRIVE_LAYOUT_KEY = 'harbor-drive-layout';
 
+  // Keep selection intact on toolbar clicks, including empty-selection notices.
+  document.querySelector('.drive-action-bar')?.addEventListener('click', event => event.stopPropagation());
+  document.querySelector('.drive-action-bar')?.addEventListener('click', event => {
+    if (!event.target.closest('button')) return;
+    if (!window.selectedItems?.().length) {
+      event.stopImmediatePropagation();
+      window.showDriveToast?.('Select at least one file or folder first.', 'warning');
+    } else if (currentTab === 'everyone' && !event.target.closest('#detail-download-btn')) {
+      event.stopImmediatePropagation();
+      window.showDriveToast?.('Files in this tab are read-only.', 'warning');
+    }
+  }, true);
+
   function applyDriveLayout(layout) {
     if (!itemsGridContainer) return;
 
@@ -855,6 +868,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const type = item.dataset.type;
     const id = item.dataset.id;
     if (type === 'folder') {
+      if (window.driveContext?.tab === 'everyone') {
+        window.location.href = `/everyone/${window.driveContext.everyoneOwnerId}/folders/${id}`;
+        return;
+      }
       if (!window.driveContext || window.driveContext.tab === 'my-drive' || window.driveContext.tab === 'shared') {
         window.location.href = `/folders/${id}`;
       }
@@ -881,7 +898,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Handle single clicks on item cards
   items.forEach(item => {
-    item.draggable = !isTrashTab;
+    item.draggable = !isTrashTab && currentTab !== 'everyone';
     item.querySelectorAll('img').forEach(image => {
       image.draggable = false;
     });

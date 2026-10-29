@@ -1,8 +1,11 @@
-  <% const isDriveShell = locals.tab === 'my-drive' || locals.tab === 'starred' || locals.tab === 'recent' || locals.tab === 'shared' || locals.tab === 'trash' || locals.tab === 'storage' || locals.tab === 'admin' || locals.tab === 'profile' || locals.tab === 'devices' || locals.sessions; %>
+  <% const isDriveShell = locals.tab === 'everyone' || locals.tab === 'my-drive' || locals.tab === 'starred' || locals.tab === 'recent' || locals.tab === 'shared' || locals.tab === 'trash' || locals.tab === 'storage' || locals.tab === 'admin' || locals.tab === 'profile' || locals.tab === 'devices' || locals.sessions; %>
   <% if (isDriveShell) { %>
     <%- include('upload-progress') %>
   <% } %>
   <script src="/js/pwa.js?v=<%= encodeURIComponent(locals.assetVersion || '') %>"></script>
+  <% if (locals.userId) { %>
+    <script src="/js/avatar-gaze.js?v=<%= encodeURIComponent(locals.assetVersion || '') %>" defer></script>
+  <% } %>
   <% if (isDriveShell) { %>
     <script src="/js/drive.js?v=<%= encodeURIComponent(locals.assetVersion || '') %>"></script>
     <script src="/js/list-sort.js?v=<%= encodeURIComponent(locals.assetVersion || '') %>"></script>
